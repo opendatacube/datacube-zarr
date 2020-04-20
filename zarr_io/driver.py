@@ -3,6 +3,7 @@ Zarr Storage driver for ODC
 Supports storage on S3 and Disk
 Should be able to handle hyperspectral data when ready.
 """
+import os
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
@@ -141,7 +142,12 @@ class ZarrWriterDriver(object):
 
     @property
     def aliases(self) -> List:
-        return ['zarr']
+        if self.zio.protocol == 's3':
+            return ['zarr s3']
+        elif self.zio.protocol == 'file':
+            return ['zarr file']
+        else:
+            return []
 
     @property
     def format(self) -> str:
@@ -158,13 +164,19 @@ class ZarrWriterDriver(object):
                                  variable_params: Optional[dict] = None,
                                  storage_config: Optional[dict] = None,
                                  **kwargs: str) -> Dict:
+        if storage_config:
+            root = storage_config['root']
+        else:
+            raise ValueError('storage/root not defined in ingest yaml')
+        filename = os.path.splitext(os.path.basename(filename))[0]
 
         # Should be a directory but actually get passed a file, which becomes a directory.
-        metadata = self.zio.save_dataset_to_zarr(dataset=dataset,
+        metadata = self.zio.save_dataset_to_zarr(root=root,
+                                                 dataset=dataset,
                                                  filename=filename,
                                                  global_attributes=global_attributes,
                                                  variable_params=variable_params,
-                                                 **kwargs)
+                                                 storage_config=storage_config)
 
         # extra metadata to be stored in database
         return metadata

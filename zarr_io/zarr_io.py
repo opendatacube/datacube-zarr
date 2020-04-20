@@ -241,7 +241,8 @@ class ZarrIO(ZarrBase):
                              dataset: xr.Dataset,
                              filename: str,
                              global_attributes: Optional[dict] = None,
-                             variable_params: Optional[dict] = None) -> Dict[str, Any]:
+                             variable_params: Optional[dict] = None,
+                             storage_config: Optional[dict] = None) -> Dict[str, Any]:
         """
         ODC driver calls this
         Saves a Data Cube style xarray Dataset to a Storage Unit
@@ -255,13 +256,9 @@ class ZarrIO(ZarrBase):
         :param variable_params: dict of variable_name: {param_name: param_value, [...]}
                                 Allows setting storage and compression options per variable.
         """
-        # find root from filename, since root may be embedded in the filename full path
-        # ...
         chunks = None
-        if variable_params:
-            value = list(variable_params.values())[0]
-            if 'chunksizes' in value:
-                chunks = value['chunksizes']
+        if storage_config:
+            chunks = storage_config['chunking']
 
         metadata: Dict[str, Any] = {}
         self.save_dataset(root=root,
