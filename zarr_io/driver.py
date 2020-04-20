@@ -11,7 +11,7 @@ import xarray as xr
 from affine import Affine
 
 import zarr
-from datacube.drivers.datasource import BandInfo
+from datacube.storage import BandInfo
 from datacube.utils import geometry
 
 from .zarr_io import ZarrIO
@@ -100,7 +100,7 @@ class ZarrDataSource(object):
             raise ValueError('Expected file:// or zarr:// url')
 
     @contextmanager
-    def open(self) -> Generator[ZarrDataSource.BandDataSource, None, None]:
+    def open(self) -> Generator[BandDataSource, None, None]:
         zarr_object = self.zio.open_dataset(root=self.root,
                                             group_name=self.group_name, relative=True)
         yield ZarrDataSource.BandDataSource(dataset=zarr_object,
