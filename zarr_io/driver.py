@@ -170,6 +170,21 @@ class ZarrWriterDriver(object):
             raise ValueError('storage/root not defined in ingest yaml')
         filename = os.path.splitext(os.path.basename(filename))[0]
 
+        # Flattening atributes: Zarr doesn't allow dicts
+        for var_name in dataset.data_vars:
+            data_var = dataset.data_vars[var_name]
+            if 'spectral_definition' in data_var.attrs:
+                spectral_definition = data_var.attrs.pop('spectral_definition', None)
+                data_var.attrs['dc_spectral_definition_response'] = spectral_definition['response']
+                data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition['wavelength']
+
+        # Renaming units: units is a reserved name in Xarray coordinates
+        for var_name in dataset.coords:
+            coord_var = dataset.coords[var_name]
+            if 'units' in coord_var.attrs:
+                units = coord_var.attrs.pop('units', None)
+                coord_var.attrs['dc_units'] = units
+
         # Should be a directory but actually get passed a file, which becomes a directory.
         metadata = self.zio.save_dataset_to_zarr(root=root,
                                                  dataset=dataset,
