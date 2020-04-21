@@ -73,7 +73,7 @@ datacube dataset add /home/ubuntu/odc/test/ls5/*
 5. Ingest scenes to Zarr format
 ```
 datacube -v ingest -c ls5_nbar_albers_zarr.yaml
-
+```
 You can specify `--executor multiproc <num_processes>` to enable multi-processing.
 ```
 datacube -v ingest -c ls5_nbar_albers.yaml --executor multiproc <num_processes>
