@@ -8,7 +8,8 @@ For ODC documentation and repository, please see [ODC documentation](http://data
 
 ## Drivers provided
 
-- Zarr 2D storage driver
+- Zarr 2D s3 storage driver
+- Zarr 2D file storage driver
 
 ## Requirements
 
