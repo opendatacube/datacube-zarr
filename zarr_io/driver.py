@@ -27,7 +27,6 @@ RasterWindow = Tuple[Tuple[int, int]]
 def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
     """
     Splits uri into protocol, root, and group name
-    Not working yet.
     """
     loc = uri.find('://')
     if loc < 0:
@@ -35,9 +34,9 @@ def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
     protocol = uri[:loc]
     path_str = uri[loc+3:]
     loc = path_str.rfind('/')
-    root = path_str[loc+1:]
-    group = path_str[:loc]
-    return protocol, root, group
+    group = path_str[loc+1:]
+    root = path_str[:loc]
+    return protocol, root, os.path.splitext(os.path.basename(group))[0]
 
 
 class ZarrDataSource(object):
@@ -47,7 +46,7 @@ class ZarrDataSource(object):
                      var_name: str):
             self.ds = dataset
             self._var_name = var_name
-            self.da: Union[xr.DataArray, xr.Dataset] = dataset['var_name']
+            self.da: Union[xr.DataArray, xr.Dataset] = dataset[var_name]
             self.nodata = self.da.nodata
 
         @property
@@ -64,35 +63,26 @@ class ZarrDataSource(object):
 
         @property
         def shape(self) -> RasterShape:
-            return self.da.shape
+            return self.da.shape[1:]
 
         def read(self,
                  window: Optional[RasterWindow] = None,
                  out_shape: Optional[RasterShape] = None) -> Optional[np.ndarray]:
-            # window = ((1598, 6127), (1780, 5564))
-            # out_shape = (4529, 3784)
-
             if window is None:
                 data: np.ndarray = self.da.values
             else:
                 rows, cols = [slice(*w) for w in window]
                 # Value of type "Union[Any, Callable[[], ValuesView[Any]]]" is not indexable
-                data = self.da.values[rows, cols]  # type: ignore
+                data = self.da.values[0, rows, cols]  # type: ignore
 
-            if out_shape is None or out_shape == data.shape:
-                return data
-
-            raise NotImplementedError('Native reading not supported for this data source')
+            return data
 
     def __init__(self,
                  band: BandInfo,
                  protocol: Optional[str] = 's3'):
         self._band_info = band
-        # band.uri = file:///ls5/scene1/LS5_TM_NBAR_P54_GANBAR01-002_090_084_19900302_B70.tif
-        # band.format = GeoTiff
-        # band.layer = None
+        # Todo: Handle ODC netcdf specifics such as stacked netcdf support etc.
 
-        # self.protocol = protocol
         # convert band.uri -> protocol, root and group
         protocol, self.root, self.group_name = uri_split(band.uri)
         self.zio = ZarrIO(protocol=protocol)
@@ -102,8 +92,11 @@ class ZarrDataSource(object):
 
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
+        """
+        Lazy open a Zarr endpoint
+        """
         zarr_object = self.zio.open_dataset(root=self.root,
-                                            group_name=self.group_name, relative=True)
+                                            group_name=self.group_name, relative=False)
         yield ZarrDataSource.BandDataSource(dataset=zarr_object,
                                             var_name=self._band_info.name)
 
@@ -154,8 +147,8 @@ class ZarrWriterDriver(object):
         return FORMAT
 
     @property
-    def uri_scheme(self) -> List:
-        return [self.zio.protocol]
+    def uri_scheme(self) -> str:
+        return self.zio.protocol
 
     def write_dataset_to_storage(self,
                                  dataset: xr.Dataset,

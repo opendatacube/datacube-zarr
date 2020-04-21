@@ -49,28 +49,34 @@ class ZarrIO(ZarrBase):
             data = xr.DataArray(np.random.randn(1300, 1300))
 
             zio = ZarrIO(protocol='s3')
+            # Clean storage area
             zio.clean_store(root=root)
+            # Persist to s3
             zio.save_dataset(root=root,
                              group_name='dataset1',
                              relative=True,
                              dataset=data.to_dataset(name='array1'),
                              chunks={'dim_0': 1100, 'dim_1': 1100})
-        Loading a xarray.Dataset from disk:
-            ds = zio.load_dataset(root=root + '/dataset1')
 
         Saving a xarray.Dataset on disk:
             root = '/home/ubuntu/odc/test/data'
             data = xr.DataArray(np.random.randn(1300, 1300))
 
             zio = ZarrIO(protocol='file')
+            # Clean storage area
             zio.clean_store(root=root)
+            # Persist to file
             zio.save_dataset(root=root,
                              group_name='dataset1',
                              relative=True,
                              dataset=data.to_dataset(name='array1'),
                              chunks={'dim_0': 1100, 'dim_1': 1100})
-        Loading a xarray.Dataset from S3:
-            ds = zio.load_dataset(root=root + '/dataset1')
+
+        Loading a xarray.Dataset:
+            # Open descriptor
+            ds1 = zio.open_dataset(root=root, group_name='dataset1', relative=True)
+            # Load data into memory
+            ds2 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
     """
 
     def __init__(self,
