@@ -10,9 +10,9 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
+import zarr
 from affine import Affine
 
-import zarr
 from datacube.storage import BandInfo
 from datacube.utils import geometry
 

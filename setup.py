@@ -1,5 +1,11 @@
 from setuptools import find_packages, setup
 
+tests_require = [
+    'isort',
+    'mypy',
+    'pytest',
+]
+
 setup(
     name='datacube_zarr',
     version="1.0",
@@ -14,8 +20,10 @@ setup(
         'botocore',
         's3fs',
         'numcodecs',
-        'mypy'
     ],
+
+    extras_require={'test': tests_require},
+    tests_require=tests_require,
 
     entry_points={
         'datacube.plugins.io.read': [
