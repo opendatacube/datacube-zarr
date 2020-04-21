@@ -1,0 +1,61 @@
+# Saving Data
+
+import sys
+import logging
+import xarray as xr
+import numpy as np
+from zarr_io.zarr_io import ZarrIO
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+for logger_name in ('s3fs', 'fsspec', 'boto', 'boto3', 'botocore', 's3transfer', 'urllib3', 'rasterio'):
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+root = '/home/ubuntu/odc/test/data'
+data = xr.DataArray(np.random.randn(1300, 1300))
+
+zio = ZarrIO(protocol='file')
+# Clean storage area
+zio.clean_store(root=root)
+# Persist to S3
+zio.save_dataset(root=root,
+                 group_name='dataset1',
+                 relative=True,
+                 dataset=data.to_dataset(name='array1'),
+                 chunks={'dim_0': 1100, 'dim_1': 1100})
+
+# Loading Data
+
+import sys
+import logging
+import xarray as xr
+import numpy as np
+from zarr_io.zarr_io import ZarrIO
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+for logger_name in ('s3fs', 'fsspec', 'boto', 'boto3', 'botocore', 's3transfer', 'urllib3', 'rasterio'):
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+root = '/home/ubuntu/odc/test/data'
+
+zio = ZarrIO(protocol='file')
+# Open descriptor
+ds1 = zio.open_dataset(root=root, group_name='dataset1', relative=True)
+# Load data into memory
+ds2 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
+
+
+# Printing out saved data tree
+
+import sys
+import logging
+import xarray as xr
+import numpy as np
+from zarr_io.zarr_io import ZarrIO
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+for logger_name in ('s3fs', 'fsspec', 'boto', 'boto3', 'botocore', 's3transfer', 'urllib3', 'rasterio'):
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+root = '/home/ubuntu/odc/test/data'
+zio = ZarrIO(protocol='file')
+zio.print_tree(root)

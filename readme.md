@@ -50,3 +50,31 @@ Add ``--with-docker`` command line option as a first argument to ``./check-code.
 ```
 ./check-code.sh --with-docker integration_tests
 ```
+
+## Indexing and Ingesting (before tests are done)
+1. Initialise ODC DB
+```
+datacube -v system init
+```
+2. Adding product definition
+See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
+```
+datacube product add docs/config_samples/dataset_types/ls5_scenes.yaml
+```
+3. Generate `agdc_metadata` file
+See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
+```
+python galsprepare.py <path to ls5 scenes>/LS5_TM_NBAR*
+```
+4. Index scenes
+```
+datacube dataset add /home/ubuntu/odc/test/ls5/*
+```
+5. Ingest scenes to Zarr format
+```
+datacube -v ingest -c ls5_nbar_albers_zarr.yaml
+
+You can specify `--executor multiproc <num_processes>` to enable multi-processing.
+```
+datacube -v ingest -c ls5_nbar_albers.yaml --executor multiproc <num_processes>
+```
