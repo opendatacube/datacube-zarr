@@ -5,6 +5,7 @@ Should be able to handle hyperspectral data when ready.
 """
 import os
 from contextlib import contextmanager
+from pathlib import PosixPath
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import numpy as np
@@ -152,16 +153,16 @@ class ZarrWriterDriver(object):
 
     def write_dataset_to_storage(self,
                                  dataset: xr.Dataset,
-                                 filename: str,
+                                 filename: Union[PosixPath, str],
                                  global_attributes: Optional[dict] = None,
                                  variable_params: Optional[dict] = None,
                                  storage_config: Optional[dict] = None,
                                  **kwargs: str) -> Dict:
-        if storage_config:
-            root = storage_config['root']
-        else:
-            raise ValueError('storage/root not defined in ingest yaml')
-        filename = os.path.splitext(os.path.basename(filename))[0]
+        filename = str(filename)
+        loc = filename.rfind('/')
+        group = filename[loc+1:]
+        root = filename[:loc]
+        filename = os.path.splitext(group)[0]
 
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:

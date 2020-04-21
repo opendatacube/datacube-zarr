@@ -104,7 +104,6 @@ global_attributes:
 
 storage:
   driver: zarr file
-  root: '/home/ubuntu/odc/test/storage/LS5_TM_NBAR'
 
   crs: EPSG:3577
   tile_size:
