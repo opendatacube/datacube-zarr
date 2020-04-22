@@ -3,11 +3,10 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
-import numpy as np
-import xarray as xr
-
 import fsspec
+import numpy as np
 import s3fs
+import xarray as xr
 import zarr
 from numcodecs import Zstd
 
@@ -126,7 +125,7 @@ class ZarrIO(ZarrBase):
         Creates a new root store
         """
         if group_name not in group:
-                group = group.create_group(group_name)
+            group = group.create_group(group_name)
         if isinstance(store, fsspec.mapping.FSMap):
             group_url = ''.join((group.store.root, group.name))
             self._logger.debug(f'S3 group url: {group_url}')
