@@ -91,6 +91,30 @@ class ZarrDataSource(object):
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
 
+    def get_bandnumber(self, src=None) -> Optional[int]:
+
+        # If `band` property is set to an integer it overrides any other logic
+        bi = self._band_info
+        if bi.band is not None:
+            return bi.band
+
+        if not self._hdf:
+            return 1
+
+        # Netcdf/hdf only below
+        if self._part is not None:
+            return self._part + 1  # Convert to rasterio 1-based indexing
+
+        if src is None:
+            # File wasnt' open, could be unstacked file in a new format, or
+            # stacked/unstacked in old. We assume caller knows what to do
+            # (maybe based on some side-channel information), so just report
+            # undefined.
+            return None
+
+        if src.count == 1:  # Single-slice netcdf file
+            return 1
+
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
         """

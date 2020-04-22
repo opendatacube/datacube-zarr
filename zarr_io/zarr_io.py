@@ -10,6 +10,8 @@ import xarray as xr
 import zarr
 from numcodecs import Zstd
 
+from datacube.utils.aws import auto_find_region
+
 
 class ZarrBase():
     def __init__(self,
@@ -83,10 +85,6 @@ class ZarrIO(ZarrBase):
 
         super().__init__(protocol)
 
-    def auto_region(self) -> str:
-        """ Auto detects the aws region """
-        return 'ap-southeast-2'
-
     def print_tree(self,
                    root: str) -> zarr.util.TreeViewer:
         """
@@ -104,11 +102,9 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         """
-        region = self.auto_region()
-
         if self.protocol == 's3':
             store = s3fs.S3Map(root=root,
-                               s3=s3fs.S3FileSystem(client_kwargs=dict(region_name=region)),
+                               s3=s3fs.S3FileSystem(client_kwargs=dict(region_name=auto_find_region())),
                                check=False)
         else:
             store = zarr.DirectoryStore(root)
