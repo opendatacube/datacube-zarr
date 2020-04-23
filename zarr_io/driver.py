@@ -151,7 +151,7 @@ class ZarrDataSource(object):
 
 
 class ZarrReaderDriver(object):
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = 'ZarrReader'
         self.protocols = PROTOCOL + ['zarr']
         self.formats = [FORMAT]
@@ -173,7 +173,7 @@ def reader_driver_init() -> ZarrReaderDriver:
 
 class ZarrWriterDriver(object):
     def __init__(self,
-                 protocol: Optional[str] = 's3'):
+                 protocol: str = 's3'):
         self.zio = ZarrIO(protocol=protocol)
 
     @property
@@ -244,7 +244,7 @@ class ZarrWriterDriver(object):
 
 
 def s3_writer_driver_init() -> ZarrWriterDriver:
-    return ZarrWriterDriver()
+    return ZarrWriterDriver(protocol='s3')
 
 
 def file_writer_driver_init() -> ZarrWriterDriver:

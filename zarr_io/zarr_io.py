@@ -15,15 +15,12 @@ from datacube.utils.aws import auto_find_region
 
 class ZarrBase():
     def __init__(self,
-                 protocol: Optional[str] = 's3'):
+                 protocol: str = 's3'):
         """
         :param str protocol: Supported protocols are ['s3', 'file']
         """
 
         self._logger = logging.getLogger(self.__class__.__name__)
-
-        if protocol not in ['s3', 'file']:
-            raise ValueError(f'unknown protocol: {protocol}')
 
         if protocol not in ['s3', 'file']:
             raise ValueError(f'unknown protocol: {protocol}')
@@ -81,7 +78,7 @@ class ZarrIO(ZarrBase):
     """
 
     def __init__(self,
-                 protocol: Optional[str] = 's3'):
+                 protocol: str = 's3'):
 
         super().__init__(protocol)
 
