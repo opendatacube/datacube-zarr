@@ -10,18 +10,17 @@ import xarray as xr
 import zarr
 from numcodecs import Zstd
 
+from datacube.utils.aws import auto_find_region
+
 
 class ZarrBase():
     def __init__(self,
-                 protocol: Optional[str] = 's3'):
+                 protocol: str = 's3'):
         """
         :param str protocol: Supported protocols are ['s3', 'file']
         """
 
         self._logger = logging.getLogger(self.__class__.__name__)
-
-        if protocol not in ['s3', 'file']:
-            raise ValueError(f'unknown protocol: {protocol}')
 
         if protocol not in ['s3', 'file']:
             raise ValueError(f'unknown protocol: {protocol}')
@@ -79,13 +78,9 @@ class ZarrIO(ZarrBase):
     """
 
     def __init__(self,
-                 protocol: Optional[str] = 's3'):
+                 protocol: str = 's3'):
 
         super().__init__(protocol)
-
-    def auto_region(self) -> str:
-        """ Auto detects the aws region """
-        return 'ap-southeast-2'
 
     def print_tree(self,
                    root: str) -> zarr.util.TreeViewer:
@@ -104,11 +99,9 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         """
-        region = self.auto_region()
-
         if self.protocol == 's3':
             store = s3fs.S3Map(root=root,
-                               s3=s3fs.S3FileSystem(client_kwargs=dict(region_name=region)),
+                               s3=s3fs.S3FileSystem(client_kwargs=dict(region_name=auto_find_region())),
                                check=False)
         else:
             store = zarr.DirectoryStore(root)
@@ -218,9 +211,11 @@ class ZarrIO(ZarrBase):
                      group_name: Optional[str],
                      relative: bool = False) -> xr.Dataset:
         """
-        Loads a xarray.Dataset
+        Opens a xarray.Dataset
 
         :param str root: The storage root path.
+        :param str group_name: The group_name to store under root
+        :param bool relative: Whether to use relative or absolute addressing.
         """
         if not relative and group_name:
             root = '/'.join((root, group_name))
@@ -236,6 +231,8 @@ class ZarrIO(ZarrBase):
         Loads a xarray.Dataset
 
         :param str root: The storage root path.
+        :param str group_name: The group_name to store under root
+        :param bool relative: Whether to use relative or absolute addressing.
         """
         ds: xr.Dataset = self.open_dataset(root, group_name=group_name, relative=relative)
         ds.load()
