@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 tests_require = [
-    'isort',
+    'isort>=4.3.21',
     'mypy',
     'pytest',
 ]

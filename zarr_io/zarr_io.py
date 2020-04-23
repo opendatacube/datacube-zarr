@@ -214,9 +214,11 @@ class ZarrIO(ZarrBase):
                      group_name: Optional[str],
                      relative: bool = False) -> xr.Dataset:
         """
-        Loads a xarray.Dataset
+        Opens a xarray.Dataset
 
         :param str root: The storage root path.
+        :param str group_name: The group_name to store under root
+        :param bool relative: Whether to use relative or absolute addressing.
         """
         if not relative and group_name:
             root = '/'.join((root, group_name))
@@ -232,6 +234,8 @@ class ZarrIO(ZarrBase):
         Loads a xarray.Dataset
 
         :param str root: The storage root path.
+        :param str group_name: The group_name to store under root
+        :param bool relative: Whether to use relative or absolute addressing.
         """
         ds: xr.Dataset = self.open_dataset(root, group_name=group_name, relative=relative)
         ds.load()

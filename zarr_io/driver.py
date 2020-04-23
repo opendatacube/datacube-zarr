@@ -44,10 +44,21 @@ class ZarrDataSource(object):
     class BandDataSource(object):
         def __init__(self,
                      dataset: xr.Dataset,
-                     var_name: str):
+                     var_name: str,
+                     time_idx: Optional[int]):
+            """
+            Initialises the BandDataSource class.
+
+            The BandDataSource class to read array slices out of the xr.Dataset.
+
+            :param xr.Dataset dataset: The xr.Dataset
+            :param str var_name: The variable name of the xr.DataArray
+            :param int time_idx: The time index override if known
+            """
             self.ds = dataset
             self._var_name = var_name
             self.da: Union[xr.DataArray, xr.Dataset] = dataset[var_name]
+            self.time_idx = self.set_time_idx(time_idx)
             self.nodata = self.da.nodata
 
         @property
@@ -66,24 +77,58 @@ class ZarrDataSource(object):
         def shape(self) -> RasterShape:
             return self.da.shape[1:]
 
+        def set_time_idx(self,
+                         time_idx: Optional[int]) -> int:
+            """
+            Updates time index from BandInfo.band
+
+            The resultant time index must be > 0.
+
+            :param int time_index: The time index from BandInfo.band
+            :return: The updated time index
+            """
+            self.time_idx = time_idx or 1
+            # adjust for 0 based indexing
+            self.time_idx -= 1
+
+            time_count = self.da[self.da.dims[0]].size
+            if time_count == 0:
+                raise ValueError('Found 0 time slices in storage')
+
+            if self.time_idx < time_count:
+                return self.time_idx
+            else:
+                raise ValueError(f'time_idx exceeded {time_count}')
+
         def read(self,
                  window: Optional[RasterWindow] = None,
                  out_shape: Optional[RasterShape] = None) -> Optional[np.ndarray]:
+            """
+            Reads a slice into the xr.DataArray.
+
+            :param RasterWindow window: The slice to read
+            :param RasterShape out_shape: The desired output shape
+            :return: Requested data in a :class:`numpy.ndarray`
+            """
             if window is None:
                 data: np.ndarray = self.da.values
             else:
                 rows, cols = [slice(*w) for w in window]
                 # Value of type "Union[Any, Callable[[], ValuesView[Any]]]" is not indexable
-                data = self.da.values[0, rows, cols]  # type: ignore
+                data = self.da.values[self.time_idx, rows, cols]  # type: ignore
 
             return data
 
     def __init__(self,
-                 band: BandInfo,
-                 protocol: Optional[str] = 's3'):
-        self._band_info = band
-        # Todo: Handle ODC netcdf specifics such as stacked netcdf support etc.
+                 band: BandInfo):
+        """
+        Initialises the ZarrDataSource class.
 
+        :param BandInfo band: BandInfo containing the dataset metadata.
+        """
+        self._band_info = band
+        if band.band == 0:
+            raise ValueError('BandInfo.band must be > 0')
         # convert band.uri -> protocol, root and group
         protocol, self.root, self.group_name = uri_split(band.uri)
         self.zio = ZarrIO(protocol=protocol)
@@ -91,39 +136,18 @@ class ZarrDataSource(object):
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
 
-    def get_bandnumber(self, src=None) -> Optional[int]:
-
-        # If `band` property is set to an integer it overrides any other logic
-        bi = self._band_info
-        if bi.band is not None:
-            return bi.band
-
-        if not self._hdf:
-            return 1
-
-        # Netcdf/hdf only below
-        if self._part is not None:
-            return self._part + 1  # Convert to rasterio 1-based indexing
-
-        if src is None:
-            # File wasnt' open, could be unstacked file in a new format, or
-            # stacked/unstacked in old. We assume caller knows what to do
-            # (maybe based on some side-channel information), so just report
-            # undefined.
-            return None
-
-        if src.count == 1:  # Single-slice netcdf file
-            return 1
-
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
         """
-        Lazy open a Zarr endpoint
+        Lazy open a Zarr endpoint.
+        Only loads metadata.
         """
         zarr_object = self.zio.open_dataset(root=self.root,
                                             group_name=self.group_name, relative=False)
+
         yield ZarrDataSource.BandDataSource(dataset=zarr_object,
-                                            var_name=self._band_info.name)
+                                            var_name=self._band_info.name,
+                                            time_idx=self._band_info.band)
 
 
 class ZarrReaderDriver(object):
@@ -142,7 +166,7 @@ class ZarrReaderDriver(object):
 
     def new_datasource(self,
                        band: BandInfo) -> ZarrDataSource:
-        return ZarrDataSource(band, self.protocol)
+        return ZarrDataSource(band)
 
 
 def s3_reader_driver_init() -> ZarrReaderDriver:
@@ -182,6 +206,16 @@ class ZarrWriterDriver(object):
                                  variable_params: Optional[dict] = None,
                                  storage_config: Optional[dict] = None,
                                  **kwargs: str) -> Dict:
+        """
+        Persists a xr.DataSet to storage.
+
+        :param xr.Dataset dataset: The xarray.Dataset to be saved
+        :param PosixPath filename: The filename
+        :param Dict global_attributes: Global attributes from the product definition.
+        :param Dict variable_params: Variable parameters from the product definition
+        :param Dict storage_config: Storage config from the product definition
+        :return: a dict containing additional metadata to be saved in the DB
+        """
         filename = str(filename)
         loc = filename.rfind('/')
         group = filename[loc+1:]
