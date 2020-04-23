@@ -19,8 +19,8 @@ pylint -j 2 --reports no zarr_io
 # static type checker
 mypy zarr_io
 
-# sorts imports
-isort
+# Check imports are sorted
+isort --check-only --recursive .
 
 # Run tests, taking coverage.
 # Users can specify extra folders as arguments.
