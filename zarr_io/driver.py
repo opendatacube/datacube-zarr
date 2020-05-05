@@ -131,10 +131,10 @@ class ZarrDataSource(object):
             raise ValueError('BandInfo.band must be > 0')
         # convert band.uri -> protocol, root and group
         protocol, self.root, self.group_name = uri_split(band.uri)
-        self.zio = ZarrIO(protocol=protocol)
-
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
+
+        self.zio = ZarrIO(protocol=protocol)
 
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
