@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from mock import MagicMock
 import boto3
 import mock
 import numpy as np
@@ -90,9 +91,9 @@ def dataset(tmpdir):
     return dc_dataset
 
 
-def test_datasource(dataset, tmpdir):
-    '''Test the ZarrDataSource.'''
-    # Write xr.dataset to file
+@pytest.fixture
+def odc_dataset(dataset, tmpdir):
+    '''Write xr.dataset to zarr files.'''
     root = Path(tmpdir) / 'data'
     group_name = list(dataset.keys())[0]
     zio = ZarrIO(protocol='file')
@@ -106,11 +107,72 @@ def test_datasource(dataset, tmpdir):
         'path': str(root / group_name)
     }]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
-    # Create data source and compare read data
-    source = ZarrDataSource(BandInfo(ds1, group_name))
-    with source.open() as rdr:
-        ds2 = rdr.read()
-    assert np.array_equal(ds2, dataset.aa.values)
+    return ds1
+
+
+def test_datasource(dataset, odc_dataset):
+    '''Test ZarrDataSource.
+
+    Data is saved to file and opened by the data source.'''
+    group_name = list(dataset.keys())[0]
+    source = ZarrDataSource(BandInfo(odc_dataset, group_name))
+    with source.open() as band_source:
+        ds = band_source.read()
+        assert np.array_equal(ds, dataset[group_name].values)
+
+
+def test_datasource_empty_band_info(dataset):
+    '''Test ZarrDataSource when the BandInfo has no band.'''
+    band_info = MagicMock()
+    band_info.band = 0
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource(band_info)
+    assert str(excinfo.value) == 'BandInfo.band must be > 0'
+
+
+def test_datasource_wrong_protocol(dataset):
+    '''Test ZarrDataSource with an invalid protocol.'''
+    band_info = MagicMock()
+    band_info.band = 1
+    band_info.uri = 'foo://bar/baz'
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource(band_info)
+    assert str(excinfo.value) == 'Expected file:// or zarr:// url'
+
+
+
+def test_datasource_no_timeslice(dataset):
+    '''Test the ZarrDataSource.BandDataSource.'''
+    group_name = list(dataset.keys())[0]
+
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None)
+    assert band_source.crs == dataset.crs
+    assert band_source.transform == dataset[group_name].affine
+    assert band_source.dtype == dataset[group_name].dtype
+    assert band_source.shape == dataset[group_name].shape[1:]
+
+    ds2 = band_source.read()
+    assert np.array_equal(ds2, dataset[group_name].values)
+
+    ds3 = band_source.read(((30, 50), (30, 50)))
+    assert np.array_equal(ds3, dataset[group_name][0, 30:50, 30:50].values)
+
+
+def test_datasource_bad_time_index(dataset):
+    '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
+    group_name = list(dataset.keys())[0]
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1)
+    assert str(excinfo.value) == 'time_idx exceeded 1'
+
+
+def test_datasource_no_time_slice(dataset):
+    '''Test the ZarrDataSource.BandDataSource without time slice.'''
+    group_name = list(dataset.keys())[0]
+    dataset = dataset.drop_sel(time=dataset.time.values)
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource.BandDataSource(dataset, group_name, None)
+    assert str(excinfo.value) == 'Found 0 time slices in storage'
 
 
 def _check_zarr_files(root, data):
@@ -194,7 +256,7 @@ def test_uri_split():
     assert uri_split('/some/path/group') == ('file', '/some/path/group', None)
 
 
-def test_zarr_reader_driver():
+def test_zarr_reader_driver(dataset, odc_dataset):
     '''Check supported protocols and formats.'''
     protocols = ['file', 's3', 'zarr']
     formats = ['zarr']
@@ -207,6 +269,11 @@ def test_zarr_reader_driver():
         for fmt in formats:
             assert reader.supports(protocol, fmt)
 
+    group_name = list(dataset.keys())[0]
+    source = reader.new_datasource(BandInfo(odc_dataset, group_name))
+    with source.open() as band_source:
+        ds = band_source.read()
+        assert np.array_equal(ds, dataset[group_name].values)
 
 def test_zarr_file_writer_driver():
     '''Check aliases, format and uri_scheme for the `file` writer.'''
