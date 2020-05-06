@@ -25,10 +25,7 @@ from zarr_io.driver import (
     s3_writer_driver_init,
     uri_split,
 )
-from zarr_io.zarr_io import ZarrIO
-
-S3_ROOT = "s3://mock-bucket/mock-dir/mock-subdir"
-'''Mock s3 root object.'''
+from zarr_io.zarr_io import ZarrBase, ZarrIO
 
 CHUNKS = [1000, 1100]
 '''Zarr chunk size.'''
@@ -39,21 +36,29 @@ SPECTRAL_DEFINITION = {
 }
 '''Random spectral definition with 150 values.'''
 
+count = 0
+'''Give a new ID to each moto bucket as they don't seem to clean properly between
+runs.'''
+
 
 @mock.patch.dict(environ, {
     'AWS_ACCESS_KEY_ID': 'mock-key-id',
     'AWS_SECRET_ACCESS_KEY': 'mock-secret'
 })
-@pytest.fixture(scope='module')
+@pytest.fixture
 def s3():
-    '''Mock s3 client.'''
+    '''Mock s3 client and root url.'''
+    global count
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
-        client.create_bucket(Bucket='mock-bucket')
-        yield client
+        bucket_name = f'mock-bucket-{count}'
+        count += 1
+        client.create_bucket(Bucket=bucket_name)
+        root = f's3://{bucket_name}/mock-dir/mock-subdir'
+        yield {'client': client, 'root': root}
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 def data():
     '''Random test data.'''
     return DataArray(np.random.randn(1300, 1300))
@@ -231,7 +236,7 @@ def _save(storage, data, root):
 @pytest.mark.parametrize('storage', ('file', 's3'))
 def test_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test zarr save and load.'''
-    root = S3_ROOT if storage == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if storage == 's3' else Path(tmpdir) / 'data'
     _save(storage, data.copy(), root)
 
     if storage == 'file':
@@ -246,7 +251,7 @@ def test_save(storage, data, tmpdir, s3):  # s3 param not used but required for 
 @pytest.mark.parametrize('storage', ('file', 's3'))
 def test_print_tree(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test zarr print data tree.'''
-    root = S3_ROOT if storage == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if storage == 's3' else Path(tmpdir) / 'data'
     _save(storage, data.copy(), root)
 
     zio = ZarrIO(protocol=storage)
@@ -308,12 +313,26 @@ def test_zarr_other_writer_driver():
     assert writer.aliases == []
 
 
-@pytest.mark.skip(reason='Negative interaction with other tests, presumably through s3')
+def test_invalid_protocol():
+    with pytest.raises(ValueError) as excinfo:
+        ZarrBase(protocol='xxx')
+    assert str(excinfo.value) == 'unknown protocol: xxx'
+
+    with pytest.raises(ValueError) as excinfo:
+        ZarrIO(protocol='xxx')
+    assert str(excinfo.value) == 'unknown protocol: xxx'
+
+    with pytest.raises(ValueError) as excinfo:
+        ZarrWriterDriver(protocol='xxx')
+    assert str(excinfo.value) == 'unknown protocol: xxx'
+
+
+# @pytest.mark.skip(reason='Negative interaction with other tests, presumably through s3')
 @pytest.mark.parametrize('storage', ('file', 's3'))
 def test_zarr_file_writer_driver_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test the `write_dataset_to_storage` method.'''
     # Root contains the group name that will be created by write_dataset_to_storage
-    root = f'{S3_ROOT}/dataset1' if storage == 's3' \
+    root = f'{s3["root"]}/dataset1' if storage == 's3' \
         else Path(tmpdir) / 'data' / 'dataset1'
     chunks = {'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]}
     writer = ZarrWriterDriver(protocol=storage)
