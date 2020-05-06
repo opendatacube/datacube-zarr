@@ -2,13 +2,14 @@
 from json import load
 from os import environ
 from pathlib import Path
+from random import random, sample
 from types import SimpleNamespace
 
 import pytest
-from mock import MagicMock
 import boto3
 import mock
 import numpy as np
+from mock import MagicMock
 from moto import mock_s3
 from xarray import DataArray
 
@@ -29,6 +30,15 @@ from zarr_io.zarr_io import ZarrIO
 S3_ROOT = "s3://mock-bucket/mock-dir/mock-subdir"
 '''Mock s3 root object.'''
 
+CHUNKS = [1000, 1100]
+'''Zarr chunk size.'''
+
+SPECTRAL_DEFINITION = {
+    'wavelength': sorted(sample(range(380, 750), 150)),
+    'response': [random() for i in range(150)]
+}
+'''Random spectral definition with 150 values.'''
+
 
 @mock.patch.dict(environ, {
     'AWS_ACCESS_KEY_ID': 'mock-key-id',
@@ -43,7 +53,7 @@ def s3():
         yield client
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def data():
     '''Random test data.'''
     return DataArray(np.random.randn(1300, 1300))
@@ -140,7 +150,6 @@ def test_datasource_wrong_protocol(dataset):
     assert str(excinfo.value) == 'Expected file:// or zarr:// url'
 
 
-
 def test_datasource_no_timeslice(dataset):
     '''Test the ZarrDataSource.BandDataSource.'''
     group_name = list(dataset.keys())[0]
@@ -185,10 +194,8 @@ def _check_zarr_files(root, data):
     assert metadata_path.exists(), f'Missing .zmetadata in {root}'
     with metadata_path.open() as fh:
         metadata = load(fh)
-    assert metadata['metadata']['dataset1/array1/.zarray']['chunks'] == [
-        1000,
-        1100
-    ], 'Chunks not as set'
+    assert metadata['metadata']['dataset1/array1/.zarray']['chunks'] == \
+        CHUNKS, 'Chunks not as set'
 
     dataset_dir = root / 'dataset1'
     assert dataset_dir.exists(), f'Missing dataset1/ in {root}'
@@ -200,7 +207,7 @@ def _check_zarr_files(root, data):
     assert metadata_path.exists(), f'Missing .zarray in {array_dir}'
     with metadata_path.open() as fh:
         metadata = load(fh)
-    assert metadata['chunks'] == [1000, 1100], 'Chunks not as set'
+    assert metadata['chunks'] == CHUNKS, 'Chunks not as set'
     assert metadata['shape'] == list(data.shape), 'Data shape not as set'
 
     # Check chunk files
@@ -218,14 +225,14 @@ def _save(storage, data, root):
                      group_name='dataset1',
                      relative=True,
                      dataset=data.to_dataset(name='array1'),
-                     chunks={'dim_0': 1000, 'dim_1': 1100})
+                     chunks={'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]})
 
 
 @pytest.mark.parametrize('storage', ('file', 's3'))
 def test_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test zarr save and load.'''
     root = S3_ROOT if storage == 's3' else Path(tmpdir) / 'data'
-    _save(storage, data, root)
+    _save(storage, data.copy(), root)
 
     if storage == 'file':
         _check_zarr_files(root, data)
@@ -240,7 +247,7 @@ def test_save(storage, data, tmpdir, s3):  # s3 param not used but required for 
 def test_print_tree(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test zarr print data tree.'''
     root = S3_ROOT if storage == 's3' else Path(tmpdir) / 'data'
-    _save(storage, data, root)
+    _save(storage, data.copy(), root)
 
     zio = ZarrIO(protocol=storage)
     actual = str(zio.print_tree(root))
@@ -275,6 +282,7 @@ def test_zarr_reader_driver(dataset, odc_dataset):
         ds = band_source.read()
         assert np.array_equal(ds, dataset[group_name].values)
 
+
 def test_zarr_file_writer_driver():
     '''Check aliases, format and uri_scheme for the `file` writer.'''
     writer = file_writer_driver_init()
@@ -291,3 +299,63 @@ def test_zarr_s3_writer_driver():
     assert writer.aliases == ['zarr s3']
     assert writer.format == 'zarr'
     assert writer.uri_scheme == 's3'
+
+
+def test_zarr_other_writer_driver():
+    '''Testing a loophole where the protocol gets updated late.'''
+    writer = file_writer_driver_init()
+    writer.zio.protocol = 'xxx'
+    assert writer.aliases == []
+
+
+@pytest.mark.skip(reason='Negative interaction with other tests, presumably through s3')
+@pytest.mark.parametrize('storage', ('file', 's3'))
+def test_zarr_file_writer_driver_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
+    '''Test the `write_dataset_to_storage` method.'''
+    # Root contains the group name that will be created by write_dataset_to_storage
+    root = f'{S3_ROOT}/dataset1' if storage == 's3' \
+        else Path(tmpdir) / 'data' / 'dataset1'
+    chunks = {'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]}
+    writer = ZarrWriterDriver(protocol=storage)
+    ds = data.to_dataset(name='array1')
+    writer.write_dataset_to_storage(
+        dataset=ds.copy(),
+        filename=root,
+        storage_config={'chunking': chunks}
+    )
+    if storage == 'file':
+        _check_zarr_files(root, data)
+    # Load data and check it hasn't changed
+    zio = ZarrIO(protocol=storage)
+    ds1 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
+    assert ds1.equals(ds)  # Compare values only
+
+
+def test_zarr_file_writer_driver_data_corrections(data, tmpdir, storage='file'):
+    '''Test dataset key corrections applied by `write_dataset_to_storage.'''
+    # Root contains the group name that will be created by write_dataset_to_storage
+    root = Path(tmpdir) / 'data' / 'dataset1'
+    chunks = {'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]}
+    writer = ZarrWriterDriver(protocol=storage)
+    ds = data.to_dataset(name='array1')
+    # Assign target keys: spectral definition and coords attributes
+    ds.array1.attrs['spectral_definition'] = SPECTRAL_DEFINITION
+    coords = {dim: [1] * size for dim, size in ds.dims.items()}
+    ds = ds.assign_coords(coords)
+    for coord_name in ds.coords:
+        ds.coords[coord_name].attrs['units'] = 'Fake unit'
+    writer.write_dataset_to_storage(
+        dataset=ds,
+        filename=root,
+        storage_config={'chunking': chunks}
+    )
+    zio = ZarrIO(protocol=storage)
+    ds1 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
+    # Now, compare ds to ds1. Some keys in ds were changed by write_dataset_to_storage
+    # so they should still match exactly
+    assert ds1.equals(ds)  # Values only
+    for key, value in SPECTRAL_DEFINITION.items():
+        assert ds1.array1.attrs[f'dc_spectral_definition_{key}'] == value  # attrs
+    for coord_name in ds.coords:
+        assert ds1.coords[coord_name].equals(ds.coords[coord_name])  # Values only
+        assert ds1.coords[coord_name].attrs == ds.coords[coord_name].attrs  # attrs
