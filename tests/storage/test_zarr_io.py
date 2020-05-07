@@ -27,8 +27,20 @@ from zarr_io.driver import (
 )
 from zarr_io.zarr_io import ZarrBase, ZarrIO
 
-CHUNKS = [1000, 1100]
-'''Zarr chunk size.'''
+CHUNKS = (
+    {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
+        'input': None,
+        'chunks_per_side': 4,
+        'output': [325, 325]
+    },
+    {  # User specified chunks, input and output should match
+        'input': {'dim_0': 1000, 'dim_1': 1100},
+        'chunks_per_side': 2,
+        'output': [1000, 1100]
+    }
+)
+'''Zarr chunk sizes to be tested and expected output in metadata and number of
+chunks per side.'''
 
 SPECTRAL_DEFINITION = {
     'wavelength': sorted(sample(range(380, 750), 150)),
@@ -189,77 +201,216 @@ def test_datasource_no_time_slice(dataset):
     assert str(excinfo.value) == 'Found 0 time slices in storage'
 
 
-def _check_zarr_files(root, data):
+def _check_zarr_files(data, root, group_name, name, relative, chunks):
     '''Check zarr files in local filesystem.
 
     Only some metadata and chunk file names are checked, not actual binary content.'''
+    if not relative:
+        root = root / group_name
     assert root.exists(), f'Missing {root} after save'
     # Check chunks in root level metadata
     metadata_path = root / '.zmetadata'
     assert metadata_path.exists(), f'Missing .zmetadata in {root}'
     with metadata_path.open() as fh:
         metadata = load(fh)
-    assert metadata['metadata']['dataset1/array1/.zarray']['chunks'] == \
-        CHUNKS, 'Chunks not as set'
+    assert metadata['metadata'][f'{group_name}/{name}/.zarray']['chunks'] == \
+        chunks['output'], 'Chunks not as set'
 
-    dataset_dir = root / 'dataset1'
-    assert dataset_dir.exists(), f'Missing dataset1/ in {root}'
-    array_dir = dataset_dir / 'array1'
-    assert array_dir.exists(), f'Missing array1/ in {dataset_dir}'
+    dataset_dir = root / group_name
+    assert dataset_dir.exists(), f'Missing {group_name}/ in {root}'
+    array_dir = dataset_dir / name
+    assert array_dir.exists(), f'Missing {name}/ in {dataset_dir}'
 
     # Check chunks in array level metadata
     metadata_path = array_dir / '.zarray'
     assert metadata_path.exists(), f'Missing .zarray in {array_dir}'
     with metadata_path.open() as fh:
         metadata = load(fh)
-    assert metadata['chunks'] == CHUNKS, 'Chunks not as set'
+    assert metadata['chunks'] == chunks['output'], 'Chunks not as set'
     assert metadata['shape'] == list(data.shape), 'Data shape not as set'
 
     # Check chunk files
     chunk_files = sorted([path.name for path in array_dir.glob('?.?')])
-    assert chunk_files == ['0.0', '0.1', '1.0', '1.1'], 'Unexpected chunk files'
+    expected_chunk_files = sorted([f'{i}.{j}'
+                                   for i in range(chunks['chunks_per_side'])
+                                   for j in range(chunks['chunks_per_side'])])
+    assert chunk_files == expected_chunk_files, 'Unexpected chunk files'
 
 
-def _save(storage, data, root):
-    '''Save data to storage.'''
-    zio = ZarrIO(protocol=storage)
-    # Clean storage area
-    zio.clean_store(root=root)  # TODO: move to its own test
-    # Persist to file
-    zio.save_dataset(root=root,
-                     group_name='dataset1',
-                     relative=True,
-                     dataset=data.to_dataset(name='array1'),
-                     chunks={'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]})
+def _save_dataarray(data, protocol, root, group_name, name, relative, chunks):
+    '''Save DataArray to storage.'''
+    zio = ZarrIO(protocol=protocol)
+    zio.save_dataarray(root=str(root),
+                       group_name=group_name,
+                       dataarray=data.copy(),
+                       name=name,
+                       chunks=chunks,
+                       relative=relative)
 
 
-@pytest.mark.parametrize('storage', ('file', 's3'))
-def test_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
-    '''Test zarr save and load.'''
-    root = s3['root'] if storage == 's3' else Path(tmpdir) / 'data'
-    _save(storage, data.copy(), root)
-
-    if storage == 'file':
-        _check_zarr_files(root, data)
-
-    # Load data and check it hasn't changed
-    zio = ZarrIO(protocol=storage)
-    ds = zio.load_dataset(root=root, group_name='dataset1', relative=True)
-    assert np.array_equal(data, ds.array1.values)
+def _save_dataset(data, protocol, root, group_name, name, relative, chunks):
+    '''Save Dataset to storage.'''
+    zio = ZarrIO(protocol=protocol)
+    zio.save_dataset(root=str(root),
+                     group_name=group_name,
+                     relative=relative,
+                     dataset=data.copy().to_dataset(name=name),
+                     chunks=chunks)
 
 
-@pytest.mark.parametrize('storage', ('file', 's3'))
-def test_print_tree(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
+def _load_dataset(protocol, root, group_name, relative):
+    '''Save Dataset to storage.'''
+    zio = ZarrIO(protocol=protocol)
+    return zio.load_dataset(root=str(root),
+                            group_name=group_name,
+                            relative=relative)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+@pytest.mark.parametrize('chunks', CHUNKS)
+def test_save_dataarray(protocol, relative, chunks, data, tmpdir, s3):
+    '''Test ZarrIO.save_dataarray save and load for a single DataArray.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    group_name = 'dataset1'
+    name = 'array1'
+    _save_dataarray(data, protocol, root, group_name, name, relative, chunks['input'])
+
+    if protocol == 'file':
+        # Check filesystem structure and some metadata
+        _check_zarr_files(data, root, group_name, name, relative, chunks)
+
+    # Load and check data
+    ds = _load_dataset(protocol, root, group_name, relative)
+    assert np.array_equal(data, ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+@pytest.mark.parametrize('chunks', CHUNKS)
+def test_save_dataset(protocol, relative, chunks, data, tmpdir, s3):
+    '''Test ZarrIO.save_dataset save and load for a single Dataset.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    group_name = 'dataset1'
+    name = 'array1'
+    _save_dataset(data, protocol, root, group_name, name, relative, chunks['input'])
+
+    if protocol == 'file':
+        # Check filesystem structure and some metadata
+        _check_zarr_files(data, root, group_name, name, relative, chunks)
+
+    # Load and check data
+    ds = _load_dataset(protocol, root, group_name, relative)
+    assert np.array_equal(data, ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+@pytest.mark.parametrize('chunks', CHUNKS)
+def test_save_dataarrays(protocol, relative, chunks, data, tmpdir, s3):
+    '''Test ZarrIO.save_dataarray save and load for a single DataArray.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    datasets = {}
+    for set_no in range(1, 3):
+        group_name = f'dataset{set_no}'
+        name = f'array{set_no}'
+        ds = data.copy() * set_no  # Make each dataset a bit different for testing
+        datasets[set_no] = ds
+        _save_dataarray(ds, protocol, root, group_name, name, relative, chunks['input'])
+
+    # Load and check data
+    for set_no, dataset in datasets.items():
+        group_name = f'dataset{set_no}'
+        name = f'array{set_no}'
+        ds = _load_dataset(protocol, root, group_name, relative)
+        assert np.array_equal(dataset, ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+@pytest.mark.parametrize('chunks', CHUNKS)
+def test_save_datasets(protocol, relative, chunks, data, tmpdir, s3):
+    '''Test ZarrIO.save_dataset save and load for a single Dataset.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    datasets = {}
+    for set_no in range(1, 3):
+        group_name = f'dataset{set_no}'
+        name = f'array{set_no}'
+        ds = data.copy() * set_no  # Make each dataset a bit different for testing
+        datasets[set_no] = ds
+        _save_dataset(ds, protocol, root, group_name, name, relative, chunks['input'])
+
+    # Load and check data
+    for set_no, dataset in datasets.items():
+        group_name = f'dataset{set_no}'
+        name = f'array{set_no}'
+        ds = _load_dataset(protocol, root, group_name, relative)
+        assert np.array_equal(dataset, ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+def test_print_tree(protocol, relative, data, tmpdir, s3):  # s3 param not used but required for mock s3
     '''Test zarr print data tree.'''
-    root = s3['root'] if storage == 's3' else Path(tmpdir) / 'data'
-    _save(storage, data.copy(), root)
-
-    zio = ZarrIO(protocol=storage)
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    zio = ZarrIO(protocol=protocol)
+    zio.save_dataarray(root=root, group_name='dataset1', dataarray=data,
+                       name='array1', chunks=CHUNKS[1]['input'], relative=relative)
+    zio.save_dataarray(root=root, group_name='dataset2', dataarray=data,
+                       name='array2', chunks=CHUNKS[1]['input'], relative=relative)
+    zio.save_dataset(root=root, group_name='dataset3',
+                     dataset=data.to_dataset(name='array1'),
+                     chunks=CHUNKS[1]['input'], relative=relative)
+    zio.save_dataset(root=root, group_name='dataset4',
+                     dataset=data.to_dataset(name='array2'),
+                     chunks=CHUNKS[1]['input'], relative=relative)
     actual = str(zio.print_tree(root))
-    expected = '''/
+    if relative:
+        expected = '''/
+ ├── dataset1
+ │   └── array1 (1300, 1300) float64
+ ├── dataset2
+ │   └── array2 (1300, 1300) float64
+ ├── dataset3
+ │   └── array1 (1300, 1300) float64
+ └── dataset4
+     └── array2 (1300, 1300) float64'''
+    else:
+        expected = '''/
+ ├── dataset1
+ │   └── dataset1
+ │       └── array1 (1300, 1300) float64
+ ├── dataset2
+ │   └── dataset2
+ │       └── array2 (1300, 1300) float64
+ ├── dataset3
+ │   └── dataset3
+ │       └── array1 (1300, 1300) float64
+ └── dataset4
+     └── dataset4
+         └── array2 (1300, 1300) float64'''
+    assert actual == expected
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+def test_clean_store(protocol, data, tmpdir, s3):
+    '''Test cleaning of zarr store.'''
+    relative = True
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    zio = ZarrIO(protocol=protocol)
+    zio.save_dataset(root=root, group_name='dataset1',
+                     dataset=data.to_dataset(name='array1'),
+                     chunks=CHUNKS[1]['input'], relative=relative)
+    assert str(zio.print_tree(root)) == '''/
  └── dataset1
      └── array1 (1300, 1300) float64'''
-    assert actual == expected
+    # Clean and store something else
+    zio.clean_store(root)
+    zio.save_dataarray(root=root, group_name='dataset2', dataarray=data,
+                       name='array2', chunks=CHUNKS[1]['input'], relative=relative)
+    assert str(zio.print_tree(root)) == '''/
+ └── dataset2
+     └── array2 (1300, 1300) float64'''
 
 
 def test_uri_split():
@@ -328,53 +479,60 @@ def test_invalid_protocol():
 
 
 # @pytest.mark.skip(reason='Negative interaction with other tests, presumably through s3')
-@pytest.mark.parametrize('storage', ('file', 's3'))
-def test_zarr_file_writer_driver_save(storage, data, tmpdir, s3):  # s3 param not used but required for mock s3
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+def test_zarr_file_writer_driver_save(protocol, data, tmpdir, s3):
     '''Test the `write_dataset_to_storage` method.'''
-    # Root contains the group name that will be created by write_dataset_to_storage
-    root = f'{s3["root"]}/dataset1' if storage == 's3' \
-        else Path(tmpdir) / 'data' / 'dataset1'
-    chunks = {'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]}
-    writer = ZarrWriterDriver(protocol=storage)
-    ds = data.to_dataset(name='array1')
+    # write_dataset_to_storage calls save_dataset which uses relative=False by default
+    relative = False
+    root = s3['root'] if protocol == 's3' \
+        else Path(tmpdir) / 'data'
+    group_name = 'dataset1'
+    name = 'array1'
+    writer = ZarrWriterDriver(protocol=protocol)
+    ds_in = data.to_dataset(name=name)
     writer.write_dataset_to_storage(
-        dataset=ds.copy(),
-        filename=root,
-        storage_config={'chunking': chunks}
+        dataset=ds_in.copy(),
+        filename=f'{root}/{group_name}',
+        storage_config={'chunking': CHUNKS[1]['input']}
     )
-    if storage == 'file':
-        _check_zarr_files(root, data)
-    # Load data and check it hasn't changed
-    zio = ZarrIO(protocol=storage)
-    ds1 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
-    assert ds1.equals(ds)  # Compare values only
+    if protocol == 'file':
+        _check_zarr_files(data, root, group_name, name, relative, CHUNKS[1])
+    # Load and check data
+    ds_out = _load_dataset(protocol, root, group_name, relative=relative)
+    assert ds_in.equals(ds_out)  # Compare values only
 
 
-def test_zarr_file_writer_driver_data_corrections(data, tmpdir, storage='file'):
-    '''Test dataset key corrections applied by `write_dataset_to_storage.'''
-    # Root contains the group name that will be created by write_dataset_to_storage
-    root = Path(tmpdir) / 'data' / 'dataset1'
-    chunks = {'dim_0': CHUNKS[0], 'dim_1': CHUNKS[1]}
-    writer = ZarrWriterDriver(protocol=storage)
-    ds = data.to_dataset(name='array1')
+def test_zarr_file_writer_driver_data_corrections(data, tmpdir):
+    '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
+    # write_dataset_to_storage calls save_dataset which uses relative=False by default
+    relative = False
+    protocol = 'file'
+    root = Path(tmpdir) / 'data'
+    group_name = 'dataset1'
+    name = 'array1'
+    writer = ZarrWriterDriver(protocol=protocol)
+    ds_in = data.to_dataset(name=name)
     # Assign target keys: spectral definition and coords attributes
-    ds.array1.attrs['spectral_definition'] = SPECTRAL_DEFINITION
-    coords = {dim: [1] * size for dim, size in ds.dims.items()}
-    ds = ds.assign_coords(coords)
-    for coord_name in ds.coords:
-        ds.coords[coord_name].attrs['units'] = 'Fake unit'
+    ds_in.array1.attrs['spectral_definition'] = SPECTRAL_DEFINITION
+    coords = {dim: [1] * size for dim, size in ds_in.dims.items()}
+    ds_in = ds_in.assign_coords(coords)
+    for coord_name in ds_in.coords:
+        ds_in.coords[coord_name].attrs['units'] = 'Fake unit'
     writer.write_dataset_to_storage(
-        dataset=ds,
-        filename=root,
-        storage_config={'chunking': chunks}
+        dataset=ds_in.copy(),  # The copy should be corrected
+        filename=f'{root}/{group_name}',
+        storage_config={'chunking': CHUNKS[1]['input']}
     )
-    zio = ZarrIO(protocol=storage)
-    ds1 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
-    # Now, compare ds to ds1. Some keys in ds were changed by write_dataset_to_storage
-    # so they should still match exactly
-    assert ds1.equals(ds)  # Values only
+    # Load and check data has been corrected
+    ds_out = _load_dataset(protocol, root, group_name, relative=relative)
+    assert ds_in.equals(ds_out)  # Values only
     for key, value in SPECTRAL_DEFINITION.items():
-        assert ds1.array1.attrs[f'dc_spectral_definition_{key}'] == value  # attrs
-    for coord_name in ds.coords:
-        assert ds1.coords[coord_name].equals(ds.coords[coord_name])  # Values only
-        assert ds1.coords[coord_name].attrs == ds.coords[coord_name].attrs  # attrs
+        # spectral defs attributes should now start with 'dc_'
+        assert ds_out.array1.attrs[f'dc_spectral_definition_{key}'] == value  # attrs
+    for coord_name in ds_in.coords:
+        assert ds_out.coords[coord_name].equals(ds_in.coords[coord_name])
+        for attr, val in ds_in.coords[coord_name].attrs.items():
+            # units attribute should now start with 'dc_'
+            if attr == 'units':
+                attr = 'dc_units'
+            assert ds_out.coords[coord_name].attrs[attr] == val
