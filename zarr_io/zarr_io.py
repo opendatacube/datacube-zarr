@@ -165,8 +165,9 @@ class ZarrIO(ZarrBase):
         :param dict chunks: The chunking parameter for each dimension.
         """
         store, group = self.get_root(root)
-        if not relative:
+        if not relative and group_name:
             store, group = self.new_store(store, group, group_name)
+            group_name = group.name
 
         compressor = Zstd(level=9)
         if chunks:
