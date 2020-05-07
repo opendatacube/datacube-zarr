@@ -174,6 +174,7 @@ class ZarrIO(ZarrBase):
         else:
             dataset = dataarray.to_dataset(name=name)
         dataset.to_zarr(store=store,
+                        group=group_name,
                         mode='w',
                         consolidated=True,
                         encoding={name: {'compressor': compressor}})
