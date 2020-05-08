@@ -1,10 +1,9 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 import fsspec
-import numpy as np
 import s3fs
 import xarray as xr
 import zarr
@@ -89,11 +88,13 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         """
-        _, group = self.get_root(root)
+        store = self.get_root(root)
+        group = zarr.open_group(store=store, mode="r")
         return group.tree()
 
-    def get_root(self,
-                 root: str) -> Tuple[Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore], zarr.hierarchy.Group]:
+    def get_root(
+        self, root: str
+    ) -> Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore]:
         """
         Sets up the Zarr Group root for IO operations, similar to a Path.
 
@@ -106,8 +107,7 @@ class ZarrIO(ZarrBase):
         else:
             store = zarr.DirectoryStore(root)
 
-        group = zarr.group(store=store)
-        return store, group
+        return store
 
     def new_store(self,
                   store: Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore],
@@ -137,9 +137,10 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         """
-        store, group = self.get_root(root)
         if self.protocol == 's3':
             self._logger.info(f'Deleting S3 {root}')
+            store = self.get_root(root)
+            group = zarr.group(store=store)
             group.clear()
             store.clear()
         elif self.protocol == 'file':
@@ -164,8 +165,9 @@ class ZarrIO(ZarrBase):
         :param str name: The name of the xarray.DataArray
         :param dict chunks: The chunking parameter for each dimension.
         """
-        store, group = self.get_root(root)
+        store = self.get_root(root)
         if not relative and group_name:
+            group = zarr.group(store=store)
             store, group = self.new_store(store, group, group_name)
             group_name = group.name
 
@@ -194,8 +196,9 @@ class ZarrIO(ZarrBase):
         :param `xarray.Dataset` dataset: The xarray.Dataset to be saved
         :param dict chunks: The chunking parameter for each dimension.
         """
-        store, group = self.get_root(root)
+        store = self.get_root(root)
         if not relative and group_name:
+            group = zarr.group(store=store)
             store, group = self.new_store(store, group, group_name)
             group_name = group.name
 
@@ -221,7 +224,7 @@ class ZarrIO(ZarrBase):
         """
         if not relative and group_name:
             root = '/'.join((root, group_name))
-        store, group = self.get_root(root)
+        store = self.get_root(root)
         ds: xr.Dataset = xr.open_zarr(store=store, group=group_name, consolidated=True)
         return ds
 
