@@ -6,11 +6,10 @@ Should be able to handle hyperspectral data when ready.
 import os
 from contextlib import contextmanager
 from pathlib import PosixPath
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
-import zarr
 from affine import Affine
 
 from datacube.storage import BandInfo
@@ -57,7 +56,7 @@ class ZarrDataSource(object):
             """
             self.ds = dataset
             self._var_name = var_name
-            self.da: Union[xr.DataArray, xr.Dataset] = dataset[var_name]
+            self.da = dataset.data_vars[var_name]
             self.time_idx = self.set_time_idx(time_idx)
             self.nodata = self.da.nodata
 
@@ -102,7 +101,7 @@ class ZarrDataSource(object):
 
         def read(self,
                  window: Optional[RasterWindow] = None,
-                 out_shape: Optional[RasterShape] = None) -> Optional[np.ndarray]:
+                 out_shape: Optional[RasterShape] = None) -> np.ndarray:
             """
             Reads a slice into the xr.DataArray.
 
@@ -114,8 +113,7 @@ class ZarrDataSource(object):
                 data: np.ndarray = self.da.values
             else:
                 rows, cols = [slice(*w) for w in window]
-                # Value of type "Union[Any, Callable[[], ValuesView[Any]]]" is not indexable
-                data = self.da.values[self.time_idx, rows, cols]  # type: ignore
+                data = self.da.values[self.time_idx, rows, cols]
 
             return data
 
