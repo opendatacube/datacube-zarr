@@ -61,7 +61,7 @@ def test_datasource(dataset, odc_dataset):
     source = ZarrDataSource(BandInfo(odc_dataset, group_name))
     with source.open() as band_source:
         ds = band_source.read()
-        assert np.array_equal(ds, dataset[group_name].values)
+        assert np.array_equal(ds, dataset[group_name].values[0, ...])
 
 
 def test_datasource_empty_band_info(dataset):
@@ -94,7 +94,7 @@ def test_datasource_no_timeslice(dataset):
     assert band_source.shape == dataset[group_name].shape[1:]
 
     ds2 = band_source.read()
-    assert np.array_equal(ds2, dataset[group_name].values)
+    assert np.array_equal(ds2, dataset[group_name].values[0, ...])
 
     ds3 = band_source.read(((30, 50), (30, 50)))
     assert np.array_equal(ds3, dataset[group_name][0, 30:50, 30:50].values)
@@ -140,7 +140,7 @@ def test_zarr_reader_driver(dataset, odc_dataset):
     source = reader.new_datasource(BandInfo(odc_dataset, group_name))
     with source.open() as band_source:
         ds = band_source.read()
-        assert np.array_equal(ds, dataset[group_name].values)
+        assert np.array_equal(ds, dataset[group_name].values[0, ...])
 
 
 def test_zarr_file_writer_driver():
