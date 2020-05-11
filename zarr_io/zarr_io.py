@@ -115,10 +115,12 @@ class ZarrIO(ZarrBase):
                   group_name: str
                   ) -> Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore]:
         """
-        Creates a new root store
+        Creates a new root store.
         """
         if group_name not in group:
             group = group.create_group(group_name)
+        else:
+            group = group[group_name]
         if isinstance(store, fsspec.mapping.FSMap):
             group_url = ''.join((group.store.root, group.name))
             self._logger.debug(f'S3 group url: {group_url}')

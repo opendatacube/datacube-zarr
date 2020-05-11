@@ -161,3 +161,29 @@ def test_invalid_protocol():
     with pytest.raises(ValueError) as excinfo:
         ZarrIO(protocol='xxx')
     assert str(excinfo.value) == 'unknown protocol: xxx'
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
+    '''Test overwriting an existing dataset.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    group_name = 'dataset_group_name'
+    zio = ZarrIO(protocol=protocol)
+
+    # write the dataset twice
+    for i in range(2):
+        name = f'array{i}'
+        dataset = (data.copy() + i).to_dataset(name=name)
+        zio.save_dataset(
+            root=root,
+            group_name=group_name,
+            dataset=dataset,
+            chunks=fixed_chunks['input'],
+            relative=relative
+        )
+
+    ds = zio.load_dataset(
+        root=str(root), group_name=group_name, relative=relative
+    )
+    np.array_equal(dataset[name], ds[name].values)
