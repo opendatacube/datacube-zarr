@@ -110,7 +110,7 @@ class ZarrDataSource(object):
             :return: Requested data in a :class:`numpy.ndarray`
             """
             if window is None:
-                data: np.ndarray = self.da.values
+                data: np.ndarray = self.da.values[self.time_idx, ...]
             else:
                 rows, cols = [slice(*w) for w in window]
                 data = self.da.values[self.time_idx, rows, cols]
