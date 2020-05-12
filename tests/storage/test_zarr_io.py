@@ -168,7 +168,6 @@ def test_invalid_protocol():
 def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
     '''Test exceptions when an invalid mode is used.'''
     root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
-    group_name = 'dataset_group_name'
     zio = ZarrIO(protocol=protocol)
 
     with pytest.raises(ValueError) as excinfo:
