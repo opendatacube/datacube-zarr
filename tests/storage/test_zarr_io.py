@@ -177,7 +177,7 @@ def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
                          chunks=fixed_chunks['input'],
                          mode='xxx',
                          relative=relative)
-    assert str(excinfo.value) == "Only the following modes are supported ('w', 'w-', 'a')"
+    assert str(excinfo.value) == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
 
     with pytest.raises(ValueError) as excinfo:
         zio.save_dataarray(root=root,
@@ -187,7 +187,7 @@ def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
                            chunks=fixed_chunks['input'],
                            mode='xxx',
                            relative=relative)
-    assert str(excinfo.value) == "Only the following modes are supported ('w', 'w-', 'a')"
+    assert str(excinfo.value) == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
 
 
 @pytest.mark.parametrize('protocol', ('file', 's3'))

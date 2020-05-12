@@ -76,6 +76,9 @@ class ZarrIO(ZarrBase):
             ds2 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
     """
 
+    # Allowed Zarr write modes.
+    WRITE_MODES = ('w', 'w-', 'a')
+
     def __init__(self,
                  protocol: str = 's3'):
 
@@ -173,8 +176,8 @@ class ZarrIO(ZarrBase):
             a: overwrite existing variables (create if does not exist)
         :param bool relative: True for relative indexing and False for global indexing
         """
-        if mode not in ['w', 'w-', 'a']:
-            raise ValueError("Only the following modes are supported ('w', 'w-', 'a')")
+        if mode not in self.WRITE_MODES:
+            raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
         store = self.get_root(root)
         if not relative and group_name:
@@ -213,8 +216,8 @@ class ZarrIO(ZarrBase):
             a: overwrite existing variables (create if does not exist)
         :param bool relative: True for relative indexing and False for global indexing
         """
-        if mode not in ['w', 'w-', 'a']:
-            raise ValueError("Only the following modes are supported ('w', 'w-', 'a')")
+        if mode not in self.WRITE_MODES:
+            raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
         store = self.get_root(root)
         if not relative and group_name:
