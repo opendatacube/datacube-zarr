@@ -157,6 +157,7 @@ class ZarrIO(ZarrBase):
                        dataarray: xr.DataArray,
                        name: str,
                        chunks: Optional[dict] = None,
+                       mode: str = 'w-',
                        relative: bool = False) -> None:
         """
         Saves a xarray.DataArray
@@ -166,7 +167,15 @@ class ZarrIO(ZarrBase):
         :param `xarray.DataArray` dataarray: The xarray.DataArray to be saved
         :param str name: The name of the xarray.DataArray
         :param dict chunks: The chunking parameter for each dimension.
+        :param str mode: {'w', 'w-', 'a', None}
+            w: overwrite
+            w-: overwrite if exists
+            a: overwrite existing variables (create if does not exist)
+        :param bool relative: True for relative indexing and False for global indexing
         """
+        if mode not in ['w', 'w-', 'a']:
+            raise ValueError("Only the following modes are supported ('w', 'w-', 'a')")
+
         store = self.get_root(root)
         if not relative and group_name:
             group = zarr.group(store=store)
@@ -180,7 +189,7 @@ class ZarrIO(ZarrBase):
             dataset = dataarray.to_dataset(name=name)
         dataset.to_zarr(store=store,
                         group=group_name,
-                        mode='w',
+                        mode=mode,
                         consolidated=True,
                         encoding={name: {'compressor': compressor}})
 
@@ -189,6 +198,7 @@ class ZarrIO(ZarrBase):
                      group_name: str,
                      dataset: xr.Dataset,
                      chunks: Optional[dict] = None,
+                     mode: str = 'w-',
                      relative: bool = False) -> None:
         """
         Saves a xarray.Dataset
@@ -197,7 +207,15 @@ class ZarrIO(ZarrBase):
         :param str group_name: The name of the group
         :param `xarray.Dataset` dataset: The xarray.Dataset to be saved
         :param dict chunks: The chunking parameter for each dimension.
+        :param str mode: {'w', 'w-', 'a', None}
+            w: overwrite
+            w-: overwrite if exists
+            a: overwrite existing variables (create if does not exist)
+        :param bool relative: True for relative indexing and False for global indexing
         """
+        if mode not in ['w', 'w-', 'a']:
+            raise ValueError("Only the following modes are supported ('w', 'w-', 'a')")
+
         store = self.get_root(root)
         if not relative and group_name:
             group = zarr.group(store=store)
@@ -209,7 +227,7 @@ class ZarrIO(ZarrBase):
             dataset = dataset.chunk(chunks)
         dataset.to_zarr(store=store,
                         group=group_name,
-                        mode='w',
+                        mode=mode,
                         consolidated=True,
                         encoding={var: {'compressor': compressor} for var in dataset.data_vars})
 

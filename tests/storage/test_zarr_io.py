@@ -165,6 +165,34 @@ def test_invalid_protocol():
 
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 @pytest.mark.parametrize('relative', (True, False))
+def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
+    '''Test exceptions when an invalid mode is used.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    group_name = 'dataset_group_name'
+    zio = ZarrIO(protocol=protocol)
+
+    with pytest.raises(ValueError) as excinfo:
+        zio.save_dataset(root=root,
+                         group_name='dataset1',
+                         dataset=data.to_dataset(name='array1'),
+                         chunks=fixed_chunks['input'],
+                         mode='xxx',
+                         relative=relative)
+    assert str(excinfo.value) == "Only the following modes are supported ('w', 'w-', 'a')"
+
+    with pytest.raises(ValueError) as excinfo:
+        zio.save_dataarray(root=root,
+                           group_name='dataset2',
+                           dataarray=data,
+                           name='array1',
+                           chunks=fixed_chunks['input'],
+                           mode='xxx',
+                           relative=relative)
+    assert str(excinfo.value) == "Only the following modes are supported ('w', 'w-', 'a')"
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
 def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
     '''Test overwriting an existing dataset.'''
     root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
@@ -180,6 +208,7 @@ def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
             group_name=group_name,
             dataset=dataset,
             chunks=fixed_chunks['input'],
+            mode='w',
             relative=relative
         )
 
