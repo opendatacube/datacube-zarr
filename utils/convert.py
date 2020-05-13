@@ -149,7 +149,7 @@ def get_ls5_metadata(scene_path: Path) -> Tuple[Path, Dict]:
 
 def get_ls5_dataset_dirs(p: Path) -> Generator[Path, None, None]:
     """Find directories with 'metadata.xml' file."""
-    subp = list(p.iterdir())
+    subp = [s for s in p.iterdir() if s.relative_to(p).name]
     if p / "metadata.xml" in subp:
         yield p
     else:
