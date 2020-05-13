@@ -67,7 +67,7 @@ def save_dataset_to_zarr(
         root_ = str(root)
 
     zio = ZarrIO(protocol)
-    zio.save_dataset(root=root_, group_name=group, dataset=ds, relative=True, **kwargs)
+    zio.save_dataset(root=root_, group_name=group, dataset=ds, **kwargs)
 
 
 def convert_ls5_scene(
@@ -161,7 +161,7 @@ def get_ls5_dataset_dirs(p: Path) -> Generator[Path, None, None]:
 @click.option("--outdir", type=FileOrS3Path(), required=True)
 @click.option("--chunks", type=KeyValue(val_type=int), multiple=True)
 def main(dataset: Path, outdir: Path, chunks: Optional[List[Tuple[str, int]]]) -> None:
-    """Convert datasets to Zarr format."""
+    """Convert (LS5) datasets to Zarr format."""
     chunks_ = dict(chunks) if chunks else None
     for d in get_ls5_dataset_dirs(dataset):
         outdir_ = outdir / d.stem
