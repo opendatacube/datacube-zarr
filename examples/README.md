@@ -1,11 +1,12 @@
 # Indexing a zarr dataset
 
-In order to index a Zarr dataset, Datacube requires:
+In order to index a Zarr dataset, ODC requires:
 1) a product description file, and
 2) a metadata file describing the dataset
 
-In the example below we start with an existing GeoTiff dataset, convert it to Zarr and then add it to Datacube.
+In the example below we first convert a Landsat 5 GeoTiff dataset to Zarr and then run a prepare script to generate the metadata file.
 
+The product description (`./ls5_scenes_zarr.yaml`) for the zarr formatted LS5 data is identical to the GeoTiff product description with the "format" fields changed.
 
 Set up some directies for repository locations and a place to store the generated example dataset:
 ```
@@ -16,58 +17,41 @@ LOCAL_DATA_DIR=$BASEDIR/index_zarr_test
 mkdir -p $LOCAL_DATA_DIR
 ```
 
-This example uses the test Landsat 5 dataset used by Datacube:
+This example uses the test Landsat 5 dataset used by ODC:
 ```
 DATACUBE_TEST_DIR=$DATACUBE_DIR/tests/data/lbg
 DATASET_NAME="LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 ```
 
-First we can add the GeoTiff LS5 product description and dataset to Datacube using the existing product description and dataset metadata files:
+Use `./utils/convert.py` tool to convert test LS5 GeoTiffs to Zarr:
 ```
-LS5_PROD_DESC=$DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes.yaml
-LS5_AGDC_META=$DATACUBE_TEST_DIR/$DATASET_NAME/agdc-metadata.yaml
-datacube product add $LS5_PROD_DESC
-datacube dataset add $LS5_AGDC_META
-```
-
-The `convert_prod_desc_to_zarr.py` script converts an existing product description file to one with the Zarr format specified. We can then add this product to Datacube.
-```
-$DATACUBE_DRIVER_DIR/examples/convert_prod_desc_to_zarr.py $LS5_PROD_DESC $LOCAL_DATA_DIR
-LS5_PROD_DESC_ZARR=$LOCAL_DATA_DIR/ls5_scenes_zarr.yaml
-datacube product add $LS5_PROD_DESC_ZARR
+$DATACUBE_DRIVER_DIR/utils/convert.py \
+    --outdir $LOCAL_DATA_DIR \
+    --chunks x:500 --chunks y:500 \
+    $DATACUBE_TEST_DIR
 ```
 
-The `prepare_zarr_from_metadata.py` scripts takes an existing GeoTiff dataset with a Datacube compatible `agdc-metadata.yaml` file and converts it to Zarr format and creates an new metadata file for the Zarr dataset:
+Run the example prepare script to create the `agdc-metadata.xml` file required to index the dataset into ODC:
 ```
-Usage: prepare_zarr_from_metadata.py [OPTIONS] METADATA OUTPUT_DIR GROUP_NAME
+$DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $LOCAL_DATA_DIR/$DATASET_NAME
 ```
-We pass in the LS5 GeoTiff dataset `agdc-metadata.yaml` file and specify the dataset name as the Zarr group name:
+
+The zarr directory now looks like this:
 ```
-$DATACUBE_DRIVER_DIR/examples/prepare_zarr_from_metadata.py $LS5_AGDC_META $LOCAL_DATA_DIR $DATASET_NAME
-```
-The Zarr data directoy (`$LOCAL_DATA_DIR`) now looks like this:
-```
-.
 ├── LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323
 │   └── LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323
 │       ├── 1
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── 2
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── 3
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── 4
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── 5
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── 7
-│       │   ├── 0.0.0
-│       │   └── 0.1.0
+│       │   └── 0.0.0
 │       ├── time
 │       │   └── 0
 │       ├── x
@@ -75,13 +59,22 @@ The Zarr data directoy (`$LOCAL_DATA_DIR`) now looks like this:
 │       └── y
 │           └── 0
 ├── agdc-metadata.yaml
-└── ls5_scenes_zarr.yaml
+└── metadata.xml
 ```
 
+Note: The `convert.py` and `prepare_zarr_ls5.py` tools also work with S3 uris to load and/or store data/metadata on S3.
 
-We can then index the Zarr dataset directly:
+To index the Zarr dataset add the product description and dataset to ODC:
 ```
-datacube dataset add $LOCAL_DATA_DIR
+datacube -v system init
+datacube product add $DATACUBE_DRIVER_DIR/examples/ls5_scenes_zarr.yaml
+datacube dataset add $LOCAL_DATA_DIR/$DATASET_NAME
+```
+
+We can also add the original GeoTiff LS5 product description and dataset to ODC:
+```
+datacube product add $DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes.yaml
+datacube dataset add $DATACUBE_TEST_DIR/$DATASET_NAME/agdc-metadata.yaml
 ```
 
 Within python we can load a scene from both datasets and check that they are the same:
