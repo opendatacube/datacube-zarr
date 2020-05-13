@@ -113,7 +113,7 @@ def get_ls5_band_name(name: str):
     """Extract landsat band name from geotif filename."""
     i = name.rfind('_')
     if i == -1:
-        raise ValueError('Unexpected tif image in eods: %r' % path)
+        raise ValueError(f"Unexpected tif image in eods: {name}")
     if re.match(r"[Bb]\d+", name[i + 1:]):
         band = name[i + 2:i + 3]
     elif name[i + 1:].startswith('1111111111111100'):
