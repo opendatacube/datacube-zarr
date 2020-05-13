@@ -18,6 +18,7 @@ import xarray as xr
 import yaml
 import zarr
 from dateutil import parser
+import osgeo
 from osgeo import osr
 from s3path import S3Path
 
@@ -70,6 +71,8 @@ def get_projection(ds):
 
 def get_coords(geo_ref_points, spatial_ref):
     spatial_ref = osr.SpatialReference(spatial_ref)
+    if int(osgeo.__version__[0]) >= 3:
+        spatial_ref.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     t = osr.CoordinateTransformation(spatial_ref, spatial_ref.CloneGeogCS())
 
     def transform(p):
