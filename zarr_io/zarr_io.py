@@ -167,22 +167,8 @@ class ZarrIO(ZarrBase):
         :param str name: The name of the xarray.DataArray
         :param dict chunks: The chunking parameter for each dimension.
         """
-        store = self.get_root(root)
-        if not relative and group_name:
-            group = zarr.group(store=store)
-            store, group = self.new_store(store, group, group_name)
-            group_name = group.name
-
-        compressor = Zstd(level=9)
-        if chunks:
-            dataset = dataarray.chunk(chunks).to_dataset(name=name)
-        else:
-            dataset = dataarray.to_dataset(name=name)
-        dataset.to_zarr(store=store,
-                        group=group_name,
-                        mode='w',
-                        consolidated=True,
-                        encoding={name: {'compressor': compressor}})
+        dataset = dataarray.to_dataset(name=name)
+        self.save_dataset(root, group_name, dataset, chunks, relative)
 
     def save_dataset(self,
                      root: str,
@@ -215,7 +201,7 @@ class ZarrIO(ZarrBase):
 
     def open_dataset(self,
                      root: str,
-                     group_name: Optional[str],
+                     group_name: Optional[str] = None,
                      relative: bool = False) -> xr.Dataset:
         """
         Opens a xarray.Dataset
@@ -232,7 +218,7 @@ class ZarrIO(ZarrBase):
 
     def load_dataset(self,
                      root: str,
-                     group_name: Optional[str],
+                     group_name: Optional[str] = None,
                      relative: bool = False) -> xr.Dataset:
         """
         Loads a xarray.Dataset
