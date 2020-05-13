@@ -21,7 +21,10 @@ setup(
         'numcodecs',
     ],
 
-    extras_require={'test': tests_require},
+    extras_require={
+        'test': tests_require,
+        'index': ['s3path']
+    },
     tests_require=tests_require,
 
     entry_points={
