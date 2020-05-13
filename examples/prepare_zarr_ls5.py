@@ -14,11 +14,11 @@ from typing import Optional
 from xml.etree import ElementTree
 
 import click
+import osgeo
 import xarray as xr
 import yaml
 import zarr
 from dateutil import parser
-import osgeo
 from osgeo import osr
 from s3path import S3Path
 
