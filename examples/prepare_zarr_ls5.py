@@ -95,24 +95,29 @@ def crazy_parse(timestr):
         return parser.parse(timestr[:-2] + '00') + timedelta(minutes=1)
 
 
-def get_zarr_groups(path: Path) -> Generator[str, None, None]:
-    """Find root/group of zarr datasets under s3/file path."""
-    protocol = "s3" if path.as_uri().startswith("s3://") else "file"
-    zio = ZarrIO(protocol=protocol)
-    yield from zarr.group(zio.get_root(path))
-
-
-def load_zarr_dataset(root: Path, group: str) -> xr.DataArray:
-    """Open zarr datasets on s3 or file."""
-    if root.as_uri().startswith("s3://"):
+def get_protocol_root(path: Path) -> Tuple[str, str]:
+    """Split path intp protocol and root."""
+    if path.as_uri().startswith("s3://"):
         protocol = "s3"
-        root_ = root.as_uri()
+        root = path.as_uri()
     else:
         protocol = "file"
-        root_ = str(root)
+        root = str(path)
+    return protocol, root
 
+
+def get_zarr_groups(path: Path) -> Generator[str, None, None]:
+    """Find root/group of zarr datasets under s3/file path."""
+    protocol, root = get_protocol_root(path)
     zio = ZarrIO(protocol=protocol)
-    da = zio.open_dataset(root=root_, group_name=group)
+    yield from zarr.group(zio.get_root(root))
+
+
+def load_zarr_dataset(path: Path, group: str) -> xr.DataArray:
+    """Open zarr datasets on s3 or file."""
+    protocol, root = get_protocol_root(path)
+    zio = ZarrIO(protocol=protocol)
+    da = zio.open_dataset(root=root, group_name=group)
     return da
 
 
