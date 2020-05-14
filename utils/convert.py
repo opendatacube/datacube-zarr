@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple
 
+import boto3
 import click
 import xarray as xr
 from s3path import S3Path
@@ -58,7 +59,8 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
     # if converting inplace, remove the original file
     if inplace:
         if in_file.as_uri().startswith("s3://"):
-            in_file.rmdir()
+            bucket, key = in_file.as_uri()[5:].split("/", 1)
+            boto3.resource("s3").Object(bucket, key).delete()
         else:
             in_file.unlink()
         print(f"delete: {path_as_str(in_file)}")
@@ -67,7 +69,7 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
 def raster_to_zarr(raster: Path, out_dir: Path, **zarrgs: Any) -> None:
     """Convert a raster file to Zarr."""
     da = xr.open_rasterio(raster.as_uri())
-    da["nodata"] = da.nodatavals
+    da.attrs["nodata"] = da.nodatavals[0]
     ds = da.to_dataset(name="array")
     save_dataset_to_zarr(ds, out_dir, group=raster.stem, **zarrgs)
 
