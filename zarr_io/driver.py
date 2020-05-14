@@ -140,12 +140,13 @@ class ZarrDataSource(object):
         Lazy open a Zarr endpoint.
         Only loads metadata.
         """
-        zarr_object = self.zio.open_dataset(root=self.root,
-                                            group_name=self.group_name, relative=False)
-
-        yield ZarrDataSource.BandDataSource(dataset=zarr_object,
-                                            var_name=self._band_info.name,
-                                            time_idx=self._band_info.band)
+        zarr_object = self.zio.open_dataset(
+            root=self.root, group_name=self.group_name, relative=False
+        )
+        var_name = self._band_info.layer or self._band_info.name
+        yield ZarrDataSource.BandDataSource(
+            dataset=zarr_object, var_name=var_name, time_idx=self._band_info.band
+        )
 
 
 class ZarrReaderDriver(object):
