@@ -10,7 +10,7 @@ import re
 import uuid
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Generator, Optional, Tuple
 from xml.etree import ElementTree
 
 import click
@@ -41,11 +41,10 @@ _PRODUCTS = {
 }
 
 
-def band_name(path):
-    name = path.stem
+def band_name(name):
     position = name.rfind('_')
     if position == -1:
-        raise ValueError('Unexpected tif image in eods: %r' % path)
+        raise ValueError(f'Unexpected zarr dataset found: {name}')
     if re.match(r"[Bb]\d+", name[position + 1:]):
         band_number = name[position + 2:position + 3]
     elif name[position + 1:].startswith('1111111111111100'):
@@ -96,8 +95,15 @@ def crazy_parse(timestr):
         return parser.parse(timestr[:-2] + '00') + timedelta(minutes=1)
 
 
-def open_zarr_dataset(root: Path) -> xr.Dataset:
-    """Open zarr dataset on s3 or file."""
+def get_zarr_groups(path: Path) -> Generator[str, None, None]:
+    """Find root/group of zarr datasets under s3/file path."""
+    protocol = "s3" if path.as_uri().startswith("s3://") else "file"
+    zio = ZarrIO(protocol=protocol)
+    yield from zarr.group(zio.get_root(path))
+
+
+def load_zarr_dataset(root: Path, group: str) -> xr.DataArray:
+    """Open zarr datasets on s3 or file."""
     if root.as_uri().startswith("s3://"):
         protocol = "s3"
         root_ = root.as_uri()
@@ -105,10 +111,9 @@ def open_zarr_dataset(root: Path) -> xr.Dataset:
         protocol = "file"
         root_ = str(root)
 
-    zio = ZarrIO(protocol)
-    group = next(iter(zarr.group(zio.get_root(root_)).keys()))
-    ds = zio.open_dataset(root=root_, group_name=group)
-    return ds, group
+    zio = ZarrIO(protocol=protocol)
+    da = zio.open_dataset(root=root_, group_name=group)
+    return da
 
 
 def prep_dataset(fields, path):
@@ -119,8 +124,14 @@ def prep_dataset(fields, path):
     start_time = crazy_parse(doc.findall("./EXEXTENT/TEMPORALEXTENTFROM")[0].text)
     end_time = crazy_parse(doc.findall("./EXEXTENT/TEMPORALEXTENTTO")[0].text)
 
-    ds, group = open_zarr_dataset(path)
-    images = {k: {"path": group} for k in ds}
+    scene = path / "scene01"
+    groups = list(get_zarr_groups(scene))
+    zarr_paths = {
+        band_name(g): {
+            "path": str((scene / g).relative_to(path)),
+            "layer": "array",
+        } for g in groups
+    }
 
     doc = {
         'id': str(uuid.uuid4()),
@@ -143,12 +154,12 @@ def prep_dataset(fields, path):
         },
         'format': {'name': 'zarr'},
         'grid_spatial': {
-            'projection': get_projection(ds)
+            'projection': get_projection(load_zarr_dataset(scene, groups[0]))
         },
         'image': {
             'satellite_ref_point_start': {'x': int(fields["path"]), 'y': int(fields["row"])},
             'satellite_ref_point_end': {'x': int(fields["path"]), 'y': int(fields["row"])},
-            'bands': images
+            'bands': zarr_paths
         },
         'lineage': {'source_datasets': {}}
     }
