@@ -67,6 +67,7 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
 def raster_to_zarr(raster: Path, out_dir: Path, **zarrgs: Any) -> None:
     """Convert a raster file to Zarr."""
     da = xr.open_rasterio(raster.as_uri())
+    da["nodata"] = da.nodatavals
     ds = da.to_dataset(name="array")
     save_dataset_to_zarr(ds, out_dir, group=raster.stem, **zarrgs)
 
