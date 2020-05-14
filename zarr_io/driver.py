@@ -140,12 +140,17 @@ class ZarrDataSource(object):
         Lazy open a Zarr endpoint.
         Only loads metadata.
         """
-        zarr_object = self.zio.open_dataset(
+        ds = self.zio.open_dataset(
             root=self.root, group_name=self.group_name, relative=False
         )
+
+        # If zarr dataset is only 2D, add a third dimension
+        if len(ds.dims) == 2:
+            ds = ds.expand_dims(dim="band", axis=0)
+
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
-            dataset=zarr_object, var_name=var_name, time_idx=self._band_info.band
+            dataset=ds, var_name=var_name, time_idx=self._band_info.band
         )
 
 
