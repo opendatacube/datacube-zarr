@@ -14,16 +14,10 @@ python3 /usr/local/bin/db_initialiser.py create
 datacube system init
 datacube system check
 
-BASEDIR=/home/odc/okteto
-
 # Repos
+BASEDIR=/home/odc/okteto
 DATACUBE_DIR=$BASEDIR/datacube-core
 DATACUBE_DRIVER_DIR=$BASEDIR/datacube-drivers
-
-# Clean local data dir to store zarr
-LOCAL_DATA_DIR=$BASEDIR/data/zarr/index_test
-[ -d $LOCAL_DATA_DIR ] && rm -r $LOCAL_DATA_DIR
-mkdir -p $LOCAL_DATA_DIR
 
 # Geotiff test data
 DATACUBE_TEST_DIR=$DATACUBE_DIR/tests/data/lbg
@@ -33,11 +27,27 @@ DATASET_NAME="LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 datacube product add $DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes.yaml
 datacube dataset add $DATACUBE_TEST_DIR/$DATASET_NAME/agdc-metadata.yaml
 
+
 # Convert GeoTiff dataset to zarr
+LOCAL_DATA_DIR=$BASEDIR/data/zarr/index_test
+[ -d $LOCAL_DATA_DIR ] && rm -r $LOCAL_DATA_DIR
+mkdir -p $LOCAL_DATA_DIR
+
 $DATACUBE_DRIVER_DIR/utils/convert.py \
-    --outdir $LOCAL_DATA_DIR \
-    --chunks x:500 --chunks y:500 \
+    --outpath $LOCAL_DATA_DIR \
+    --chunk x:500 --chunk y:500 \
     $DATACUBE_TEST_DIR
+
+# Convert GeoTiff dataset to zarr inplace
+LOCAL_DATA_DIR2=$BASEDIR/data/zarr/index_test_inplace
+[ -d $LOCAL_DATA_DIR2 ] && rm -r $LOCAL_DATA_DIR2
+cp -r $DATACUBE_TEST_DIR $LOCAL_DATA_DIR2
+
+$DATACUBE_DRIVER_DIR/utils/convert.py \
+    --inplace \
+    --chunk x:500 --chunk y:500 \
+    $LOCAL_DATA_DIR2
+
 
 # Prepare zarr dataset metadata
 $DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $LOCAL_DATA_DIR/$DATASET_NAME
