@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 
+"""
+Command line tool for converting dataset to Zarr format.
+"""
+
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple
 
@@ -10,8 +14,12 @@ from s3path import S3Path
 
 from zarr_io import ZarrIO
 
-_GEOTIFFS = (".tif", ".tiff", ".gtif")
-_DATA_FILES = [x for t in (_GEOTIFFS,) for x in t]
+
+_SUPPORTED_FORMATS = {
+    "GeoTiff": (".tif", ".tiff", ".gtif"),
+}
+
+_DATA_FILES = [x for xs in _SUPPORTED_FORMATS.values() for x in xs]
 
 
 def path_as_str(path: Path) -> str:
@@ -51,8 +59,8 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
     if out_dir is None:
         out_dir = in_file.parent
 
-    if in_file.suffix in _GEOTIFFS:
-        raster_to_zarr(in_file, out_dir, **zarrgs)
+    if in_file.suffix in _SUPPORTED_FORMATS["GeoTiff"]:
+        geotiff_to_zarr(in_file, out_dir, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {in_file.suffix}")
 
@@ -66,12 +74,12 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
         print(f"delete: {path_as_str(in_file)}")
 
 
-def raster_to_zarr(raster: Path, out_dir: Path, **zarrgs: Any) -> None:
-    """Convert a raster file to Zarr."""
-    da = xr.open_rasterio(raster.as_uri())
+def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
+    """Convert a geotiff file to Zarr."""
+    da = xr.open_rasterio(tiff.as_uri())
     da.attrs["nodata"] = da.nodatavals[0]
     ds = da.to_dataset(name="array")
-    save_dataset_to_zarr(ds, out_dir, group=raster.stem, **zarrgs)
+    save_dataset_to_zarr(ds, out_dir, group=tiff.stem, **zarrgs)
 
 
 # CLI functions
@@ -149,10 +157,24 @@ def check_options(outpath: Path, inplace: bool) -> None:
 def main(
     dataset: Path, outpath: Path, inplace: bool, chunk: Optional[List[Tuple[str, int]]]
 ) -> None:
-    """Convert datasets to Zarr format."""
+    """Convert datasets to Zarr format.
+
+    If DATASET argument is a directory all supported datasets found
+    recursively within are converted. Otherwise DATASET must point to
+    a supported dataset file.
+
+    Paths can be either local files/directories or 's3://' URIs.
+
+    Supported datasets: GeoTiff.
+    """
     check_options(outpath, inplace)
     chunks = dict(chunk) if chunk else None
-    convert_dir(dataset, outpath, chunks=chunks)
+    if dataset.is_dir():
+        convert_dir(dataset, outpath, chunks=chunks)
+    elif dataset.suffix in _DATA_FILES:
+        convert_to_zarr(dataset,  outpath, chunks=chunks)
+    else:
+        raise click.BadParameter(f"Unsupported dataset: {dataset}")
 
 
 if __name__ == "__main__":
