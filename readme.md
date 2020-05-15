@@ -55,7 +55,7 @@ Add ``--with-docker`` command line option as a first argument to ``./check-code.
 ## Convert to Zarr and Index (Recommended)
 1. Convert to Zarr
 ```
-python utils/convert.py --outdir <zarr output dir> --chunks x:2000 --chunks y:2000 <path to ls5 scenes>
+python utils/zarrify.py --outpath <zarr output dir> --chunks x:2000 --chunks y:2000 <path to ls5 scenes>
 ```
 2.  Generate `agdc_metadata` file
 ```

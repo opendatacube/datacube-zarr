@@ -33,7 +33,7 @@ LOCAL_DATA_DIR=$BASEDIR/data/zarr/index_test
 [ -d $LOCAL_DATA_DIR ] && rm -r $LOCAL_DATA_DIR
 mkdir -p $LOCAL_DATA_DIR
 
-$DATACUBE_DRIVER_DIR/utils/convert.py \
+$DATACUBE_DRIVER_DIR/utils/zarrify.py \
     --outpath $LOCAL_DATA_DIR \
     --chunk x:500 --chunk y:500 \
     $DATACUBE_TEST_DIR
@@ -43,7 +43,7 @@ LOCAL_DATA_DIR2=$BASEDIR/data/zarr/index_test_inplace
 [ -d $LOCAL_DATA_DIR2 ] && rm -r $LOCAL_DATA_DIR2
 cp -r $DATACUBE_TEST_DIR $LOCAL_DATA_DIR2
 
-$DATACUBE_DRIVER_DIR/utils/convert.py \
+$DATACUBE_DRIVER_DIR/utils/zarrify.py \
     --inplace \
     --chunk x:500 --chunk y:500 \
     $LOCAL_DATA_DIR2
