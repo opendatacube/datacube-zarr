@@ -14,7 +14,6 @@ from s3path import S3Path
 
 from zarr_io import ZarrIO
 
-
 _SUPPORTED_FORMATS = {
     "GeoTiff": (".tif", ".tiff", ".gtif"),
 }
@@ -39,10 +38,18 @@ def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) 
     print(f"create: {root_str}/{group}")
 
 
-def convert_dir(in_dir: Path, out_dir: Optional[Path] = None, **zarrgs: Any) -> None:
+def convert_dir(
+    in_dir: Path,
+    out_dir: Optional[Path] = None,
+    ignore: Optional[List[str]] = None,
+    **zarrgs: Any
+) -> None:
     """Recursively convert datasets in a directory to Zarr format."""
     assert in_dir.is_dir()
-    sub_paths = [p for p in in_dir.iterdir() if p.relative_to(in_dir).name]
+    sub_paths = [
+        p for p in in_dir.iterdir()
+        if p.relative_to(in_dir).name and not ignore_file(p, ignore)
+    ]
     for p in sub_paths:
         out_p = out_dir / p.name if out_dir else None
         if p.is_dir():
@@ -78,8 +85,18 @@ def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
     """Convert a geotiff file to Zarr."""
     da = xr.open_rasterio(tiff.as_uri())
     da.attrs["nodata"] = da.nodatavals[0]
-    ds = da.to_dataset(name="array")
+    split_bands = zarrgs.pop("split_bands", False)
+    dim = "band" if split_bands else None
+    name = None if dim else "array"
+    ds = da.to_dataset(dim=dim, name=name)
+    if dim:
+        ds = ds.rename_vars({k: str(k) for k in ds.data_vars.keys()})
     save_dataset_to_zarr(ds, out_dir, group=tiff.stem, **zarrgs)
+
+
+def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
+    """Check if path matches ignore patterns."""
+    return any(path.match(p) for p in patterns) if patterns else False
 
 
 # CLI functions
@@ -141,6 +158,11 @@ def check_options(outpath: Path, inplace: bool) -> None:
         raise click.UsageError("Can not set both --outpath and --inplace options.")
 
 
+def absolute_ignores(ignore: List[str], abs: Path) -> List[str]:
+    """Prepend absolute ignore patterns with path."""
+    return [str(abs / i) if i[0] == "/" else i for i in ignore]
+
+
 @click.command()
 @click.argument("dataset", type=FileOrS3Path(exists=True), required=True)
 @click.option(
@@ -148,14 +170,26 @@ def check_options(outpath: Path, inplace: bool) -> None:
     help="Path to save the converted dataset directory."
 )
 @click.option(
+    "--inplace", is_flag=True, help="Convert inplace (deletes original data files)."
+)
+@click.option(
+    "--ignore", type=str, help="Comma separated list of file patterns to ignore.",
+    callback=lambda ctx, param, value: value.split(",") if value else [],
+)
+@click.option(
     "--chunk", type=KeyValue(value=int), multiple=True,
     help="Zarr chunk option '<dim>:<size>'."
 )
 @click.option(
-    "--inplace", is_flag=True, help="Convert inplace (deletes original data files)."
+    "--split-bands", is_flag=True, help="Split multi-banded tifs into separate arrays."
 )
 def main(
-    dataset: Path, outpath: Path, inplace: bool, chunk: Optional[List[Tuple[str, int]]]
+    dataset: Path,
+    outpath: Path,
+    inplace: bool,
+    chunk: Optional[List[Tuple[str, int]]],
+    ignore: List[str],
+    split_bands: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -168,11 +202,18 @@ def main(
     Supported datasets: GeoTiff.
     """
     check_options(outpath, inplace)
+    ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
+
     if dataset.is_dir():
-        convert_dir(dataset, outpath, chunks=chunks)
+        convert_dir(
+            dataset, outpath, ignore=ignore, chunks=chunks, split_bands=split_bands
+        )
     elif dataset.suffix in _DATA_FILES:
-        convert_to_zarr(dataset,  outpath, chunks=chunks)
+        if ignore_file(dataset, ignore):
+            print(f"ignoring dataset: {dataset}")
+        else:
+            convert_to_zarr(dataset, outpath, chunks=chunks, split_bands=split_bands)
     else:
         raise click.BadParameter(f"Unsupported dataset: {dataset}")
 
