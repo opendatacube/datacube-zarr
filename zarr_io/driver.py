@@ -109,12 +109,19 @@ class ZarrDataSource(object):
             :param RasterShape out_shape: The desired output shape
             :return: Requested data in a :class:`numpy.ndarray`
             """
-            if window is None:
-                data: np.ndarray = self.da.values[self.time_idx, ...]
-            else:
-                rows, cols = [slice(*w) for w in window]
-                data = self.da.values[self.time_idx, rows, cols]
 
+            # Check if zarr dataset is a 2D array
+            if len(self.da.dims) == 2:
+                t_ix: Tuple = tuple()
+            else:
+                t_ix = (self.time_idx,)
+
+            if window is None:
+                xy_ix: Tuple = (...,)
+            else:
+                xy_ix = tuple(slice(*w) for w in window)
+
+            data = self.da.values[t_ix + xy_ix]
             return data
 
     def __init__(self,
@@ -143,11 +150,6 @@ class ZarrDataSource(object):
         ds = self.zio.open_dataset(
             root=self.root, group_name=self.group_name, relative=False
         )
-
-        # If zarr dataset is only 2D, add a third dimension
-        if len(ds.dims) == 2:
-            ds = ds.expand_dims(dim="band", axis=0)
-
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
             dataset=ds, var_name=var_name, time_idx=self._band_info.band
