@@ -199,6 +199,10 @@ def main(
 
     Paths can be either local files/directories or 's3://' URIs.
 
+    Chunking options should be set such that the resulting zarr chunks
+    are approx 10-20 MB. E.g. for a 2D array of floats assuming ~50%
+    compression `--chunk x:2000 --chunk y:2000` may be appropriate.
+
     Supported datasets: GeoTiff.
     """
     check_options(outpath, inplace)
