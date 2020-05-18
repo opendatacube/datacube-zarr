@@ -85,8 +85,8 @@ def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
     """Convert a geotiff file to Zarr."""
     da = xr.open_rasterio(tiff.as_uri())
     da.attrs["nodata"] = da.nodatavals[0]
-    split_bands = zarrgs.pop("split_bands", False)
-    dim = "band" if split_bands else None
+    multi_dim = zarrgs.pop("multi_dim", False)
+    dim = None if multi_dim else "band"
     name = None if dim else "array"
     ds = da.to_dataset(dim=dim, name=name)
     if dim:
@@ -181,7 +181,7 @@ def absolute_ignores(ignore: List[str], abs: Path) -> List[str]:
     help="Zarr chunk option '<dim>:<size>'."
 )
 @click.option(
-    "--split-bands", is_flag=True, help="Split multi-banded tifs into separate arrays."
+    "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
 )
 def main(
     dataset: Path,
@@ -189,7 +189,7 @@ def main(
     inplace: bool,
     chunk: Optional[List[Tuple[str, int]]],
     ignore: List[str],
-    split_bands: bool,
+    multi_dim: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -207,13 +207,13 @@ def main(
 
     if dataset.is_dir():
         convert_dir(
-            dataset, outpath, ignore=ignore, chunks=chunks, split_bands=split_bands
+            dataset, outpath, ignore=ignore, chunks=chunks, multi_dim=multi_dim
         )
     elif dataset.suffix in _DATA_FILES:
         if ignore_file(dataset, ignore):
             print(f"ignoring dataset: {dataset}")
         else:
-            convert_to_zarr(dataset, outpath, chunks=chunks, split_bands=split_bands)
+            convert_to_zarr(dataset, outpath, chunks=chunks, multi_dim=multi_dim)
     else:
         raise click.BadParameter(f"Unsupported dataset: {dataset}")
 
