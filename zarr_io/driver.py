@@ -62,7 +62,7 @@ class ZarrDataSource(object):
 
         @property
         def nodata(self) -> Optional[float]:
-            return self.da.nodata
+            return self.da.nodata  # type: ignore
 
         @property
         def crs(self) -> geometry.CRS:

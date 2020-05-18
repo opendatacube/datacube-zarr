@@ -9,6 +9,7 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import boto3
 import click
+import rasterio
 import xarray as xr
 from s3path import S3Path
 
@@ -19,6 +20,10 @@ _SUPPORTED_FORMATS = {
 }
 
 _DATA_FILES = [x for xs in _SUPPORTED_FORMATS.values() for x in xs]
+
+_DEFAULT_ARRAY = "array"
+_META_PREFIX = "zmeta"
+_GTIFF_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
 
 
 def path_as_str(path: Path) -> str:
@@ -83,14 +88,40 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
 
 def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
     """Convert a geotiff file to Zarr."""
-    da = xr.open_rasterio(tiff.as_uri())
-    da.attrs["nodata"] = da.nodatavals[0]
-    multi_dim = zarrgs.pop("multi_dim", False)
-    dim = None if multi_dim else "band"
-    name = None if dim else "array"
-    ds = da.to_dataset(dim=dim, name=name)
-    if dim:
-        ds = ds.rename_vars({k: str(k) for k in ds.data_vars.keys()})
+    with rasterio.open(tiff.as_uri(), "r") as src:
+        da = xr.open_rasterio(src)
+        nbands = da.shape[0]
+
+        multi_dim = zarrgs.pop("multi_dim", False)
+        dim = None if multi_dim else "band"
+        name = _DEFAULT_ARRAY if multi_dim else None
+        ds = da.to_dataset(dim=dim, name=name)
+
+        if multi_dim:
+            # DataSet attrs already passed to DataArray. Set nodata and tags.
+            ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
+            tag_names = {k for i in range(nbands) for k in src.tags(i)}
+            for tag in tag_names:
+                tag_list = [src.tags(i).get(tag) for i in nbands]
+                ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
+        else:
+            # Rename variable keys to strings required by zarr
+            ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
+
+            # Copy DataSet attrs to each DataArray
+            for i, arr in enumerate(ds.data_vars.values()):
+                arr.attrs["nodata"] = da.nodatavals[i]
+                arr.attrs["crs"] = ds.crs
+                for k, v in da.attrs.items():
+                    if k not in ("nodatavals", "crs"):
+                        if k in _GTIFF_BAND_ATTRS:
+                            v = [v[i]]
+                        arr.attrs[f"{_META_PREFIX}_{k}"] = v
+
+                # Get band-specific tags
+                for tag, tval in src.tags(i).items():
+                    arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
+
     save_dataset_to_zarr(ds, out_dir, group=tiff.stem, **zarrgs)
 
 
