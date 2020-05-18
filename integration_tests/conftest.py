@@ -69,13 +69,16 @@ def s3_bucket_name():
     s3_count += 1
 
 
-@patch.dict(os.environ, {
-    'AWS_ACCESS_KEY_ID': 'mock-key-id',
-    'AWS_SECRET_ACCESS_KEY': 'mock-secret',
-    'AWS_DEFAULT_REGION': 'mock-region'
-})
 @pytest.fixture
-def s3(s3_bucket_name):
+def mock_aws_aws_credentials(monkeypatch):
+    '''Mocked AWS Credentials for moto.'''
+    monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
+    monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
+    monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
+
+
+@pytest.fixture
+def s3(s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
