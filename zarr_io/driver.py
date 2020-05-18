@@ -57,8 +57,12 @@ class ZarrDataSource(object):
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
+            self._is_2d = len(self.da.dims) == 2
             self.time_idx = self.set_time_idx(time_idx)
-            self.nodata = self.da.nodata
+
+        @property
+        def nodata(self) -> Optional[float]:
+            return self.da.nodata
 
         @property
         def crs(self) -> geometry.CRS:
@@ -74,10 +78,9 @@ class ZarrDataSource(object):
 
         @property
         def shape(self) -> RasterShape:
-            return self.da.shape[1:]
+            return self.da.shape if self._is_2d else self.da.shape[1:]
 
-        def set_time_idx(self,
-                         time_idx: Optional[int]) -> int:
+        def set_time_idx(self, time_idx: Optional[int]) -> int:
             """
             Updates time index from BandInfo.band
 
@@ -90,7 +93,7 @@ class ZarrDataSource(object):
             # adjust for 0 based indexing
             self.time_idx -= 1
 
-            time_count = self.da[self.da.dims[0]].size
+            time_count = 1 if self._is_2d else self.da[self.da.dims[0]].size
             if time_count == 0:
                 raise ValueError('Found 0 time slices in storage')
 
@@ -111,10 +114,7 @@ class ZarrDataSource(object):
             """
 
             # Check if zarr dataset is a 2D array
-            if len(self.da.dims) == 2:
-                t_ix: Tuple = tuple()
-            else:
-                t_ix = (self.time_idx,)
+            t_ix: Tuple = tuple() if self._is_2d else (self.time_idx,)
 
             if window is None:
                 xy_ix: Tuple = (...,)
@@ -124,8 +124,7 @@ class ZarrDataSource(object):
             data = self.da.values[t_ix + xy_ix]
             return data
 
-    def __init__(self,
-                 band: BandInfo):
+    def __init__(self, band: BandInfo):
         """
         Initialises the ZarrDataSource class.
 
@@ -134,6 +133,7 @@ class ZarrDataSource(object):
         self._band_info = band
         if band.band == 0:
             raise ValueError('BandInfo.band must be > 0')
+
         # convert band.uri -> protocol, root and group
         protocol, self.root, self.group_name = uri_split(band.uri)
         if protocol not in PROTOCOL + ['zarr']:
