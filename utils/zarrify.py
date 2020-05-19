@@ -189,9 +189,9 @@ def check_options(outpath: Path, inplace: bool) -> None:
         raise click.UsageError("Can not set both --outpath and --inplace options.")
 
 
-def absolute_ignores(ignore: List[str], abs: Path) -> List[str]:
+def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
     """Prepend absolute ignore patterns with path."""
-    return [str(abs / i) if i[0] == "/" else i for i in ignore]
+    return [str(abs_path / i) if i[0] == "/" else i for i in ignore]
 
 
 @click.command()
