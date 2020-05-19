@@ -106,11 +106,15 @@ def get_protocol_root(path: Path) -> Tuple[str, str]:
     return protocol, root
 
 
-def get_zarr_groups(path: Path) -> Generator[str, None, None]:
-    """Find root/group of zarr datasets under s3/file path."""
-    protocol, root = get_protocol_root(path)
+def get_zarr_objs(path: Path):
+    """Find subdir which are zarr obj roots."""
+    protocol, _ = get_protocol_root(path)
     zio = ZarrIO(protocol=protocol)
-    yield from zarr.group(zio.get_root(root))
+    for r in path.iterdir():
+        if next(r.glob(".zgroup"), None) is not None:
+            _, root = get_protocol_root(r)
+            for g in zarr.group(zio.get_root(root)):
+                yield r, g
 
 
 def load_zarr_dataset(path: Path, group: str) -> xr.DataArray:
@@ -130,12 +134,12 @@ def prep_dataset(fields, path):
     end_time = crazy_parse(doc.findall("./EXEXTENT/TEMPORALEXTENTTO")[0].text)
 
     scene = path / "scene01"
-    groups = list(get_zarr_groups(scene))
+    zarrs = list(get_zarr_objs(scene))
     zarr_paths = {
         band_name(g): {
-            "path": str((scene / g).relative_to(path)),
+            "path": str((r / g).relative_to(path)),
             "layer": "band1",
-        } for g in groups
+        } for r, g in zarrs
     }
 
     doc = {
@@ -159,7 +163,7 @@ def prep_dataset(fields, path):
         },
         'format': {'name': 'zarr'},
         'grid_spatial': {
-            'projection': get_projection(load_zarr_dataset(scene, groups[0]))
+            'projection': get_projection(load_zarr_dataset(*zarrs[0]))
         },
         'image': {
             'satellite_ref_point_start': {'x': int(fields["path"]), 'y': int(fields["row"])},

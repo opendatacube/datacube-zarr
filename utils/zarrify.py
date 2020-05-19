@@ -40,7 +40,7 @@ def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) 
     zio = ZarrIO(protocol)
     root_str = path_as_str(root)
     zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}/{group}")
+    print(f"create: {root_str}")
 
 
 def convert_dir(
@@ -122,7 +122,9 @@ def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
                 for tag, tval in src.tags(i).items():
                     arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
-    save_dataset_to_zarr(ds, out_dir, group=tiff.stem, **zarrgs)
+    group = tiff.stem
+    root = out_dir / f"{group}.zarr"
+    save_dataset_to_zarr(ds, root, group, **zarrgs)
 
 
 def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
