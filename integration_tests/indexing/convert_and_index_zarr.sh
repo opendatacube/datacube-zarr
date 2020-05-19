@@ -50,12 +50,13 @@ $DATACUBE_DRIVER_DIR/utils/zarrify.py \
 
 
 # Prepare zarr dataset metadata
-$DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $LOCAL_DATA_DIR/$DATASET_NAME
-tree $LOCAL_DATA_DIR/$DATASET_NAME
+ZARR_DATASET_DIR=$LOCAL_DATA_DIR/$(basename $DATACUBE_TEST_DIR)/$DATASET_NAME
+$DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR
+tree $ZARR_DATASET_DIR
 
 # Add to datacube
 datacube product add $DATACUBE_DRIVER_DIR/examples/ls5_scenes_zarr.yaml
-datacube dataset add $LOCAL_DATA_DIR/$DATASET_NAME
+datacube dataset add $ZARR_DATASET_DIR
 
 # Load both datasets and compare
 $DATACUBE_DRIVER_DIR/integration_tests/indexing/load_and_compare_zarr.py

@@ -241,6 +241,8 @@ def main(
     chunks = dict(chunk) if chunk else None
 
     if dataset.is_dir():
+        if outpath:
+            outpath = outpath / dataset.parts[-1]
         convert_dir(
             dataset, outpath, ignore=ignore, chunks=chunks, multi_dim=multi_dim
         )
