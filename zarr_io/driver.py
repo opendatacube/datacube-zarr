@@ -14,6 +14,7 @@ from affine import Affine
 
 from datacube.storage import BandInfo
 from datacube.utils import geometry
+from datacube.utils.math import num2numpy
 
 from .zarr_io import ZarrIO
 
@@ -44,7 +45,8 @@ class ZarrDataSource(object):
         def __init__(self,
                      dataset: xr.Dataset,
                      var_name: str,
-                     time_idx: Optional[int]):
+                     time_idx: Optional[int],
+                     no_data: Optional[float]):
             """
             Initialises the BandDataSource class.
 
@@ -57,12 +59,16 @@ class ZarrDataSource(object):
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
+            self._nodata = self.da.nodata if 'nodata' in self.da.attrs and self.da.nodata else no_data
+            if not self._nodata:
+                raise ValueError('nodata not found in dataset and product definition')
+            self._nodata = num2numpy(self._nodata, self.dtype)
             self._is_2d = len(self.da.dims) == 2
             self.time_idx = self.set_time_idx(time_idx)
 
         @property
         def nodata(self) -> Optional[float]:
-            return self.da.nodata  # type: ignore
+            return self._nodata  # type: ignore
 
         @property
         def crs(self) -> geometry.CRS:
@@ -152,7 +158,7 @@ class ZarrDataSource(object):
         )
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
-            dataset=ds, var_name=var_name, time_idx=self._band_info.band
+            dataset=ds, var_name=var_name, time_idx=self._band_info.band, no_data=self._band_info.nodata
         )
 
 

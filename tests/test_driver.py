@@ -89,7 +89,7 @@ def test_datasource_no_timeslice(dataset):
     '''Test the ZarrDataSource.BandDataSource.'''
     group_name = list(dataset.keys())[0]
 
-    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None)
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
     assert band_source.crs == dataset.crs
     assert band_source.transform == dataset[group_name].affine
     assert band_source.dtype == dataset[group_name].dtype
@@ -106,7 +106,7 @@ def test_datasource_bad_time_index(dataset):
     '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
     group_name = list(dataset.keys())[0]
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1)
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata)
     assert str(excinfo.value) == 'time_idx exceeded 1'
 
 
@@ -115,8 +115,17 @@ def test_datasource_no_time_slice(dataset):
     group_name = list(dataset.keys())[0]
     dataset = dataset.drop_sel(time=dataset.time.values)
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, None)
+        ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
     assert str(excinfo.value) == 'Found 0 time slices in storage'
+
+
+def test_datasource_no_nodata(dataset):
+    '''Test the ZarrDataSource.BandDataSource without nodata.'''
+    group_name = list(dataset.keys())[0]
+    dataset[group_name].attrs.pop('nodata', None)
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size, None)
+    assert str(excinfo.value) == 'nodata not found in dataset and product definition'
 
 
 def test_uri_split():
