@@ -67,7 +67,7 @@ datacube -v system init
 ```
 4. Adding product definition
 ```
-datacube product add examples/ls5_scenes_zarr.yaml
+datacube product add docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
 ```
 5. Index scenes
 ```

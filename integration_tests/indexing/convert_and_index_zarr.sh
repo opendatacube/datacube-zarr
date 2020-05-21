@@ -55,7 +55,7 @@ $DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR
 tree $ZARR_DATASET_DIR
 
 # Add to datacube
-datacube product add $DATACUBE_DRIVER_DIR/examples/ls5_scenes_zarr.yaml
+datacube product add $DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
 datacube dataset add $ZARR_DATASET_DIR
 
 # Load both datasets and compare
