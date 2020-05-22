@@ -37,7 +37,8 @@ def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
     loc = path_str.rfind('/')
     group = path_str[loc+1:]
     root = path_str[:loc]
-    return protocol, root, os.path.splitext(os.path.basename(group))[0]
+    group = os.path.splitext(os.path.basename(group))[0]
+    return protocol, root + f'/{group}.zarr', group
 
 
 class ZarrDataSource(object):
@@ -154,7 +155,7 @@ class ZarrDataSource(object):
         Only loads metadata.
         """
         ds = self.zio.open_dataset(
-            root=self.root, group_name=self.group_name, relative=False
+            root=self.root, group_name=self.group_name
         )
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
@@ -224,9 +225,10 @@ class ZarrWriterDriver(object):
         """
         filename = str(filename)
         loc = filename.rfind('/')
-        group = filename[loc+1:]
-        root = filename[:loc]
-        filename = os.path.splitext(group)[0]
+        group = os.path.splitext(filename[loc+1:])[0]
+
+        # This will disappear when mk_uri is moved into the driver
+        root = filename[:loc] + f'/{group}.zarr'
 
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:
@@ -246,7 +248,7 @@ class ZarrWriterDriver(object):
         # Should be a directory but actually get passed a file, which becomes a directory.
         metadata = self.zio.save_dataset_to_zarr(root=root,
                                                  dataset=dataset,
-                                                 filename=filename,
+                                                 group=group,
                                                  global_attributes=global_attributes,
                                                  variable_params=variable_params,
                                                  storage_config=storage_config)

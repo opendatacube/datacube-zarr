@@ -124,9 +124,8 @@ def _gen_zarr_dataset(ds, root):
     It comprises data attributes required in ODC.'''
     group_name = list(ds.keys())[0]
     zio = ZarrIO(protocol='file')
-    zio.save_dataset(root=root,
+    zio.save_dataset(root=root / f'{group_name}.zarr',
                      group_name=group_name,
-                     relative=False,
                      dataset=ds)
     bands = [{
         'name': group_name,

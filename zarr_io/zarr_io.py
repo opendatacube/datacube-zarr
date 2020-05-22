@@ -161,7 +161,7 @@ class ZarrIO(ZarrBase):
                        name: str,
                        chunks: Optional[dict] = None,
                        mode: str = 'w-',
-                       relative: bool = False) -> None:
+                       relative: bool = True) -> None:
         """
         Saves a xarray.DataArray
 
@@ -188,7 +188,7 @@ class ZarrIO(ZarrBase):
                      dataset: xr.Dataset,
                      chunks: Optional[dict] = None,
                      mode: str = 'w-',
-                     relative: bool = False) -> None:
+                     relative: bool = True) -> None:
         """
         Saves a xarray.Dataset
 
@@ -223,7 +223,7 @@ class ZarrIO(ZarrBase):
     def open_dataset(self,
                      root: str,
                      group_name: Optional[str] = None,
-                     relative: bool = False) -> xr.Dataset:
+                     relative: bool = True) -> xr.Dataset:
         """
         Opens a xarray.Dataset
 
@@ -255,7 +255,7 @@ class ZarrIO(ZarrBase):
     def save_dataset_to_zarr(self,
                              root: str,
                              dataset: xr.Dataset,
-                             filename: str,
+                             group: str,
                              global_attributes: Optional[dict] = None,
                              variable_params: Optional[dict] = None,
                              storage_config: Optional[dict] = None) -> Dict[str, Any]:
@@ -267,7 +267,7 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         :param `xarray.Dataset` dataset:
-        :param filename: Output filename
+        :param group: The group name for the dataset
         :param global_attributes: Global file attributes. dict of attr_name: attr_value
         :param variable_params: dict of variable_name: {param_name: param_value, [...]}
                                 Allows setting storage and compression options per variable.
@@ -278,7 +278,7 @@ class ZarrIO(ZarrBase):
 
         metadata: Dict[str, Any] = {}
         self.save_dataset(root=root,
-                          group_name=filename,
+                          group_name=group,
                           dataset=dataset,
                           chunks=chunks)
         return metadata

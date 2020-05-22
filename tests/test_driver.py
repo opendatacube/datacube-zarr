@@ -130,8 +130,8 @@ def test_datasource_no_nodata(dataset):
 
 def test_uri_split():
     '''Check zarr uri splitting.'''
-    assert uri_split('protocol:///some/path/group') == ('protocol', '/some/path', 'group')
-    assert uri_split('/some/path/group') == ('file', '/some/path/group', None)
+    assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group')
+    assert uri_split('/some/path/group.zarr') == ('file', '/some/path/group.zarr', None)
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):
@@ -189,8 +189,8 @@ def test_invalid_protocol():
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
     '''Test the `write_dataset_to_storage` method.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=False by default
-    relative = False
+    # write_dataset_to_storage calls save_dataset which uses relative=True by default
+    relative = True
     root = s3['root'] if protocol == 's3' \
         else Path(tmpdir) / 'data'
     group_name = 'dataset1'
@@ -202,6 +202,7 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
         filename=f'{root}/{group_name}',
         storage_config={'chunking': fixed_chunks['input']}
     )
+    root = Path(root) / f'{group_name}.zarr'
     if protocol == 'file':
         _check_zarr_files(data, root, group_name, name, relative, fixed_chunks)
     # Load and check data
@@ -211,8 +212,8 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
 
 def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
     '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=False by default
-    relative = False
+    # write_dataset_to_storage calls save_dataset which uses relative=True by default
+    relative = True
     protocol = 'file'
     root = Path(tmpdir) / 'data'
     group_name = 'dataset1'
@@ -231,6 +232,7 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
         storage_config={'chunking': fixed_chunks['input']}
     )
     # Load and check data has been corrected
+    root = Path(root) / f'{group_name}.zarr'
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Values only
     for key, value in SPECTRAL_DEFINITION.items():
