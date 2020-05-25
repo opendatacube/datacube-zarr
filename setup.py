@@ -1,9 +1,15 @@
 from setuptools import find_packages, setup
 
 tests_require = [
+    'hypothesis',
     'isort>=4.3.21',
     'mypy',
+    'mock',
+    'moto',
+    'pycodestyle',
+    'pylint',
     'pytest',
+    'pytest-cov',
 ]
 
 setup(
