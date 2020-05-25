@@ -53,10 +53,11 @@ Add ``--with-docker`` command line option as a first argument to ``./check-code.
 ```
 
 ## Convert to Zarr and Index (Recommended)
-1. Convert to Zarr
+1. Convert to Zarr (`zarrify.py --help` for usage instructions)
 ```
 python utils/zarrify.py --outpath <zarr output dir> --chunk x:2000 --chunk y:2000 <path to ls5 scenes>
 ```
+Note: `<zarr output dir>` can be a s3 path e.g. s3://my-bucket/my_folder
 2.  Generate `agdc_metadata` file
 ```
 python examples/prepare_zarr_ls5.py <zarr output dir>
