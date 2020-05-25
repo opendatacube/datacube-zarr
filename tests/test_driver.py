@@ -1,5 +1,5 @@
 '''Unit tests for the zarr_io.driver module.'''
-from pathlib import Path
+from pathlib import Path, os
 from random import random, sample
 
 import pytest
@@ -202,9 +202,11 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
         filename=f'{root}/{group_name}',
         storage_config={'chunking': fixed_chunks['input']}
     )
-    root = Path(root) / f'{group_name}.zarr'
     if protocol == 'file':
+        root = Path(root) / f'{group_name}.zarr'
         _check_zarr_files(data, root, group_name, name, relative, fixed_chunks)
+    else:
+        root += f'{os.sep}{group_name}.zarr'
     # Load and check data
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Compare values only
