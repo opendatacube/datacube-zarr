@@ -15,15 +15,20 @@ from s3path import S3Path
 
 from zarr_io import ZarrIO
 
-_SUPPORTED_FORMATS = {
-    "GeoTiff": (".tif", ".tiff", ".gtif"),
-}
-
-_DATA_FILES = [x for xs in _SUPPORTED_FORMATS.values() for x in xs]
 
 _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
-_GTIFF_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
+
+_SUPPORTED_FORMATS = {
+    "GeoTiff": (".tif", ".tiff", ".gtif"),
+    "JPEG2000": (".jp2",),
+}
+
+_RASTERIO_FORMATS = ("GeoTiff", "JPEG2000")
+_RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
+_RASTERIO_FILES = [x for f in _RASTERIO_FORMATS for x in _SUPPORTED_FORMATS[f]]
+
+_DATA_FILES = [x for xs in _SUPPORTED_FORMATS.values() for x in xs]
 
 
 def path_as_str(path: Path) -> str:
@@ -71,8 +76,8 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
     if out_dir is None:
         out_dir = in_file.parent
 
-    if in_file.suffix in _SUPPORTED_FORMATS["GeoTiff"]:
-        geotiff_to_zarr(in_file, out_dir, **zarrgs)
+    if in_file.suffix in _RASTERIO_FILES:
+        raster_to_zarr(in_file, out_dir, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {in_file.suffix}")
 
@@ -86,8 +91,8 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
         print(f"delete: {path_as_str(in_file)}")
 
 
-def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
-    """Convert a geotiff file to Zarr."""
+def raster_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
+    """Convert a raster image file to Zarr via rasterio."""
     with rasterio.open(tiff.as_uri(), "r") as src:
         da = xr.open_rasterio(src)
         nbands = da.shape[0]
@@ -114,7 +119,7 @@ def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
                 arr.attrs["crs"] = ds.crs
                 for k, v in da.attrs.items():
                     if k not in ("nodatavals", "crs"):
-                        if k in _GTIFF_BAND_ATTRS:
+                        if k in _RASTERIO_BAND_ATTRS:
                             v = [v[i]]
                         arr.attrs[f"{_META_PREFIX}_{k}"] = v
 
