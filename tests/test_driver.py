@@ -1,5 +1,5 @@
 '''Unit tests for the zarr_io.driver module.'''
-from pathlib import Path
+from pathlib import Path, os
 from random import random, sample
 
 import pytest
@@ -53,12 +53,14 @@ def test_zarr_netcdf_driver_import():
 
 
 # zarr_io.driver Unit tests
-def test_datasource(dataset, odc_dataset):
+@pytest.mark.parametrize('dataset_fixture', ['odc_dataset', 'odc_dataset_2d'])
+def test_datasource(request, dataset, dataset_fixture):
     '''Test ZarrDataSource.
 
     Data is saved to file and opened by the data source.'''
+    odc_dataset_ = request.getfixturevalue(dataset_fixture)
     group_name = list(dataset.keys())[0]
-    source = ZarrDataSource(BandInfo(odc_dataset, group_name))
+    source = ZarrDataSource(BandInfo(odc_dataset_, group_name))
     with source.open() as band_source:
         ds = band_source.read()
         assert np.array_equal(ds, dataset[group_name].values[0, ...])
@@ -87,7 +89,7 @@ def test_datasource_no_timeslice(dataset):
     '''Test the ZarrDataSource.BandDataSource.'''
     group_name = list(dataset.keys())[0]
 
-    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None)
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
     assert band_source.crs == dataset.crs
     assert band_source.transform == dataset[group_name].affine
     assert band_source.dtype == dataset[group_name].dtype
@@ -104,7 +106,7 @@ def test_datasource_bad_time_index(dataset):
     '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
     group_name = list(dataset.keys())[0]
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1)
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata)
     assert str(excinfo.value) == 'time_idx exceeded 1'
 
 
@@ -113,14 +115,23 @@ def test_datasource_no_time_slice(dataset):
     group_name = list(dataset.keys())[0]
     dataset = dataset.drop_sel(time=dataset.time.values)
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, None)
+        ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
     assert str(excinfo.value) == 'Found 0 time slices in storage'
+
+
+def test_datasource_no_nodata(dataset):
+    '''Test the ZarrDataSource.BandDataSource without nodata.'''
+    group_name = list(dataset.keys())[0]
+    dataset[group_name].attrs.pop('nodata', None)
+    with pytest.raises(ValueError) as excinfo:
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size, None)
+    assert str(excinfo.value) == 'nodata not found in dataset and product definition'
 
 
 def test_uri_split():
     '''Check zarr uri splitting.'''
-    assert uri_split('protocol:///some/path/group') == ('protocol', '/some/path', 'group')
-    assert uri_split('/some/path/group') == ('file', '/some/path/group', None)
+    assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group')
+    assert uri_split('/some/path/group.zarr') == ('file', '/some/path/group.zarr', None)
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):
@@ -178,8 +189,8 @@ def test_invalid_protocol():
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
     '''Test the `write_dataset_to_storage` method.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=False by default
-    relative = False
+    # write_dataset_to_storage calls save_dataset which uses relative=True by default
+    relative = True
     root = s3['root'] if protocol == 's3' \
         else Path(tmpdir) / 'data'
     group_name = 'dataset1'
@@ -192,7 +203,10 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
         storage_config={'chunking': fixed_chunks['input']}
     )
     if protocol == 'file':
+        root = Path(root) / f'{group_name}.zarr'
         _check_zarr_files(data, root, group_name, name, relative, fixed_chunks)
+    else:
+        root += f'{os.sep}{group_name}.zarr'
     # Load and check data
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Compare values only
@@ -200,8 +214,8 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
 
 def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
     '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=False by default
-    relative = False
+    # write_dataset_to_storage calls save_dataset which uses relative=True by default
+    relative = True
     protocol = 'file'
     root = Path(tmpdir) / 'data'
     group_name = 'dataset1'
@@ -220,6 +234,7 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
         storage_config={'chunking': fixed_chunks['input']}
     )
     # Load and check data has been corrected
+    root = Path(root) / f'{group_name}.zarr'
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Values only
     for key, value in SPECTRAL_DEFINITION.items():

@@ -14,6 +14,7 @@ from affine import Affine
 
 from datacube.storage import BandInfo
 from datacube.utils import geometry
+from datacube.utils.math import num2numpy
 
 from .zarr_io import ZarrIO
 
@@ -36,7 +37,8 @@ def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
     loc = path_str.rfind('/')
     group = path_str[loc+1:]
     root = path_str[:loc]
-    return protocol, root, os.path.splitext(os.path.basename(group))[0]
+    group = os.path.splitext(os.path.basename(group))[0]
+    return protocol, root + f'/{group}.zarr', group
 
 
 class ZarrDataSource(object):
@@ -44,7 +46,8 @@ class ZarrDataSource(object):
         def __init__(self,
                      dataset: xr.Dataset,
                      var_name: str,
-                     time_idx: Optional[int]):
+                     time_idx: Optional[int],
+                     no_data: Optional[float]):
             """
             Initialises the BandDataSource class.
 
@@ -57,8 +60,16 @@ class ZarrDataSource(object):
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
+            self._nodata = self.da.nodata if 'nodata' in self.da.attrs and self.da.nodata else no_data
+            if not self._nodata:
+                raise ValueError('nodata not found in dataset and product definition')
+            self._nodata = num2numpy(self._nodata, self.dtype)
+            self._is_2d = len(self.da.dims) == 2
             self.time_idx = self.set_time_idx(time_idx)
-            self.nodata = self.da.nodata
+
+        @property
+        def nodata(self) -> Optional[float]:
+            return self._nodata  # type: ignore
 
         @property
         def crs(self) -> geometry.CRS:
@@ -74,10 +85,9 @@ class ZarrDataSource(object):
 
         @property
         def shape(self) -> RasterShape:
-            return self.da.shape[1:]
+            return self.da.shape if self._is_2d else self.da.shape[1:]
 
-        def set_time_idx(self,
-                         time_idx: Optional[int]) -> int:
+        def set_time_idx(self, time_idx: Optional[int]) -> int:
             """
             Updates time index from BandInfo.band
 
@@ -90,7 +100,7 @@ class ZarrDataSource(object):
             # adjust for 0 based indexing
             self.time_idx -= 1
 
-            time_count = self.da[self.da.dims[0]].size
+            time_count = 1 if self._is_2d else self.da[self.da.dims[0]].size
             if time_count == 0:
                 raise ValueError('Found 0 time slices in storage')
 
@@ -109,16 +119,19 @@ class ZarrDataSource(object):
             :param RasterShape out_shape: The desired output shape
             :return: Requested data in a :class:`numpy.ndarray`
             """
-            if window is None:
-                data: np.ndarray = self.da.values[self.time_idx, ...]
-            else:
-                rows, cols = [slice(*w) for w in window]
-                data = self.da.values[self.time_idx, rows, cols]
 
+            # Check if zarr dataset is a 2D array
+            t_ix: Tuple = tuple() if self._is_2d else (self.time_idx,)
+
+            if window is None:
+                xy_ix: Tuple = (...,)
+            else:
+                xy_ix = tuple(slice(*w) for w in window)
+
+            data = self.da.values[t_ix + xy_ix]
             return data
 
-    def __init__(self,
-                 band: BandInfo):
+    def __init__(self, band: BandInfo):
         """
         Initialises the ZarrDataSource class.
 
@@ -127,6 +140,7 @@ class ZarrDataSource(object):
         self._band_info = band
         if band.band == 0:
             raise ValueError('BandInfo.band must be > 0')
+
         # convert band.uri -> protocol, root and group
         protocol, self.root, self.group_name = uri_split(band.uri)
         if protocol not in PROTOCOL + ['zarr']:
@@ -140,12 +154,13 @@ class ZarrDataSource(object):
         Lazy open a Zarr endpoint.
         Only loads metadata.
         """
-        zarr_object = self.zio.open_dataset(root=self.root,
-                                            group_name=self.group_name, relative=False)
-
-        yield ZarrDataSource.BandDataSource(dataset=zarr_object,
-                                            var_name=self._band_info.name,
-                                            time_idx=self._band_info.band)
+        ds = self.zio.open_dataset(
+            root=self.root, group_name=self.group_name
+        )
+        var_name = self._band_info.layer or self._band_info.name
+        yield ZarrDataSource.BandDataSource(
+            dataset=ds, var_name=var_name, time_idx=self._band_info.band, no_data=self._band_info.nodata
+        )
 
 
 class ZarrReaderDriver(object):
@@ -210,9 +225,10 @@ class ZarrWriterDriver(object):
         """
         filename = str(filename)
         loc = filename.rfind('/')
-        group = filename[loc+1:]
-        root = filename[:loc]
-        filename = os.path.splitext(group)[0]
+        group = os.path.splitext(filename[loc+1:])[0]
+
+        # This will disappear when mk_uri is moved into the driver
+        root = filename[:loc] + f'/{group}.zarr'
 
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:
@@ -232,7 +248,7 @@ class ZarrWriterDriver(object):
         # Should be a directory but actually get passed a file, which becomes a directory.
         metadata = self.zio.save_dataset_to_zarr(root=root,
                                                  dataset=dataset,
-                                                 filename=filename,
+                                                 group=group,
                                                  global_attributes=global_attributes,
                                                  variable_params=variable_params,
                                                  storage_config=storage_config)

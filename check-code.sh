@@ -14,10 +14,10 @@ fi
 
 pycodestyle zarr_io tests integration_tests --max-line-length 120
 
-pylint -j 2 --reports no zarr_io
+pylint -j 2 --reports no zarr_io utils
 
 # static type checker
-mypy zarr_io
+mypy zarr_io utils
 
 # Check imports are sorted
 isort --check-only --recursive .

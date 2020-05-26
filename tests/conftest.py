@@ -118,21 +118,33 @@ def dataset(tmpdir):
     yield dc_dataset
 
 
-@pytest.fixture
-def odc_dataset(dataset, tmpdir):
+def _gen_zarr_dataset(ds, root):
     '''Test dataset as loaded from zarr data in files.
 
     It comprises data attributes required in ODC.'''
-    root = Path(tmpdir) / 'data'
-    group_name = list(dataset.keys())[0]
+    group_name = list(ds.keys())[0]
     zio = ZarrIO(protocol='file')
-    zio.save_dataset(root=root,
+    zio.save_dataset(root=root / f'{group_name}.zarr',
                      group_name=group_name,
-                     relative=False,
-                     dataset=dataset)
+                     dataset=ds)
     bands = [{
         'name': group_name,
         'path': str(root / group_name)
     }]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
-    yield ds1
+    return ds1
+
+
+@pytest.fixture
+def odc_dataset(dataset, tmpdir):
+    '''ODC test zarr dataset.'''
+    root = Path(tmpdir) / 'data'
+    yield _gen_zarr_dataset(dataset, root)
+
+
+@pytest.fixture
+def odc_dataset_2d(dataset, tmpdir):
+    '''ODC test zarr dataset with only 2 dimensions.'''
+    root = Path(tmpdir) / 'data_2d'
+    dataset = dataset.squeeze(drop=True)
+    yield _gen_zarr_dataset(dataset, root)

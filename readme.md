@@ -52,24 +52,47 @@ Add ``--with-docker`` command line option as a first argument to ``./check-code.
 ./check-code.sh --with-docker integration_tests
 ```
 
-## Indexing and Ingesting (before tests are done)
-1. Initialise ODC DB
+## Convert to Zarr and Index (Recommended)
+1. Convert to Zarr (`zarrify.py --help` for usage instructions)
+```
+python utils/zarrify.py --outpath <zarr output dir> --chunk x:2000 --chunk y:2000 <path to ls5 scenes>
+```
+Note: `<zarr output dir>` can be a s3 path e.g. s3://my-bucket/my_folder
+2.  Generate `agdc_metadata` file
+```
+python examples/prepare_zarr_ls5.py <zarr output dir>
+```
+3. Initialise ODC DB
 ```
 datacube -v system init
 ```
-2. Adding product definition
+4. Adding product definition
+```
+datacube product add docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
+```
+5. Index scenes
+```
+datacube dataset add <zarr output dir>
+```
+
+## Index and Ingest (Not Recommended)
+1. Generate `agdc_metadata` file
+See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
+```
+python galsprepare.py <path to ls5 scenes>/*
+```
+2. Initialise ODC DB
+```
+datacube -v system init
+```
+3. Adding product definition
 See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
 ```
 datacube product add docs/config_samples/dataset_types/ls5_scenes.yaml
 ```
-3. Generate `agdc_metadata` file
-See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
-```
-python galsprepare.py <path to ls5 scenes>/LS5_TM_NBAR*
-```
 4. Index scenes
 ```
-datacube dataset add /home/ubuntu/odc/test/ls5/*
+datacube dataset add <path to ls5 scenes>/*
 ```
 5. Ingest scenes to Zarr format
 ```

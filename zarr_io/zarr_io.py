@@ -161,7 +161,7 @@ class ZarrIO(ZarrBase):
                        name: str,
                        chunks: Optional[dict] = None,
                        mode: str = 'w-',
-                       relative: bool = False) -> None:
+                       relative: bool = True) -> None:
         """
         Saves a xarray.DataArray
 
@@ -176,25 +176,11 @@ class ZarrIO(ZarrBase):
             a: overwrite existing variables (create if does not exist)
         :param bool relative: True for relative indexing and False for global indexing
         """
-        if mode not in self.WRITE_MODES:
-            raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
-
-        store = self.get_root(root)
-        if not relative and group_name:
-            group = zarr.group(store=store)
-            store, group = self.new_store(store, group, group_name)
-            group_name = group.name
-
-        compressor = Zstd(level=9)
-        if chunks:
-            dataset = dataarray.chunk(chunks).to_dataset(name=name)
-        else:
-            dataset = dataarray.to_dataset(name=name)
-        dataset.to_zarr(store=store,
-                        group=group_name,
-                        mode=mode,
-                        consolidated=True,
-                        encoding={name: {'compressor': compressor}})
+        dataset = dataarray.to_dataset(name=name)
+        self.save_dataset(
+            root=root, group_name=group_name, dataset=dataset,
+            chunks=chunks, mode=mode, relative=relative
+        )
 
     def save_dataset(self,
                      root: str,
@@ -202,7 +188,7 @@ class ZarrIO(ZarrBase):
                      dataset: xr.Dataset,
                      chunks: Optional[dict] = None,
                      mode: str = 'w-',
-                     relative: bool = False) -> None:
+                     relative: bool = True) -> None:
         """
         Saves a xarray.Dataset
 
@@ -236,8 +222,8 @@ class ZarrIO(ZarrBase):
 
     def open_dataset(self,
                      root: str,
-                     group_name: Optional[str],
-                     relative: bool = False) -> xr.Dataset:
+                     group_name: Optional[str] = None,
+                     relative: bool = True) -> xr.Dataset:
         """
         Opens a xarray.Dataset
 
@@ -253,8 +239,8 @@ class ZarrIO(ZarrBase):
 
     def load_dataset(self,
                      root: str,
-                     group_name: Optional[str],
-                     relative: bool = False) -> xr.Dataset:
+                     group_name: Optional[str] = None,
+                     relative: bool = True) -> xr.Dataset:
         """
         Loads a xarray.Dataset
 
@@ -269,7 +255,7 @@ class ZarrIO(ZarrBase):
     def save_dataset_to_zarr(self,
                              root: str,
                              dataset: xr.Dataset,
-                             filename: str,
+                             group: str,
                              global_attributes: Optional[dict] = None,
                              variable_params: Optional[dict] = None,
                              storage_config: Optional[dict] = None) -> Dict[str, Any]:
@@ -281,7 +267,7 @@ class ZarrIO(ZarrBase):
 
         :param str root: The storage root path.
         :param `xarray.Dataset` dataset:
-        :param filename: Output filename
+        :param group: The group name for the dataset
         :param global_attributes: Global file attributes. dict of attr_name: attr_value
         :param variable_params: dict of variable_name: {param_name: param_value, [...]}
                                 Allows setting storage and compression options per variable.
@@ -292,7 +278,7 @@ class ZarrIO(ZarrBase):
 
         metadata: Dict[str, Any] = {}
         self.save_dataset(root=root,
-                          group_name=filename,
+                          group_name=group,
                           dataset=dataset,
                           chunks=chunks)
         return metadata
