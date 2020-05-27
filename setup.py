@@ -22,7 +22,7 @@ setup(
     install_requires=[
         'zarr',
         'xarray',
-        'boto3>=1.12.48',
+        'boto3',
         's3fs',
         'numcodecs',
     ],
