@@ -240,7 +240,7 @@ class ZarrIO(ZarrBase):
     def load_dataset(self,
                      root: str,
                      group_name: Optional[str] = None,
-                     relative: bool = False) -> xr.Dataset:
+                     relative: bool = True) -> xr.Dataset:
         """
         Loads a xarray.Dataset
 
