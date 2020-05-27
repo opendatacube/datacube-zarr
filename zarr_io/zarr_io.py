@@ -7,9 +7,8 @@ import fsspec
 import s3fs
 import xarray as xr
 import zarr
-from numcodecs import Zstd
-
 from datacube.utils.aws import auto_find_region
+from numcodecs import Zstd
 
 
 class ZarrBase():

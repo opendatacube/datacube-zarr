@@ -4,10 +4,10 @@ from random import random, sample
 
 import pytest
 import numpy as np
-from mock import MagicMock
-
 from datacube.drivers import reader_drivers, writer_drivers
 from datacube.storage import BandInfo
+from mock import MagicMock
+
 from zarr_io.driver import (
     ZarrDataSource,
     ZarrReaderDriver,

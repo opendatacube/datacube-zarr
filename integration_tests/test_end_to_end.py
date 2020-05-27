@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 import numpy
 import rasterio
-
 from datacube.api.core import Datacube
 from datacube.api.query import query_group_by
+
 from integration_tests.utils import prepare_test_ingestion_configuration
 
 PROJECT_ROOT = Path(__file__).parents[1]

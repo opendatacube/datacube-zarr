@@ -5,12 +5,12 @@ from types import SimpleNamespace
 import pytest
 import boto3
 import numpy as np
+from datacube import Datacube
+from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from mock import patch
 from moto import mock_s3
 from xarray import DataArray
 
-from datacube import Datacube
-from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from zarr_io.zarr_io import ZarrIO
 
 CHUNKS = (
