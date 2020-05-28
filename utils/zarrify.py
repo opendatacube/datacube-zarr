@@ -71,7 +71,7 @@ def convert_dir(
     ignore: Optional[List[str]] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
-    **zarrgs: Any
+    **zarrgs: Any,
 ) -> None:
     """Recursively convert datasets in a directory to Zarr format."""
     assert in_dir.is_dir()
@@ -145,20 +145,22 @@ def warped_vrt(
 
     dst_crs = crs or src_crs
     transform, width, height = calculate_default_transform(
-        src_crs=src_crs,
-        dst_crs=dst_crs,
-        resolution=resolution,
-        **src_params,
+        src_crs=src_crs, dst_crs=dst_crs, resolution=resolution, **src_params,
     )
     with rasterio.vrt.WarpedVRT(
-        src, src_crs=src_crs, src_transform=src_transform,
-        crs=dst_crs, transform=transform, height=height, width=width,
+        src_dataset=src,
+        src_crs=src_crs,
+        src_transform=src_transform,
+        crs=dst_crs,
+        transform=transform,
+        height=height,
+        width=width,
     ) as vrt:
         if not src.crs:
             # For src with gcps write reprojection to temporary file
             # Required due to bug in xarray.open_rasterio() (see xarray PR #4104)
             with tempfile.NamedTemporaryFile() as tmpfile:
-                rio_copy(vrt, tmpfile.name, driver='GTiff')
+                rio_copy(vrt, tmpfile.name, driver="GTiff")
                 with rasterio.open(tmpfile) as tmp_src:
                     yield tmp_src
         else:
@@ -167,9 +169,7 @@ def warped_vrt(
 
 @contextmanager
 def rasterio_src(
-    uri: str,
-    crs: Optional[CRS] = None,
-    resolution: Optional[Tuple[float, float]] = None,
+    uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None,
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually warp if required."""
     with rasterio.open(uri) as src:
@@ -206,7 +206,7 @@ def raster_to_zarr(
     out_dir: Path,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
-    **zarrgs: Any
+    **zarrgs: Any,
 ) -> None:
     """Convert a raster image file to Zarr via rasterio."""
     group = raster.stem
@@ -261,6 +261,7 @@ def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
 
 # CLI functions
 
+
 class KeyValue(click.ParamType):
     """A click param for any key/value pairs."""
 
@@ -270,7 +271,7 @@ class KeyValue(click.ParamType):
         self,
         key: Callable[[str], Any] = str,
         value: Callable[[str], Any] = str,
-        sep: str = ":"
+        sep: str = ":",
     ):
         self.key_fn = key
         self.value_fn = value
@@ -350,24 +351,33 @@ def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
 @click.command()
 @click.argument("dataset", type=FileOrS3Path(exists=True), required=True)
 @click.option(
-    "--outpath", type=FileOrS3Path(), required=False,
-    help="Path to save the converted dataset directory."
+    "--outpath",
+    type=FileOrS3Path(),
+    required=False,
+    help="Path to save the converted dataset directory.",
 )
 @click.option(
     "--inplace", is_flag=True, help="Convert inplace (deletes original data files)."
 )
 @click.option(
-    "--ignore", type=str, help="Comma separated list of file patterns to ignore.",
+    "--ignore",
+    type=str,
+    help="Comma separated list of file patterns to ignore.",
     callback=lambda ctx, param, value: value.split(",") if value else [],
 )
 @click.option("--crs", type=ClickCRS(), help="Output CRS (EPSG code or proj4 string).")
 @click.option(
-    "--resolution", type=float, nargs=2, help="Ouput resolution '<xres> <yres>'.",
+    "--resolution",
+    type=float,
+    nargs=2,
+    help="Ouput resolution '<xres> <yres>'.",
     callback=lambda ctx, param, value: value if value else None,
 )
 @click.option(
-    "--chunk", type=KeyValue(value=int), multiple=True,
-    help="Zarr chunk option '<dim>:<size>'."
+    "--chunk",
+    type=KeyValue(value=int),
+    multiple=True,
+    help="Zarr chunk option '<dim>:<size>'.",
 )
 @click.option(
     "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
