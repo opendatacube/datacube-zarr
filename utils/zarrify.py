@@ -4,15 +4,18 @@
 Command line tool for converting dataset to Zarr format.
 """
 
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import boto3
 import click
 import rasterio
 import xarray as xr
+import zarr
 from rasterio.crs import CRS
+from rasterio.shutil import copy as rio_copy
 from rasterio.warp import calculate_default_transform
 from s3path import S3Path
 
@@ -107,24 +110,38 @@ def warped_vrt(
     src: rasterio.io.DatasetReader,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
-) -> rasterio.vrt.WarpedVRT:
+) -> Union[rasterio.vrt.WarpedVRT, rasterio.io.DatasetReader]:
     """In-memory warped rasterio dataset."""
-    left, bottom, right, top = src.bounds
+    src_crs = src.crs
+    src_transform = src.transform
+    src_params = {"height": src.height, "width": src.width}
+    if src_crs:
+        src_params.update(src.bounds._as_dict())
+    else:
+        gcps, src_crs = src.gcps
+        src_params["gcps"] = gcps
+        src_transform = rasterio.transform.from_gcps(gcps)
+
+    dst_crs = crs or src_crs
     transform, width, height = calculate_default_transform(
-        src_crs=src.crs,
-        dst_crs=crs or src.crs,
-        width=src.width,
-        height=src.height,
-        left=left,
-        bottom=bottom,
-        right=right,
-        top=top,
-        resolution=resolution
+        src_crs=src_crs,
+        dst_crs=dst_crs,
+        resolution=resolution,
+        **src_params,
     )
     with rasterio.vrt.WarpedVRT(
-        src, crs=crs, transform=transform, height=height, width=width
+        src, src_crs=src_crs, src_transform=src_transform,
+        crs=dst_crs, transform=transform, height=height, width=width,
     ) as vrt:
-        yield vrt
+        if not src.crs:
+            # For src with gcps write reprojection to temporary file
+            # Required due to bug in xarray.open_rasterio() (see xarray PR #4104)
+            with tempfile.NamedTemporaryFile() as tmpfile:
+                rio_copy(vrt, tmpfile.name, driver='GTiff')
+                with rasterio.open(tmpfile) as tmp_src:
+                    yield tmp_src
+        else:
+            yield vrt
 
 
 @contextmanager
@@ -135,11 +152,32 @@ def rasterio_src(
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually warp if required."""
     with rasterio.open(uri) as src:
-        if crs is None and resolution is None:
-            yield src
-        else:
+        reproject = crs is not None or resolution is not None
+        gcps = src.crs is None
+        if reproject or gcps:
             with warped_vrt(src, crs=crs, resolution=resolution) as vrt:
                 yield vrt
+        else:
+            yield src
+
+
+def get_protocol_root(path: Path) -> Tuple[str, str]:
+    """Split path into protocol and root."""
+    if path.as_uri().startswith("s3://"):
+        protocol = "s3"
+        root = path.as_uri()
+    else:
+        protocol = "file"
+        root = str(path)
+    return protocol, root
+
+
+def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
+    """Return True if root and group exists."""
+    protocol, root_str = get_protocol_root(root)
+    store = ZarrIO(protocol).get_root(root_str)
+    exists: bool = zarr.storage.contains_group(store, group)
+    return exists
 
 
 def raster_to_zarr(
@@ -150,6 +188,12 @@ def raster_to_zarr(
     **zarrgs: Any
 ) -> None:
     """Convert a raster image file to Zarr via rasterio."""
+    group = raster.stem
+    root = out_dir / f"{group}.zarr"
+
+    if zarr_exists(root, group):
+        raise ValueError(f"zarr group already exists (root={root}, group={group}).")
+
     with rasterio_src(raster.as_uri(), crs=crs, resolution=resolution) as src:
         da = xr.open_rasterio(src)
         nbands = da.shape[0]
@@ -184,9 +228,7 @@ def raster_to_zarr(
                 for tag, tval in src.tags(i).items():
                     arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
-    group = tiff.stem
-    root = out_dir / f"{group}.zarr"
-    save_dataset_to_zarr(ds, root, group, **zarrgs)
+        save_dataset_to_zarr(ds, root, group, **zarrgs)
 
 
 def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
