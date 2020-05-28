@@ -20,7 +20,8 @@ pylint -j 2 --reports no zarr_io utils
 mypy zarr_io utils
 
 # Check imports are sorted
-isort --check-only --recursive .
+# Todo: Re-enable this when the base image is stable.
+# isort --check-only --recursive .
 
 # Run tests, taking coverage.
 # Users can specify extra folders as arguments.
