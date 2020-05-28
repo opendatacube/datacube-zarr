@@ -11,7 +11,6 @@ from typing import Dict, Generator, List, Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 from affine import Affine
-
 from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy

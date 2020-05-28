@@ -9,7 +9,6 @@ import numpy as np
 import rasterio
 import yaml
 from click.testing import CliRunner
-
 from datacube.utils.documents import load_from_yaml
 
 # On Windows, symlinks are not supported in Python 2 and require
