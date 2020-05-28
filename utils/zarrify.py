@@ -7,7 +7,7 @@ Command line tool for converting dataset to Zarr format.
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Generator, List, Optional, Tuple, Union
 
 import boto3
 import click
@@ -25,15 +25,27 @@ _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
 
 _SUPPORTED_FORMATS = {
+    "ENVI": (".img/.hdr",),
     "GeoTiff": (".tif", ".tiff", ".gtif"),
     "JPEG2000": (".jp2",),
 }
 
-_RASTERIO_FORMATS = ("GeoTiff", "JPEG2000")
+_RASTERIO_FORMATS = ("GeoTiff", "JPEG2000", "ENVI")
 _RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
-_RASTERIO_FILES = [x for f in _RASTERIO_FORMATS for x in _SUPPORTED_FORMATS[f]]
+_RASTERIO_FILES = [
+    x.split("/")[0] for f in _RASTERIO_FORMATS for x in _SUPPORTED_FORMATS[f]
+]
 
-_DATA_FILES = [x for xs in _SUPPORTED_FORMATS.values() for x in xs]
+
+def get_datasets(in_dir: Path) -> Generator[Tuple[str, List[Path]], None, None]:
+    """Find datasets within a directory."""
+    for fmt, filetypes in _SUPPORTED_FORMATS.items():
+        for exts in [ft.split("/") for ft in filetypes]:
+            data_ext = exts.pop(0)
+            for datafile in in_dir.glob(f"*{data_ext}"):
+                others = [datafile.with_suffix(e) for e in exts]
+                if all(o.exists() for o in others):
+                    yield fmt, [datafile] + others
 
 
 def path_as_str(path: Path) -> str:
@@ -63,47 +75,55 @@ def convert_dir(
 ) -> None:
     """Recursively convert datasets in a directory to Zarr format."""
     assert in_dir.is_dir()
-    sub_paths = [
-        p for p in in_dir.iterdir()
-        if p.relative_to(in_dir).name and not ignore_file(p, ignore)
-    ]
-    for p in sub_paths:
-        out_p = out_dir / p.name if out_dir else None
-        if p.is_dir():
-            convert_dir(p, out_p, ignore, crs, resolution)
-        elif p.suffix in _DATA_FILES:
-            convert_to_zarr(p, out_dir, crs, resolution, **zarrgs)
-        elif out_p is not None:
-            if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
-                out_p.parent.mkdir(exist_ok=True, parents=True)
-            out_p.write_bytes(p.read_bytes())
+
+    # find and convert datasets
+    converted_files = []
+    for fmt, files in get_datasets(in_dir):
+        if not ignore_file(files[0], ignore):
+            convert_to_zarr(files, out_dir, crs, resolution, **zarrgs)
+        converted_files.extend(files)
+
+    ignore_patterns = (ignore or []) + [str(f) for f in converted_files]
+
+    # recurse into directories (and copy other files)
+    for p in in_dir.iterdir():
+        if p.relative_to(in_dir).name and not ignore_file(p, ignore_patterns):
+            out_p = out_dir / p.name if out_dir else None
+            if p.is_dir():
+                convert_dir(p, out_p, ignore, crs, resolution)
+            elif out_p is not None:
+                if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
+                    out_p.parent.mkdir(exist_ok=True, parents=True)
+                out_p.write_bytes(p.read_bytes())
 
 
 def convert_to_zarr(
-    in_file: Path,
+    files: List[Path],
     out_dir: Optional[Path] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
 ) -> None:
     """Convert file to Zarr format."""
+    data_file = files[0]
     inplace = out_dir is None
     if out_dir is None:
-        out_dir = in_file.parent
+        out_dir = data_file.parent
 
-    if in_file.suffix in _RASTERIO_FILES:
-        raster_to_zarr(in_file, out_dir, crs, resolution, **zarrgs)
+    if data_file.suffix in _RASTERIO_FILES:
+        raster_to_zarr(data_file, out_dir, crs, resolution, **zarrgs)
     else:
-        raise ValueError(f"Unsupported data file format: {in_file.suffix}")
+        raise ValueError(f"Unsupported data file format: {data_file.suffix}")
 
     # if converting inplace, remove the original file
     if inplace:
-        if in_file.as_uri().startswith("s3://"):
-            bucket, key = in_file.as_uri()[5:].split("/", 1)
-            boto3.resource("s3").Object(bucket, key).delete()
-        else:
-            in_file.unlink()
-        print(f"delete: {path_as_str(in_file)}")
+        for f in files:
+            if f.as_uri().startswith("s3://"):
+                bucket, key = f.as_uri()[5:].split("/", 1)
+                boto3.resource("s3").Object(bucket, key).delete()
+            else:
+                f.unlink()
+            print(f"delete: {path_as_str(f)}")
 
 
 @contextmanager
@@ -117,7 +137,7 @@ def warped_vrt(
     src_transform = src.transform
     src_params = {"height": src.height, "width": src.width}
     if src_crs:
-        src_params.update(src.bounds._as_dict())
+        src_params.update(src.bounds._asdict())
     else:
         gcps, src_crs = src.gcps
         src_params["gcps"] = gcps
@@ -193,7 +213,9 @@ def raster_to_zarr(
     root = out_dir / f"{group}.zarr"
 
     if zarr_exists(root, group):
-        raise ValueError(f"zarr group already exists (root={root}, group={group}).")
+        raise ValueError(
+            f"zarr group already exists (root={root.as_uri()}, group={group})."
+        )
 
     with rasterio_src(raster.as_uri(), crs=crs, resolution=resolution) as src:
         da = xr.open_rasterio(src)
@@ -378,6 +400,7 @@ def main(
     ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
 
+    # Recurse into directory an convert supported datasets
     if dataset.is_dir():
         outpath = outpath / dataset.parts[-1] if outpath else None
         convert_dir(
@@ -389,20 +412,26 @@ def main(
             chunks=chunks,
             multi_dim=multi_dim,
         )
-    elif dataset.suffix in _DATA_FILES:
-        if ignore_file(dataset, ignore):
-            print(f"ignoring dataset: {dataset}")
-        else:
-            convert_to_zarr(
-                in_file=dataset,
-                out_dir=outpath,
-                crs=crs,
-                resolution=resolution,
-                chunks=chunks,
-                multi_dim=multi_dim,
-            )
+
+    # Convert this single supported dataset
     else:
-        raise click.BadParameter(f"Unsupported dataset: {dataset}")
+        try:
+            fmt, files = next(
+                ds for ds in get_datasets(dataset.parent) if ds[1][0] == dataset
+            )
+            if ignore_file(files[0], ignore):
+                print(f"ignoring dataset: {dataset}")
+            else:
+                convert_to_zarr(
+                    files=files,
+                    out_dir=outpath,
+                    crs=crs,
+                    resolution=resolution,
+                    chunks=chunks,
+                    multi_dim=multi_dim,
+                )
+        except StopIteration:
+            raise click.BadParameter(f"Unsupported dataset: {dataset}")
 
 
 if __name__ == "__main__":
