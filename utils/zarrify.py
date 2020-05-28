@@ -4,6 +4,7 @@
 Command line tool for converting dataset to Zarr format.
 """
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple
 
@@ -11,10 +12,11 @@ import boto3
 import click
 import rasterio
 import xarray as xr
+from rasterio.crs import CRS
+from rasterio.warp import calculate_default_transform
 from s3path import S3Path
 
 from zarr_io import ZarrIO
-
 
 _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
@@ -52,6 +54,8 @@ def convert_dir(
     in_dir: Path,
     out_dir: Optional[Path] = None,
     ignore: Optional[List[str]] = None,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any
 ) -> None:
     """Recursively convert datasets in a directory to Zarr format."""
@@ -63,21 +67,28 @@ def convert_dir(
     for p in sub_paths:
         out_p = out_dir / p.name if out_dir else None
         if p.is_dir():
-            convert_dir(p, out_p)
+            convert_dir(p, out_p, ignore, crs, resolution)
         elif p.suffix in _DATA_FILES:
-            convert_to_zarr(p, out_dir, **zarrgs)
+            convert_to_zarr(p, out_dir, crs, resolution, **zarrgs)
         elif out_p is not None:
+            out_p.parent.mkdir(exist_ok=True, parents=True)
             out_p.write_bytes(p.read_bytes())
 
 
-def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any) -> None:
+def convert_to_zarr(
+    in_file: Path,
+    out_dir: Optional[Path] = None,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
+    **zarrgs: Any,
+) -> None:
     """Convert file to Zarr format."""
     inplace = out_dir is None
     if out_dir is None:
         out_dir = in_file.parent
 
     if in_file.suffix in _RASTERIO_FILES:
-        raster_to_zarr(in_file, out_dir, **zarrgs)
+        raster_to_zarr(in_file, out_dir, crs, resolution, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {in_file.suffix}")
 
@@ -91,9 +102,55 @@ def convert_to_zarr(in_file: Path, out_dir: Optional[Path] = None, **zarrgs: Any
         print(f"delete: {path_as_str(in_file)}")
 
 
-def raster_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
+@contextmanager
+def warped_vrt(
+    src: rasterio.io.DatasetReader,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
+) -> rasterio.vrt.WarpedVRT:
+    """In-memory warped rasterio dataset."""
+    left, bottom, right, top = src.bounds
+    transform, width, height = calculate_default_transform(
+        src_crs=src.crs,
+        dst_crs=crs or src.crs,
+        width=src.width,
+        height=src.height,
+        left=left,
+        bottom=bottom,
+        right=right,
+        top=top,
+        resolution=resolution
+    )
+    with rasterio.vrt.WarpedVRT(
+        src, crs=crs, transform=transform, height=height, width=width
+    ) as vrt:
+        yield vrt
+
+
+@contextmanager
+def rasterio_src(
+    uri: str,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
+) -> rasterio.io.DatasetReaderBase:
+    """Open a rasterio source and virtually warp if required."""
+    with rasterio.open(uri) as src:
+        if crs is None and resolution is None:
+            yield src
+        else:
+            with warped_vrt(src, crs=crs, resolution=resolution) as vrt:
+                yield vrt
+
+
+def raster_to_zarr(
+    raster: Path,
+    out_dir: Path,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
+    **zarrgs: Any
+) -> None:
     """Convert a raster image file to Zarr via rasterio."""
-    with rasterio.open(tiff.as_uri(), "r") as src:
+    with rasterio_src(raster.as_uri(), crs=crs, resolution=resolution) as src:
         da = xr.open_rasterio(src)
         nbands = da.shape[0]
 
@@ -187,6 +244,30 @@ class FileOrS3Path(click.ParamType):
         return path
 
 
+class ClickCRS(click.ParamType):
+    """A Click.ParamType for Coordinate Reference Systems (CRS).
+
+    Converts a CLI parameter into a rasterio CRS object.
+    The parameter can be either a string or an integer representing an EPSG code.
+    """
+
+    name = "CRS"
+
+    def convert(
+        self, value: str, param: Optional[click.Parameter], ctx: Optional[click.Context]
+    ) -> CRS:
+        """Convert value to rasterio CRS object if valid."""
+        try:
+            try:
+                p = CRS.from_epsg(int(value))
+            except ValueError:
+                p = CRS.from_string(value)
+        except RuntimeError:
+            self.fail(f"{value} is not a valid CRS", param, ctx)
+
+        return p
+
+
 def check_options(outpath: Path, inplace: bool) -> None:
     """Some checks on command inputs."""
     if not outpath and not inplace:
@@ -214,6 +295,11 @@ def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
     "--ignore", type=str, help="Comma separated list of file patterns to ignore.",
     callback=lambda ctx, param, value: value.split(",") if value else [],
 )
+@click.option("--crs", type=ClickCRS(), help="Output CRS (EPSG code or proj4 string).")
+@click.option(
+    "--resolution", type=float, nargs=2, help="Ouput resolution '<xres> <yres>'.",
+    callback=lambda ctx, param, value: value if value else None,
+)
 @click.option(
     "--chunk", type=KeyValue(value=int), multiple=True,
     help="Zarr chunk option '<dim>:<size>'."
@@ -223,8 +309,10 @@ def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
 )
 def main(
     dataset: Path,
-    outpath: Path,
+    outpath: Optional[Path],
     inplace: bool,
+    crs: Optional[CRS],
+    resolution: Optional[Tuple[float, float]],
     chunk: Optional[List[Tuple[str, int]]],
     ignore: List[str],
     multi_dim: bool,
@@ -241,23 +329,35 @@ def main(
     are approx 10-20 MB. For 2D arrays, a chunk size of ~2000 is a good
     starting point.
 
-    Supported datasets: GeoTiff.
+    Supported datasets: GeoTiff, JPEG2000.
     """
     check_options(outpath, inplace)
     ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
 
     if dataset.is_dir():
-        if outpath:
-            outpath = outpath / dataset.parts[-1]
+        outpath = outpath / dataset.parts[-1] if outpath else None
         convert_dir(
-            dataset, outpath, ignore=ignore, chunks=chunks, multi_dim=multi_dim
+            in_dir=dataset,
+            out_dir=outpath,
+            ignore=ignore,
+            crs=crs,
+            resolution=resolution,
+            chunks=chunks,
+            multi_dim=multi_dim,
         )
     elif dataset.suffix in _DATA_FILES:
         if ignore_file(dataset, ignore):
             print(f"ignoring dataset: {dataset}")
         else:
-            convert_to_zarr(dataset, outpath, chunks=chunks, multi_dim=multi_dim)
+            convert_to_zarr(
+                in_file=dataset,
+                out_dir=outpath,
+                crs=crs,
+                resolution=resolution,
+                chunks=chunks,
+                multi_dim=multi_dim,
+            )
     else:
         raise click.BadParameter(f"Unsupported dataset: {dataset}")
 
