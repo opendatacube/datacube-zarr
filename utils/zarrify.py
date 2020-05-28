@@ -74,7 +74,8 @@ def convert_dir(
         elif p.suffix in _DATA_FILES:
             convert_to_zarr(p, out_dir, crs, resolution, **zarrgs)
         elif out_p is not None:
-            out_p.parent.mkdir(exist_ok=True, parents=True)
+            if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
+                out_p.parent.mkdir(exist_ok=True, parents=True)
             out_p.write_bytes(p.read_bytes())
 
 
@@ -173,7 +174,7 @@ def get_protocol_root(path: Path) -> Tuple[str, str]:
 
 
 def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
-    """Return True if root and group exists."""
+    """Return True if root (and group) exists."""
     protocol, root_str = get_protocol_root(root)
     store = ZarrIO(protocol).get_root(root_str)
     exists: bool = zarr.storage.contains_group(store, group)
@@ -310,7 +311,7 @@ class ClickCRS(click.ParamType):
         return p
 
 
-def check_options(outpath: Path, inplace: bool) -> None:
+def check_options(outpath: Optional[Path], inplace: bool) -> None:
     """Some checks on command inputs."""
     if not outpath and not inplace:
         raise click.UsageError("--inplace flag is required if --outpath is not set.")

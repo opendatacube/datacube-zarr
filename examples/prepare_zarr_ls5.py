@@ -96,7 +96,7 @@ def crazy_parse(timestr):
 
 
 def get_protocol_root(path: Path) -> Tuple[str, str]:
-    """Split path intp protocol and root."""
+    """Split path into protocol and root."""
     if path.as_uri().startswith("s3://"):
         protocol = "s3"
         root = path.as_uri()
