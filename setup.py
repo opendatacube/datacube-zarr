@@ -38,8 +38,7 @@ setup(
             'zarr = zarr_io.driver:reader_driver_init',
         ],
         'datacube.plugins.io.write': [
-            'zarr_file = zarr_io.driver:file_writer_driver_init',
-            'zarr_s3 = zarr_io.driver:s3_writer_driver_init',
+            'zarr = zarr_io.driver:writer_driver_init',
         ]
     }
 )
