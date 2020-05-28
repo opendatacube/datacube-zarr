@@ -400,11 +400,15 @@ def main(
 
     Paths can be either local files/directories or 's3://' URIs.
 
+    Output projection can be specified via `--crs` and/or `--resolution`.
+    If input dataset contains ground control points it will automatically
+    be reprojected to an affine transform.
+
     Chunking options should be set such that the resulting zarr chunks
     are approx 10-20 MB. For 2D arrays, a chunk size of ~2000 is a good
     starting point.
 
-    Supported datasets: GeoTiff, JPEG2000.
+    Supported datasets: ENVI, GeoTiff, JPEG2000.
     """
     check_options(outpath, inplace)
     ignore = absolute_ignores(ignore, dataset)
