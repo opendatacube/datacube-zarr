@@ -163,10 +163,12 @@ def warped_vrt(
     src_params = {"height": src.height, "width": src.width}
     if src_crs:
         src_params.update(src.bounds._asdict())
-    else:
+    elif src.gcps[1]:
         gcps, src_crs = src.gcps
         src_params["gcps"] = gcps
         src_transform = rasterio.transform.from_gcps(gcps)
+    else:
+        raise ValueError(f"Dataset has no CRS or Ground Control Points: {src.name}.")
 
     dst_crs = crs or src_crs
     transform, width, height = calculate_default_transform(
@@ -428,7 +430,7 @@ def main(
     are approx 10-20 MB. For 2D arrays, a chunk size of ~2000 is a good
     starting point.
 
-    Supported datasets: ENVI, GeoTiff, JPEG2000.
+    Supported datasets: ENVI, GeoTiff, HDF, JPEG2000.
     """
     check_options(outpath, inplace)
     ignore = absolute_ignores(ignore, dataset)
