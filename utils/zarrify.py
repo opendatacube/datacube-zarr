@@ -37,8 +37,24 @@ _RASTERIO_FILES = [
 ]
 
 
+def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
+    """Check if path matches ignore patterns."""
+    return any(path.match(p) for p in patterns) if patterns else False
+
+
+def get_protocol_root(path: Path) -> Tuple[str, str]:
+    """Split path into protocol and root."""
+    if path.as_uri().startswith("s3://"):
+        protocol = "s3"
+        root = path.as_uri()
+    else:
+        protocol = "file"
+        root = str(path)
+    return protocol, root
+
+
 def get_datasets(in_dir: Path) -> Generator[Tuple[str, List[Path]], None, None]:
-    """Find datasets within a directory."""
+    """Find supported datasets within a directory."""
     for fmt, filetypes in _SUPPORTED_FORMATS.items():
         for exts in [ft.split("/") for ft in filetypes]:
             data_ext = exts.pop(0)
@@ -46,23 +62,6 @@ def get_datasets(in_dir: Path) -> Generator[Tuple[str, List[Path]], None, None]:
                 others = [datafile.with_suffix(e) for e in exts]
                 if all(o.exists() for o in others):
                     yield fmt, [datafile] + others
-
-
-def path_as_str(path: Path) -> str:
-    """Convert Path to string and S3Path to URI."""
-    s = path.as_uri()
-    if s.startswith("file://"):
-        s = s[7:]
-    return s
-
-
-def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) -> None:
-    """Save an xarray dataset to s3 or file in Zarr format."""
-    protocol = "s3" if root.as_uri().startswith("s3://") else "file"
-    zio = ZarrIO(protocol)
-    root_str = path_as_str(root)
-    zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}")
 
 
 def convert_dir(
@@ -104,7 +103,7 @@ def convert_to_zarr(
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
 ) -> None:
-    """Convert file to Zarr format."""
+    """Convert a dataset (of potentially multiple files) to Zarr format."""
     data_file = files[0]
     inplace = out_dir is None
     if out_dir is None:
@@ -123,7 +122,26 @@ def convert_to_zarr(
                 boto3.resource("s3").Object(bucket, key).delete()
             else:
                 f.unlink()
-            print(f"delete: {path_as_str(f)}")
+            print(f"delete: {get_protocol_root(f)[1]}")
+
+
+def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
+    """Return True if root (and optionally group) exists."""
+    protocol, root_str = get_protocol_root(root)
+    store = ZarrIO(protocol).get_root(root_str)
+    exists: bool = zarr.storage.contains_group(store, group)
+    return exists
+
+
+def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) -> None:
+    """Save an xarray dataset to s3 or file in Zarr format."""
+    protocol, root_str = get_protocol_root(root)
+    zio = ZarrIO(protocol)
+    zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
+    print(f"create: {root_str}")
+
+
+# Functions for dealing with rasters
 
 
 @contextmanager
@@ -169,7 +187,9 @@ def warped_vrt(
 
 @contextmanager
 def rasterio_src(
-    uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None,
+    uri: str,
+    crs: Optional[CRS] = None,
+    resolution: Optional[Tuple[float, float]] = None,
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually warp if required."""
     with rasterio.open(uri) as src:
@@ -180,25 +200,6 @@ def rasterio_src(
                 yield vrt
         else:
             yield src
-
-
-def get_protocol_root(path: Path) -> Tuple[str, str]:
-    """Split path into protocol and root."""
-    if path.as_uri().startswith("s3://"):
-        protocol = "s3"
-        root = path.as_uri()
-    else:
-        protocol = "file"
-        root = str(path)
-    return protocol, root
-
-
-def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
-    """Return True if root (and group) exists."""
-    protocol, root_str = get_protocol_root(root)
-    store = ZarrIO(protocol).get_root(root_str)
-    exists: bool = zarr.storage.contains_group(store, group)
-    return exists
 
 
 def raster_to_zarr(
@@ -252,11 +253,6 @@ def raster_to_zarr(
                     arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
         save_dataset_to_zarr(ds, root, group, **zarrgs)
-
-
-def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
-    """Check if path matches ignore patterns."""
-    return any(path.match(p) for p in patterns) if patterns else False
 
 
 # CLI functions
