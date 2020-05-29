@@ -4,6 +4,7 @@
 Command line tool for converting dataset to Zarr format.
 """
 
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -27,10 +28,16 @@ _META_PREFIX = "zmeta"
 _SUPPORTED_FORMATS = {
     "ENVI": (".img/.hdr",),
     "GeoTiff": (".tif", ".tiff", ".gtif"),
+    "HDF": (".hdf", ".h5",),
     "JPEG2000": (".jp2",),
 }
 
-_RASTERIO_FORMATS = ("GeoTiff", "JPEG2000", "ENVI")
+_RASTERIO_FORMATS = (
+    "ENVI",
+    "GeoTiff",
+    "HDF",
+    "JPEG2000",
+)
 _RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
 _RASTERIO_FILES = [
     x.split("/")[0] for f in _RASTERIO_FORMATS for x in _SUPPORTED_FORMATS[f]
@@ -138,7 +145,7 @@ def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) 
     protocol, root_str = get_protocol_root(root)
     zio = ZarrIO(protocol)
     zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}")
+    print(f"create: {root_str}:{group}")
 
 
 # Functions for dealing with rasters
@@ -202,6 +209,17 @@ def rasterio_src(
             yield src
 
 
+def get_rasterio_datasets(path: Path) -> List[str]:
+    """Return full names of rasterio dataset/subdatasets present in a source file."""
+    with rasterio.open(path.as_uri(), "r") as src:
+        names = [src.name] if src.count > 0 else (src.subdatasets or [])
+
+    if not names:
+        raise ValueError(f"No datasets found in {path}.")
+
+    return names
+
+
 def raster_to_zarr(
     raster: Path,
     out_dir: Path,
@@ -210,49 +228,55 @@ def raster_to_zarr(
     **zarrgs: Any,
 ) -> None:
     """Convert a raster image file to Zarr via rasterio."""
-    group = raster.stem
-    root = out_dir / f"{group}.zarr"
+    for dataset in get_rasterio_datasets(raster):
 
-    if zarr_exists(root, group):
-        raise ValueError(
-            f"zarr group already exists (root={root.as_uri()}, group={group})."
-        )
+        # Generate zarr root and group names for dataset
+        group = raster.stem
+        root = out_dir / f"{group}.zarr"
+        subgroup = re.search(fr"{raster.name}:/*(\S+)", dataset)
+        if subgroup is not None:
+            group += f"/{subgroup.groups()[0]}"
 
-    with rasterio_src(raster.as_uri(), crs=crs, resolution=resolution) as src:
-        da = xr.open_rasterio(src)
-        nbands = da.shape[0]
+        if zarr_exists(root, group):
+            raise ValueError(
+                f"zarr group already exists (root={root.as_uri()}, group={group})."
+            )
 
-        multi_dim = zarrgs.pop("multi_dim", False)
-        dim = None if multi_dim else "band"
-        name = _DEFAULT_ARRAY if multi_dim else None
-        ds = da.to_dataset(dim=dim, name=name)
+        with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
+            da = xr.open_rasterio(src)
+            nbands = da.shape[0]
 
-        if multi_dim:
-            # DataSet attrs already passed to DataArray. Set nodata and tags.
-            ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
-            tag_names = {k for i in range(nbands) for k in src.tags(i)}
-            for tag in tag_names:
-                tag_list = [src.tags(i).get(tag) for i in nbands]
-                ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
-        else:
-            # Rename variable keys to strings required by zarr
-            ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
+            multi_dim = zarrgs.pop("multi_dim", False)
+            dim = None if multi_dim else "band"
+            name = _DEFAULT_ARRAY if multi_dim else None
+            ds = da.to_dataset(dim=dim, name=name)
 
-            # Copy DataSet attrs to each DataArray
-            for i, arr in enumerate(ds.data_vars.values()):
-                arr.attrs["nodata"] = da.nodatavals[i]
-                arr.attrs["crs"] = ds.crs
-                for k, v in da.attrs.items():
-                    if k not in ("nodatavals", "crs"):
-                        if k in _RASTERIO_BAND_ATTRS:
-                            v = [v[i]]
-                        arr.attrs[f"{_META_PREFIX}_{k}"] = v
+            if multi_dim:
+                # DataSet attrs already passed to DataArray. Set nodata and tags.
+                ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
+                tag_names = {k for i in range(nbands) for k in src.tags(i)}
+                for tag in tag_names:
+                    tag_list = [src.tags(i).get(tag) for i in nbands]
+                    ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
+            else:
+                # Rename variable keys to strings required by zarr
+                ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
 
-                # Get band-specific tags
-                for tag, tval in src.tags(i).items():
-                    arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
+                # Copy DataSet attrs to each DataArray
+                for i, arr in enumerate(ds.data_vars.values()):
+                    arr.attrs["nodata"] = da.nodatavals[i]
+                    arr.attrs["crs"] = ds.crs
+                    for k, v in da.attrs.items():
+                        if k not in ("nodatavals", "crs"):
+                            if k in _RASTERIO_BAND_ATTRS:
+                                v = [v[i]]
+                            arr.attrs[f"{_META_PREFIX}_{k}"] = v
 
-        save_dataset_to_zarr(ds, root, group, **zarrgs)
+                    # Get band-specific tags
+                    for tag, tval in src.tags(i).items():
+                        arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
+
+            save_dataset_to_zarr(ds, root, group, **zarrgs)
 
 
 # CLI functions
