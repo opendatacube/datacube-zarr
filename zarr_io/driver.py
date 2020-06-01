@@ -25,13 +25,13 @@ RasterShape = Tuple[int, ...]
 RasterWindow = Tuple[Tuple[int, int]]
 
 
-def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
+def uri_split(uri: str) -> Tuple[str, str, str]:
     """
     Splits uri into protocol, root, and group name
     """
     loc = uri.find('://')
     if loc < 0:
-        return PROTOCOL[0], uri, None
+        return PROTOCOL[0], uri, ''
     protocol = uri[:loc]
     root = uri[loc+3:]
     group = root[root.rfind('/')+1:]
@@ -260,6 +260,7 @@ class ZarrWriterDriver(object):
 
         # extra metadata to be stored in database
         return metadata
+
 
 def writer_driver_init() -> ZarrWriterDriver:
     return ZarrWriterDriver()

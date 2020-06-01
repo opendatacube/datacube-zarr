@@ -12,10 +12,9 @@ from zarr_io.driver import (
     ZarrDataSource,
     ZarrReaderDriver,
     ZarrWriterDriver,
-    file_writer_driver_init,
     reader_driver_init,
-    s3_writer_driver_init,
     uri_split,
+    writer_driver_init,
 )
 
 from .utils import _check_zarr_files, _load_dataset
@@ -38,7 +37,7 @@ def test_reader_drivers():
 def test_writer_drivers():
     '''Check the zarr writer driver is found by Datacube.'''
     available_drivers = writer_drivers()
-    for name in ('zarr_file', 'zarr_s3', 'zarr file', 'zarr s3'):
+    for name in ('zarr file', 'zarr s3'):
         assert name in available_drivers
 
 
@@ -131,7 +130,7 @@ def test_datasource_no_nodata(dataset):
 def test_uri_split():
     '''Check zarr uri splitting.'''
     assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group')
-    assert uri_split('/some/path/group.zarr') == ('file', '/some/path/group.zarr', None)
+    assert uri_split('/some/path/group.zarr') == ('file', '/some/path/group.zarr', '')
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):
@@ -154,38 +153,15 @@ def test_zarr_reader_driver(dataset, odc_dataset):
         assert np.array_equal(ds, dataset[group_name].values[0, ...])
 
 
-def test_zarr_file_writer_driver():
-    '''Check aliases, format and uri_scheme for the `file` writer.'''
-    writer = file_writer_driver_init()
+def test_zarr_writer_driver():
+    '''Check aliases, format and uri_scheme for the writer.'''
+    writer = writer_driver_init()
     assert isinstance(writer, ZarrWriterDriver)
-    assert writer.aliases == ['zarr file']
+    assert writer.aliases == ['zarr file', 'zarr s3']
     assert writer.format == 'zarr'
-    assert writer.uri_scheme == 'file'
 
 
-def test_zarr_s3_writer_driver():
-    '''Check aliases, format and uri_scheme for the `s3` writer.'''
-    writer = s3_writer_driver_init()
-    assert isinstance(writer, ZarrWriterDriver)
-    assert writer.aliases == ['zarr s3']
-    assert writer.format == 'zarr'
-    assert writer.uri_scheme == 's3'
-
-
-def test_zarr_other_writer_driver():
-    '''Testing a loophole where the protocol gets updated late.'''
-    writer = file_writer_driver_init()
-    writer.zio.protocol = 'xxx'
-    assert writer.aliases == []
-
-
-def test_invalid_protocol():
-    '''Test exceptions when an invalid protocol is used.'''
-    with pytest.raises(ValueError) as excinfo:
-        ZarrWriterDriver(protocol='xxx')
-    assert str(excinfo.value) == 'unknown protocol: xxx'
-
-
+# TODO: parametrize on uri and use driver.uri_split to get (protocol, root, group)
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
     '''Test the `write_dataset_to_storage` method.'''
@@ -195,11 +171,11 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
         else Path(tmpdir) / 'data'
     group_name = 'dataset1'
     name = 'array1'
-    writer = ZarrWriterDriver(protocol=protocol)
+    writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),
-        filename=f'{root}/{group_name}',
+        file_uri=f'{protocol}://{root}/{group_name}.zarr',
         storage_config={'chunking': fixed_chunks['input']}
     )
     if protocol == 'file':
@@ -220,7 +196,7 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
     root = Path(tmpdir) / 'data'
     group_name = 'dataset1'
     name = 'array1'
-    writer = ZarrWriterDriver(protocol=protocol)
+    writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
     # Assign target keys: spectral definition and coords attributes
     ds_in.array1.attrs['spectral_definition'] = SPECTRAL_DEFINITION
@@ -230,7 +206,7 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
         ds_in.coords[coord_name].attrs['units'] = 'Fake unit'
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),  # The copy should be corrected
-        filename=f'{root}/{group_name}',
+        file_uri=f'{protocol}://{root}/{group_name}.zarr',
         storage_config={'chunking': fixed_chunks['input']}
     )
     # Load and check data has been corrected
