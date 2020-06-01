@@ -431,10 +431,16 @@ def main(
     starting point.
 
     Supported datasets: ENVI, GeoTiff, HDF, JPEG2000.
+
+    Note: Only gridded HDF datasets are supported. s3:// paths are not
+    supported for HDF4 datasets.
     """
     check_options(outpath, inplace)
     ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
+
+    if not dataset.exists():
+        raise click.BadParameter(f"Dataset does not exist: {dataset}")
 
     # Recurse into directory an convert supported datasets
     if dataset.is_dir():
