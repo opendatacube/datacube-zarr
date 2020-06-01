@@ -129,7 +129,7 @@ def _gen_zarr_dataset(ds, root):
                      dataset=ds)
     bands = [{
         'name': group_name,
-        'path': str(root / group_name)
+        'path': str(root / group_name) + '.zarr'
     }]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
     return ds1
