@@ -3,6 +3,7 @@ Zarr Storage driver for ODC
 Supports storage on S3 and Disk
 Should be able to handle hyperspectral data when ready.
 """
+import itertools
 import os
 from contextlib import contextmanager
 from pathlib import PosixPath
@@ -11,7 +12,6 @@ from typing import Dict, Generator, List, Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 from affine import Affine
-
 from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
@@ -33,12 +33,10 @@ def uri_split(uri: str) -> Tuple[str, str, Optional[str]]:
     if loc < 0:
         return PROTOCOL[0], uri, None
     protocol = uri[:loc]
-    path_str = uri[loc+3:]
-    loc = path_str.rfind('/')
-    group = path_str[loc+1:]
-    root = path_str[:loc]
+    root = uri[loc+3:]
+    group = root[root.rfind('/')+1:]
     group = os.path.splitext(os.path.basename(group))[0]
-    return protocol, root + f'/{group}.zarr', group
+    return protocol, root, group
 
 
 class ZarrDataSource(object):
@@ -185,30 +183,41 @@ def reader_driver_init() -> ZarrReaderDriver:
 
 
 class ZarrWriterDriver(object):
-    def __init__(self,
-                 protocol: str = 's3'):
-        self.zio = ZarrIO(protocol=protocol)
+    def __init__(self) -> None:
+        pass
 
     @property
     def aliases(self) -> List:
-        if self.zio.protocol == 's3':
-            return ['zarr s3']
-        elif self.zio.protocol == 'file':
-            return ['zarr file']
-        else:
-            return []
+        return [f'{a} {b}' for a, b in itertools.product([FORMAT], PROTOCOL)]
 
     @property
     def format(self) -> str:
         return FORMAT
 
-    @property
-    def uri_scheme(self) -> str:
-        return self.zio.protocol
+    def mk_uri(self,
+               file_path: str,
+               storage_config: dict) -> str:
+        """
+        Constructs a uri from the file_path and storage config.
+        resource.
+        """
+        driver_alias = storage_config['driver']
+        file_path = str(file_path)
+        loc = file_path.rfind('/')
+        group = os.path.splitext(file_path[loc+1:])[0]
+
+        root = file_path[:loc] + f'/{group}.zarr'
+
+        if driver_alias == 'zarr s3':
+            return f's3://{root}'
+        elif driver_alias == 'zarr file':
+            return f'file://{root}'
+        else:
+            raise ValueError(f'Unknown driver alias: {driver_alias}')
 
     def write_dataset_to_storage(self,
                                  dataset: xr.Dataset,
-                                 filename: Union[PosixPath, str],
+                                 file_uri: str,
                                  global_attributes: Optional[dict] = None,
                                  variable_params: Optional[dict] = None,
                                  storage_config: Optional[dict] = None,
@@ -217,18 +226,13 @@ class ZarrWriterDriver(object):
         Persists a xr.DataSet to storage.
 
         :param xr.Dataset dataset: The xarray.Dataset to be saved
-        :param PosixPath filename: The filename
+        :param str file_uri: The file uri
         :param Dict global_attributes: Global attributes from the product definition.
         :param Dict variable_params: Variable parameters from the product definition
         :param Dict storage_config: Storage config from the product definition
         :return: a dict containing additional metadata to be saved in the DB
         """
-        filename = str(filename)
-        loc = filename.rfind('/')
-        group = os.path.splitext(filename[loc+1:])[0]
-
-        # This will disappear when mk_uri is moved into the driver
-        root = filename[:loc] + f'/{group}.zarr'
+        protocol, root, group = uri_split(file_uri)
 
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:
@@ -245,21 +249,17 @@ class ZarrWriterDriver(object):
                 units = coord_var.attrs.pop('units', None)
                 coord_var.attrs['dc_units'] = units
 
+        zio = ZarrIO(protocol=protocol)
         # Should be a directory but actually get passed a file, which becomes a directory.
-        metadata = self.zio.save_dataset_to_zarr(root=root,
-                                                 dataset=dataset,
-                                                 group=group,
-                                                 global_attributes=global_attributes,
-                                                 variable_params=variable_params,
-                                                 storage_config=storage_config)
+        metadata = zio.save_dataset_to_zarr(root=root,
+                                            dataset=dataset,
+                                            group=group,
+                                            global_attributes=global_attributes,
+                                            variable_params=variable_params,
+                                            storage_config=storage_config)
 
         # extra metadata to be stored in database
         return metadata
 
-
-def s3_writer_driver_init() -> ZarrWriterDriver:
-    return ZarrWriterDriver(protocol='s3')
-
-
-def file_writer_driver_init() -> ZarrWriterDriver:
-    return ZarrWriterDriver(protocol='file')
+def writer_driver_init() -> ZarrWriterDriver:
+    return ZarrWriterDriver()

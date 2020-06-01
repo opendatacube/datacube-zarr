@@ -3,9 +3,9 @@ import hashlib
 import pytest
 import rasterio
 from affine import Affine
-
 from datacube.api.query import query_group_by
 from datacube.utils import geometry
+
 from integration_tests.test_end_to_end import INGESTER_CONFIGS
 from integration_tests.utils import GEOTIFF, prepare_test_ingestion_configuration
 
