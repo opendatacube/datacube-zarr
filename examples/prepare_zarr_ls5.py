@@ -137,7 +137,7 @@ def prep_dataset(fields, path):
     zarrs = list(get_zarr_objs(scene))
     zarr_paths = {
         band_name(g): {
-            "path": str((r.parent).relative_to(path) / g),
+            "path": str(r.relative_to(path)),
             "layer": "band1",
         } for r, g in zarrs
     }
