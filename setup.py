@@ -14,7 +14,6 @@ tests_require = [
 
 setup(
     name='datacube_zarr',
-    version="1.0",
     author="CSIRO's' Data61",
     maintainer="CSIRO's' Data61",
     license='Apache License 2.0',
@@ -28,6 +27,11 @@ setup(
             'integration_tests', 'integration_tests.*'
         )
     ),
+
+    use_scm_version={
+        'write_to': 'zarr_io/_version.py',
+    },
+    setup_requires=['setuptools_scm'],
     install_requires=[
         'zarr',
         'xarray',
@@ -35,7 +39,6 @@ setup(
         's3fs',
         'numcodecs',
     ],
-
     extras_require={
         'test': tests_require,
         'index': ['s3path']
