@@ -30,6 +30,7 @@ setup(
 
     use_scm_version={
         'write_to': 'zarr_io/_version.py',
+        'fallback_version': '0.0.0+no.scm',
     },
     setup_requires=['setuptools_scm'],
     install_requires=[
