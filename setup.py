@@ -15,6 +15,7 @@ tests_require = [
 setup(
     name='datacube_zarr',
     version="1.0",
+    license='Apache License 2.0',
     description="Zarr plug-in driver for datacube",
     author='Data61 - CSIRO',
     packages=find_packages(),
