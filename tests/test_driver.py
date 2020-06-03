@@ -129,8 +129,11 @@ def test_datasource_no_nodata(dataset):
 
 def test_uri_split():
     '''Check zarr uri splitting.'''
-    assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group')
-    assert uri_split('/some/path/group.zarr') == ('file', '/some/path/group.zarr', '')
+    assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group', '')
+
+    with pytest.raises(ValueError) as excinfo:
+        uri_split('/some/path/group.zarr')
+    assert str(excinfo.value) == f'uri scheme not found: /some/path/group.zarr'
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):
@@ -159,6 +162,33 @@ def test_zarr_writer_driver():
     assert isinstance(writer, ZarrWriterDriver)
     assert writer.aliases == ['zarr file', 'zarr s3']
     assert writer.format == 'zarr'
+
+
+def test_writer_driver_mk_uri():
+    '''Check mk_uri for the writer for supported aliases'''
+    writer_driver = ZarrWriterDriver()
+
+    # Test 'zarr file' driver alias
+    file_path = '/path/to/my_file.zarr'
+    driver_alias = 'zarr file'
+    storage_config = {'driver': driver_alias}
+    file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
+    assert file_uri == f'file://{file_path}'
+
+    # Test 'zarr s3' driver alias
+    file_path = 'bucket/path/to/my_file.zarr'
+    driver_alias = 'zarr s3'
+    storage_config = {'driver': driver_alias}
+    file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
+    assert file_uri == f's3://{file_path}'
+
+    # Test unknown driver alias
+    file_path = 'bucket/path/to/my_file.zarr'
+    driver_alias = 'unknown alias'
+    storage_config = {'driver': driver_alias}
+    with pytest.raises(ValueError) as excinfo:
+        file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
+    assert str(excinfo.value) == f'Unknown driver alias: {driver_alias}'
 
 
 # TODO: parametrize on uri and use driver.uri_split to get (protocol, root, group)
