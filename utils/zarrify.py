@@ -7,6 +7,7 @@ Command line tool for converting dataset to Zarr format.
 import re
 import tempfile
 from contextlib import contextmanager
+from os.path import commonprefix
 from pathlib import Path
 from typing import Any, Callable, Generator, List, Optional, Tuple, Union
 
@@ -77,17 +78,25 @@ def convert_dir(
     ignore: Optional[List[str]] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
+    merge_datasets_per_dir: bool = False,
     **zarrgs: Any,
 ) -> None:
     """Recursively convert datasets in a directory to Zarr format."""
     assert in_dir.is_dir()
 
     # find and convert datasets
+    datasets = [f for t, f in get_datasets(in_dir) if not ignore_file(f[0], ignore)]
     converted_files = []
-    for fmt, files in get_datasets(in_dir):
-        if not ignore_file(files[0], ignore):
-            convert_to_zarr(files, out_dir, crs, resolution, **zarrgs)
-        converted_files.extend(files)
+    if datasets:
+        zarr_name = None
+        if merge_datasets_per_dir:
+            zarr_name = commonprefix([f[0].stem for f in datasets]) or in_dir.name
+
+        for files in datasets:
+            convert_to_zarr(
+                files, out_dir, zarr_name, crs, resolution, **zarrgs,
+            )
+            converted_files.extend(files)
 
     ignore_patterns = (ignore or []) + [str(f) for f in converted_files]
 
@@ -96,7 +105,9 @@ def convert_dir(
         if p.relative_to(in_dir).name and not ignore_file(p, ignore_patterns):
             out_p = out_dir / p.name if out_dir else None
             if p.is_dir():
-                convert_dir(p, out_p, ignore, crs, resolution)
+                convert_dir(
+                    p, out_p, ignore, crs, resolution, merge_datasets_per_dir, **zarrgs
+                )
             elif out_p is not None:
                 if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
                     out_p.parent.mkdir(exist_ok=True, parents=True)
@@ -106,6 +117,7 @@ def convert_dir(
 def convert_to_zarr(
     files: List[Path],
     out_dir: Optional[Path] = None,
+    zarr_name: Optional[str] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
@@ -117,7 +129,7 @@ def convert_to_zarr(
         out_dir = data_file.parent
 
     if data_file.suffix in _RASTERIO_FILES:
-        raster_to_zarr(data_file, out_dir, crs, resolution, **zarrgs)
+        raster_to_zarr(data_file, out_dir, zarr_name, crs, resolution, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {data_file.suffix}")
 
@@ -225,6 +237,7 @@ def get_rasterio_datasets(path: Path) -> List[str]:
 def raster_to_zarr(
     raster: Path,
     out_dir: Path,
+    zarr_name: Optional[str] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
@@ -233,8 +246,9 @@ def raster_to_zarr(
     for dataset in get_rasterio_datasets(raster):
 
         # Generate zarr root and group names for dataset
-        group = raster.stem
-        root = out_dir / f"{group}.zarr"
+        group = raster.stem if zarr_name else ""
+        zarr_name = raster.stem
+        root = out_dir / f"{zarr_name or raster.stem}.zarr"
         subgroup = re.search(fr"{raster.name}:/*(\S+)", dataset)
         if subgroup is not None:
             group += f"/{subgroup.groups()[0]}"
@@ -402,6 +416,11 @@ def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
     help="Zarr chunk option '<dim>:<size>'.",
 )
 @click.option(
+    "--merge-datasets-per-dir",
+    is_flag=True,
+    help="Create single zarr for all datasets in a directory.",
+)
+@click.option(
     "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
 )
 def main(
@@ -412,6 +431,7 @@ def main(
     resolution: Optional[Tuple[float, float]],
     chunk: Optional[List[Tuple[str, int]]],
     ignore: List[str],
+    merge_datasets_per_dir: bool,
     multi_dim: bool,
 ) -> None:
     """Convert datasets to Zarr format.
@@ -452,6 +472,7 @@ def main(
             crs=crs,
             resolution=resolution,
             chunks=chunks,
+            merge_datasets_per_dir=merge_datasets_per_dir,
             multi_dim=multi_dim,
         )
 
