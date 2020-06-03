@@ -26,7 +26,7 @@ _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
 
 _SUPPORTED_FORMATS = {
-    "ENVI": (".img/.hdr",),
+    "ENVI": (".img/.hdr", ".bip/.hdr", ".bil/.hdr", ".bip/.hdr",),
     "GeoTiff": (".tif", ".tiff", ".gtif"),
     "HDF": (".hdf", ".h5",),
     "JPEG2000": (".jp2",),
