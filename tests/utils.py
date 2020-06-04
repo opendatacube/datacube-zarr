@@ -4,7 +4,7 @@ from json import load
 from zarr_io.zarr_io import ZarrIO
 
 
-def _save_dataarray(data, protocol, root, group_name, name, relative, chunks):
+def _save_dataarray(data, protocol, root, group_name, name, relative, chunks=None):
     '''Save DataArray to storage.'''
     zio = ZarrIO(protocol=protocol)
     zio.save_dataarray(root=str(root),
@@ -15,7 +15,7 @@ def _save_dataarray(data, protocol, root, group_name, name, relative, chunks):
                        relative=relative)
 
 
-def _save_dataset(data, protocol, root, group_name, name, relative, chunks):
+def _save_dataset(data, protocol, root, group_name, name, relative, chunks=None):
     '''Save Dataset to storage.'''
     zio = ZarrIO(protocol=protocol)
     zio.save_dataset(root=str(root),

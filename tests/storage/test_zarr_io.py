@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 import numpy as np
+import xarray as xr
 
 from zarr_io.zarr_io import ZarrBase, ZarrIO
 
@@ -219,8 +220,8 @@ def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
 
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 @pytest.mark.parametrize('relative', (True, False))
-def test_save_datasets_nested(protocol, relative, chunks, data, tmpdir, s3):
-    '''Test ZarrIO.save_dataset save and load multiple Datasets.'''
+def test_save_datasets_nested(protocol, relative, data, tmpdir, s3):
+    '''Test saving nested datasets (i.e. datasets and groups side by side).'''
     root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     groups = ["", "group1A", "group1B", "group1A/group2A", "group1A/group2B"]
     datasets = {}
@@ -228,9 +229,38 @@ def test_save_datasets_nested(protocol, relative, chunks, data, tmpdir, s3):
         name = f'array{i}'
         ds = data.copy() * (i + 1)  # Make each dataset a bit different for testing
         datasets[name] = ds
-        _save_dataset(ds, protocol, root, groups[i], name, relative, chunks['input'])
+        _save_dataset(ds, protocol, root, groups[i], name, relative)
 
     # Load and check data
     for i, (name, dataset) in enumerate(datasets.items()):
         ds = _load_dataset(protocol, root, groups[i], relative)
         assert np.array_equal(dataset, ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+def test_save_datasets_nested_zarr(protocol, data, tmpdir, s3):
+    '''Test saving nested zarr files.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
+    datasets = {}
+    roots = [str(root), f"{str(root)}/group.zarr"]
+
+    for i, r in enumerate(roots):
+        name = f'array{i}'
+        ds = data.copy() * (i + 1)  # Make each dataset a bit different for testing
+        datasets[name] = ds
+        _save_dataset(ds, protocol, r, "", name, True)
+
+    # Load and check data
+    for i, (name, dataset) in enumerate(datasets.items()):
+
+        # load each zarr directly
+        r = roots[i]
+        ds = _load_dataset(protocol, r, "", True)
+        assert np.array_equal(dataset, ds[name].values)
+
+        # Load nested zarr as group of root zarr, with consolidated = False
+        store = ZarrIO(protocol=protocol).get_root(root)
+        group = r.split(str(root))[0]
+        if group:
+            ds = xr.open_zarr(store=store, group=group, consolidated=False)
+            assert np.array_equal(dataset, ds[name].values)
