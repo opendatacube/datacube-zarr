@@ -13,7 +13,7 @@ from ..utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dat
 @pytest.mark.parametrize('relative', (True, False))
 def test_save_dataarray(protocol, relative, chunks, data, tmpdir, s3):
     '''Test ZarrIO.save_dataarray to save and load for a single DataArray.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
     name = 'array1'
     _save_dataarray(data, protocol, root, group_name, name, relative, chunks['input'])
@@ -31,7 +31,7 @@ def test_save_dataarray(protocol, relative, chunks, data, tmpdir, s3):
 @pytest.mark.parametrize('relative', (True, False))
 def test_save_dataset(protocol, relative, chunks, data, tmpdir, s3):
     '''Test ZarrIO.save_dataset to save and load for a single Dataset.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
     name = 'array1'
     _save_dataset(data, protocol, root, group_name, name, relative, chunks['input'])
@@ -49,7 +49,7 @@ def test_save_dataset(protocol, relative, chunks, data, tmpdir, s3):
 @pytest.mark.parametrize('relative', (True, False))
 def test_save_dataarrays(protocol, relative, chunks, data, tmpdir, s3):
     '''Test ZarrIO.save_dataarray to save and load multiple DataArrays.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     datasets = {}
     for set_no in range(1, 3):
         group_name = f'dataset{set_no}'
@@ -70,7 +70,7 @@ def test_save_dataarrays(protocol, relative, chunks, data, tmpdir, s3):
 @pytest.mark.parametrize('relative', (True, False))
 def test_save_datasets(protocol, relative, chunks, data, tmpdir, s3):
     '''Test ZarrIO.save_dataset save and load multiple Datasets.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     datasets = {}
     for set_no in range(1, 3):
         group_name = f'dataset{set_no}'
@@ -91,7 +91,7 @@ def test_save_datasets(protocol, relative, chunks, data, tmpdir, s3):
 @pytest.mark.parametrize('relative', (True, False))
 def test_print_tree(protocol, relative, fixed_chunks, data, tmpdir, s3):
     '''Test zarr print data tree with a mix of Datasets and DataArrays co-existing.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     zio = ZarrIO(protocol=protocol)
     zio.save_dataarray(root=root, group_name='dataset1', dataarray=data,
                        name='array1', chunks=fixed_chunks['input'], relative=relative)
@@ -135,7 +135,7 @@ def test_print_tree(protocol, relative, fixed_chunks, data, tmpdir, s3):
 def test_clean_store(protocol, fixed_chunks, data, tmpdir, s3):
     '''Test cleaning of zarr store.'''
     relative = True
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     zio = ZarrIO(protocol=protocol)
     zio.save_dataset(root=root, group_name='dataset1',
                      dataset=data.to_dataset(name='array1'),
@@ -167,7 +167,7 @@ def test_invalid_protocol():
 @pytest.mark.parametrize('relative', (True, False))
 def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
     '''Test exceptions when an invalid mode is used.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     zio = ZarrIO(protocol=protocol)
 
     with pytest.raises(ValueError) as excinfo:
@@ -194,7 +194,7 @@ def test_invalid_mode(protocol, relative, fixed_chunks, data, tmpdir, s3):
 @pytest.mark.parametrize('relative', (True, False))
 def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
     '''Test overwriting an existing dataset.'''
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data'
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset_group_name'
     zio = ZarrIO(protocol=protocol)
 
@@ -215,3 +215,22 @@ def test_overwrite_dataset(protocol, relative, fixed_chunks, data, tmpdir, s3):
         root=str(root), group_name=group_name, relative=relative
     )
     np.array_equal(dataset[name], ds[name].values)
+
+
+@pytest.mark.parametrize('protocol', ('file', 's3'))
+@pytest.mark.parametrize('relative', (True, False))
+def test_save_datasets_nested(protocol, relative, chunks, data, tmpdir, s3):
+    '''Test ZarrIO.save_dataset save and load multiple Datasets.'''
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
+    groups = ["", "group1A", "group1B", "group1A/group2A", "group1A/group2B"]
+    datasets = {}
+    for i in range(len(groups)):
+        name = f'array{i}'
+        ds = data.copy() * (i + 1)  # Make each dataset a bit different for testing
+        datasets[name] = ds
+        _save_dataset(ds, protocol, root, groups[i], name, relative, chunks['input'])
+
+    # Load and check data
+    for i, (name, dataset) in enumerate(datasets.items()):
+        ds = _load_dataset(protocol, root, groups[i], relative)
+        assert np.array_equal(dataset, ds[name].values)
