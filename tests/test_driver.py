@@ -1,5 +1,5 @@
 '''Unit tests for the zarr_io.driver module.'''
-from pathlib import Path, os
+from pathlib import Path
 from random import random, sample
 
 import pytest
@@ -127,12 +127,24 @@ def test_datasource_no_nodata(dataset):
     assert str(excinfo.value) == 'nodata not found in dataset and product definition'
 
 
-def test_uri_split():
-    '''Check zarr uri splitting.'''
-    assert uri_split('protocol:///some/path/group.zarr') == ('protocol', '/some/path/group.zarr', 'group', '')
+uri_split_test_params = [
+    ('protocol:///some/path/root.zarr', ('protocol', '/some/path/root.zarr', '')),
+    ('s3:///some/path/root.zarr#group/subgroup', ('s3', '/some/path/root.zarr', 'group/subgroup')),
+    ('file:///some/path/root.zarr#/', ('file', '/some/path/root.zarr', '/'))
+]
 
+
+@pytest.mark.parametrize("uri,split_uri",  uri_split_test_params)
+def test_uri_split(uri, split_uri):
+    '''Check zarr uri splitting.'''
+    assert uri_split(uri) == split_uri
+
+
+def test_uri_split_no_scheme():
+    '''Check error is raised when no scheme present.'''
     with pytest.raises(ValueError) as excinfo:
         uri_split('/some/path/group.zarr')
+
     assert str(excinfo.value) == f'uri scheme not found: /some/path/group.zarr'
 
 
@@ -198,21 +210,19 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
     # write_dataset_to_storage calls save_dataset which uses relative=True by default
     relative = True
     root = s3['root'] if protocol == 's3' \
-        else Path(tmpdir) / 'data'
+        else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
     name = 'array1'
     writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),
-        file_uri=f'{protocol}://{root}/{group_name}.zarr',
+        file_uri=f'{protocol}://{root}#{group_name}',
         storage_config={'chunking': fixed_chunks['input']}
     )
     if protocol == 'file':
-        root = Path(root) / f'{group_name}.zarr'
         _check_zarr_files(data, root, group_name, name, relative, fixed_chunks)
-    else:
-        root += f'{os.sep}{group_name}.zarr'
+
     # Load and check data
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Compare values only
@@ -223,7 +233,7 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
     # write_dataset_to_storage calls save_dataset which uses relative=True by default
     relative = True
     protocol = 'file'
-    root = Path(tmpdir) / 'data'
+    root = Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
     name = 'array1'
     writer = ZarrWriterDriver()
@@ -236,11 +246,10 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
         ds_in.coords[coord_name].attrs['units'] = 'Fake unit'
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),  # The copy should be corrected
-        file_uri=f'{protocol}://{root}/{group_name}.zarr',
+        file_uri=f'{protocol}://{root}#{group_name}',
         storage_config={'chunking': fixed_chunks['input']}
     )
     # Load and check data has been corrected
-    root = Path(root) / f'{group_name}.zarr'
     ds_out = _load_dataset(protocol, root, group_name, relative=relative)
     assert ds_in.equals(ds_out)  # Values only
     for key, value in SPECTRAL_DEFINITION.items():

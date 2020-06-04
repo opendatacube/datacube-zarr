@@ -1,4 +1,3 @@
-from os import environ
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +6,6 @@ import boto3
 import numpy as np
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
-from mock import patch
 from moto import mock_s3
 from xarray import DataArray
 
@@ -122,14 +120,12 @@ def _gen_zarr_dataset(ds, root):
     '''Test dataset as loaded from zarr data in files.
 
     It comprises data attributes required in ODC.'''
-    group_name = list(ds.keys())[0]
+    var = list(ds.keys())[0]
     zio = ZarrIO(protocol='file')
-    zio.save_dataset(root=root / f'{group_name}.zarr',
-                     group_name=group_name,
-                     dataset=ds)
+    zio.save_dataset(root=root, group_name="", dataset=ds)
     bands = [{
-        'name': group_name,
-        'path': str(root / group_name) + '.zarr'
+        'name': var,
+        'path': str(root)
     }]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
     return ds1
@@ -138,13 +134,13 @@ def _gen_zarr_dataset(ds, root):
 @pytest.fixture
 def odc_dataset(dataset, tmpdir):
     '''ODC test zarr dataset.'''
-    root = Path(tmpdir) / 'data'
+    root = Path(tmpdir) / 'data.zarr'
     yield _gen_zarr_dataset(dataset, root)
 
 
 @pytest.fixture
 def odc_dataset_2d(dataset, tmpdir):
     '''ODC test zarr dataset with only 2 dimensions.'''
-    root = Path(tmpdir) / 'data_2d'
+    root = Path(tmpdir) / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)
