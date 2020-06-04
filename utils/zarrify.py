@@ -93,9 +93,7 @@ def convert_dir(
             zarr_name = commonprefix([f[0].stem for f in datasets]) or in_dir.name
 
         for files in datasets:
-            convert_to_zarr(
-                files, out_dir, zarr_name, crs, resolution, **zarrgs,
-            )
+            convert_to_zarr(files, out_dir, zarr_name, crs, resolution, **zarrgs)
             converted_files.extend(files)
 
     ignore_patterns = (ignore or []) + [str(f) for f in converted_files]
@@ -157,7 +155,7 @@ def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) 
     protocol, root_str = get_protocol_root(root)
     zio = ZarrIO(protocol)
     zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}:{group}")
+    print(f"create: {root_str}#{group}")
 
 
 # Functions for dealing with rasters
@@ -246,12 +244,13 @@ def raster_to_zarr(
     for dataset in get_rasterio_datasets(raster):
 
         # Generate zarr root and group names for dataset
-        group = raster.stem if zarr_name else ""
-        zarr_name = raster.stem
+        base_group = raster.stem if zarr_name else ""
         root = out_dir / f"{zarr_name or raster.stem}.zarr"
-        subgroup = re.search(fr"{raster.name}:/*(\S+)", dataset)
-        if subgroup is not None:
-            group += f"/{subgroup.groups()[0]}"
+        match = re.search(fr"{raster.name}:/*(\S+)", dataset)
+        if match is not None:
+            subgroup = match.groups()[0]
+            group = f"{base_group}/{subgroup}" if base_group else subgroup
+        group = group.replace(":", "/")
 
         if zarr_exists(root, group):
             raise ValueError(
