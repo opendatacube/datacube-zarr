@@ -5,11 +5,8 @@ Should be able to handle hyperspectral data when ready.
 """
 import itertools
 import os
-import ntpath
 from contextlib import contextmanager
-from pathlib import PosixPath
-from typing import Dict, Generator, List, Optional, Tuple, Union
-from urllib.parse import urlparse
+from typing import Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -18,6 +15,7 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
+from .utils.uris import uri_split
 from .zarr_io import ZarrIO
 
 PROTOCOL = ['file', 's3']
@@ -25,26 +23,6 @@ FORMAT = 'zarr'
 
 RasterShape = Tuple[int, ...]
 RasterWindow = Tuple[Tuple[int, int]]
-
-
-def uri_split(uri: str) -> Tuple[str, str, str, str]:
-    """
-    Splits uri into protocol, root, group name, and fragment
-
-    Example:
-        uri_split('file:///path/to/my_dataset.zarr#my_fragment')
-        returns ('file', '/path/to/my_dataset.zarr', 'my_dataset', 'my_fragment')
-
-    :param str uri: The URI to be parsed
-    :return: (protocol, root, group name, fragment)
-    """
-    components = urlparse(uri)
-    scheme = components.scheme
-    path = components.netloc + components.path
-    if not scheme:
-        raise ValueError(f'uri scheme not found: {uri}')
-    group = os.path.splitext(ntpath.basename(uri))[0]
-    return scheme, path, group, components.fragment
 
 
 class ZarrDataSource(object):
@@ -148,7 +126,7 @@ class ZarrDataSource(object):
             raise ValueError('BandInfo.band must be > 0')
 
         # convert band.uri -> protocol, root and group
-        protocol, self.root, self.group_name, fragment = uri_split(band.uri)
+        protocol, self.root, self.group_name = uri_split(band.uri)
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
 
@@ -240,7 +218,7 @@ class ZarrWriterDriver(object):
         :param Dict storage_config: Storage config from the product definition
         :return: a dict containing additional metadata to be saved in the DB
         """
-        protocol, root, group, fragment = uri_split(file_uri)
+        protocol, root, group = uri_split(file_uri)
 
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:
