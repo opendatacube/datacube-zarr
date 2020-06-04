@@ -122,9 +122,8 @@ def geotiff_to_zarr(tiff: Path, out_dir: Path, **zarrgs: Any) -> None:
                 for tag, tval in src.tags(i).items():
                     arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
-    group = tiff.stem
-    root = out_dir / f"{group}.zarr"
-    save_dataset_to_zarr(ds, root, group, **zarrgs)
+    root = out_dir / f"{tiff.stem}.zarr"
+    save_dataset_to_zarr(ds, root, "", **zarrgs)
 
 
 def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
