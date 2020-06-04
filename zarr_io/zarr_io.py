@@ -10,6 +10,8 @@ import zarr
 from datacube.utils.aws import auto_find_region
 from numcodecs import Zstd
 
+from .utils.uris import uri_split
+
 
 class ZarrBase():
     def __init__(self,
