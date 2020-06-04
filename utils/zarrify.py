@@ -31,6 +31,7 @@ _SUPPORTED_FORMATS = {
     "GeoTiff": (".tif", ".tiff", ".gtif"),
     "HDF": (".hdf", ".h5",),
     "JPEG2000": (".jp2",),
+    "NetCDF": (".nc",),
 }
 
 _RASTERIO_FORMATS = (
@@ -38,6 +39,7 @@ _RASTERIO_FORMATS = (
     "GeoTiff",
     "HDF",
     "JPEG2000",
+    "NetCDF",
 )
 _RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
 _RASTERIO_FILES = [
