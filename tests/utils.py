@@ -4,30 +4,27 @@ from json import load
 from zarr_io.zarr_io import ZarrIO
 
 
-def _save_dataarray(data, protocol, root, group_name, name, chunks=None):
+def _save_dataarray(data, uri, name, chunks=None):
     '''Save DataArray to storage.'''
-    zio = ZarrIO(protocol=protocol)
-    zio.save_dataarray(root=str(root),
-                       group_name=group_name,
+    zio = ZarrIO()
+    zio.save_dataarray(uri=uri,
                        dataarray=data.copy(),
                        name=name,
                        chunks=chunks)
 
 
-def _save_dataset(data, protocol, root, group_name, name, chunks=None):
+def _save_dataset(data, uri, name, chunks=None):
     '''Save Dataset to storage.'''
-    zio = ZarrIO(protocol=protocol)
-    zio.save_dataset(root=str(root),
-                     group_name=group_name,
+    zio = ZarrIO()
+    zio.save_dataset(uri=uri,
                      dataset=data.copy().to_dataset(name=name),
                      chunks=chunks)
 
 
-def _load_dataset(protocol, root, group_name):
+def _load_dataset(uri):
     '''Load Dataset from storage.'''
-    zio = ZarrIO(protocol=protocol)
-    return zio.load_dataset(root=str(root),
-                            group_name=group_name)
+    zio = ZarrIO()
+    return zio.load_dataset(uri=uri)
 
 
 def _check_zarr_files(data, root, group_name, name, chunks):

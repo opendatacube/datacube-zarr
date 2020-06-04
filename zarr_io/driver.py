@@ -126,11 +126,11 @@ class ZarrDataSource(object):
             raise ValueError('BandInfo.band must be > 0')
 
         # convert band.uri -> protocol, root and group
-        protocol, self.root, self.group_name = uri_split(band.uri)
+        protocol, root, group_name = uri_split(band.uri)
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
 
-        self.zio = ZarrIO(protocol=protocol)
+        self.uri = band.uri
 
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
@@ -138,9 +138,8 @@ class ZarrDataSource(object):
         Lazy open a Zarr endpoint.
         Only loads metadata.
         """
-        ds = self.zio.open_dataset(
-            root=self.root, group_name=self.group_name
-        )
+        zio = ZarrIO()
+        ds = zio.open_dataset(uri=self.uri)
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
             dataset=ds, var_name=var_name, time_idx=self._band_info.band, no_data=self._band_info.nodata
@@ -218,8 +217,6 @@ class ZarrWriterDriver(object):
         :param Dict storage_config: Storage config from the product definition
         :return: a dict containing additional metadata to be saved in the DB
         """
-        protocol, root, group = uri_split(file_uri)
-
         # Flattening atributes: Zarr doesn't allow dicts
         for var_name in dataset.data_vars:
             data_var = dataset.data_vars[var_name]
@@ -235,11 +232,10 @@ class ZarrWriterDriver(object):
                 units = coord_var.attrs.pop('units', None)
                 coord_var.attrs['dc_units'] = units
 
-        zio = ZarrIO(protocol=protocol)
+        zio = ZarrIO()
         # Should be a directory but actually get passed a file, which becomes a directory.
-        metadata = zio.save_dataset_to_zarr(root=root,
+        metadata = zio.save_dataset_to_zarr(uri=file_uri,
                                             dataset=dataset,
-                                            group=group,
                                             global_attributes=global_attributes,
                                             variable_params=variable_params,
                                             storage_config=storage_config)

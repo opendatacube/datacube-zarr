@@ -36,11 +36,9 @@ def path_as_str(path: Path) -> str:
 
 def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) -> None:
     """Save an xarray dataset to s3 or file in Zarr format."""
-    protocol = "s3" if root.as_uri().startswith("s3://") else "file"
-    zio = ZarrIO(protocol)
-    root_str = path_as_str(root)
-    zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}")
+    zio = ZarrIO()
+    zio.save_dataset(uri=root.as_uri(), dataset=ds, **kwargs)
+    print(f"create: {path_as_str(root)}")
 
 
 def convert_dir(
