@@ -18,6 +18,7 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
+from .utils.uris import uri_split
 from .zarr_io import ZarrIO
 
 PROTOCOL = ['file', 's3']
@@ -25,26 +26,6 @@ FORMAT = 'zarr'
 
 RasterShape = Tuple[int, ...]
 RasterWindow = Tuple[Tuple[int, int]]
-
-
-def uri_split(uri: str) -> Tuple[str, str, str]:
-    """
-    Splits uri into protocol, root, and group
-
-    Example:
-        uri_split('file:///path/to/my_dataset.zarr#group')
-        returns ('file', '/path/to/my_dataset.zarr', 'group')
-
-    :param str uri: The URI to be parsed
-    :return: (protocol, root, group)
-    """
-    components = urlparse(uri)
-    scheme = components.scheme
-    path = components.netloc + components.path
-    if not scheme:
-        raise ValueError(f'uri scheme not found: {uri}')
-    group = components.fragment
-    return scheme, path, group
 
 
 class ZarrDataSource(object):
