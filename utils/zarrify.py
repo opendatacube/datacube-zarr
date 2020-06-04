@@ -52,15 +52,9 @@ def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
     return any(path.match(p) for p in patterns) if patterns else False
 
 
-def get_protocol_root(path: Path) -> Tuple[str, str]:
-    """Split path into protocol and root."""
-    if path.as_uri().startswith("s3://"):
-        protocol = "s3"
-        root = path.as_uri()
-    else:
-        protocol = "file"
-        root = str(path)
-    return protocol, root
+def root_as_str(path: Path) -> str:
+    """uri path to str."""
+    return path.as_uri() if path.as_uri().startswith("s3://") else str(path)
 
 
 def get_datasets(in_dir: Path) -> Generator[Tuple[str, List[Path]], None, None]:
@@ -141,23 +135,14 @@ def convert_to_zarr(
                 boto3.resource("s3").Object(bucket, key).delete()
             else:
                 f.unlink()
-            print(f"delete: {get_protocol_root(f)[1]}")
+            print(f"delete: {root_as_str(f)}")
 
 
 def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
     """Return True if root (and optionally group) exists."""
-    protocol, root_str = get_protocol_root(root)
-    store = ZarrIO(protocol).get_root(root_str)
+    store = ZarrIO().get_root(root.as_uri())
     exists: bool = zarr.storage.contains_group(store, group)
     return exists
-
-
-def save_dataset_to_zarr(ds: xr.Dataset, root: Path, group: str, **kwargs: Any) -> None:
-    """Save an xarray dataset to s3 or file in Zarr format."""
-    protocol, root_str = get_protocol_root(root)
-    zio = ZarrIO(protocol)
-    zio.save_dataset(root=root_str, group_name=group, dataset=ds, **kwargs)
-    print(f"create: {root_str}#{group}")
 
 
 # Functions for dealing with rasters
@@ -252,6 +237,8 @@ def raster_to_zarr(
         if match is not None:
             subgroup = match.groups()[0]
             group = f"{base_group}/{subgroup}" if base_group else subgroup
+        else:
+            group = base_group
         group = group.replace(":", "/")
 
         if zarr_exists(root, group):
@@ -293,7 +280,9 @@ def raster_to_zarr(
                     for tag, tval in src.tags(i).items():
                         arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
-            save_dataset_to_zarr(ds, root, group, **zarrgs)
+        uri = f"{root.as_uri()}#{group}"
+        ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
+        print(f"create: {uri}")
 
 
 # CLI functions

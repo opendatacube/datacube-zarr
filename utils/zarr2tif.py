@@ -14,7 +14,7 @@ from rasterio.crs import CRS
 from zarr.hierarchy import Group
 
 from zarr_io import ZarrIO
-from zarrify import _META_PREFIX, _RASTERIO_BAND_ATTRS, FileOrS3Path, get_protocol_root
+from zarrify import _META_PREFIX, _RASTERIO_BAND_ATTRS, FileOrS3Path
 
 
 def get_dot_zarrs(path: Path) -> Generator[Path, None, None]:
@@ -94,11 +94,10 @@ def main(path: Path, outdir: Optional[Path]) -> None:
         relpath = Path(zarr.name) if zarr == path else zarr.relative_to(path)
         print(f"Converting {relpath}")
         outpath = outdir / relpath.parent if outdir else zarr.parent
-        protocol, root = get_protocol_root(zarr)
-        zio = ZarrIO(protocol)
-        root_group = z.group(zio.get_root(root))
+        zio = ZarrIO()
+        root_group = z.group(zio.get_root(str(zarr)))
         for group in get_groups_with_arrays(root_group):
-            ds = zio.open_dataset(root, group)
+            ds = zio.open_dataset(f"{zarr.as_uri()}#{group}")
             tif_stem = reduce(lambda s, c: s.replace(c, "_"), "/:", group[1:])
             tif_path = outpath / f"{tif_stem}.tif"
             outpath.mkdir(exist_ok=True, parents=True)

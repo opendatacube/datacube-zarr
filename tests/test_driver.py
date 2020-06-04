@@ -207,34 +207,32 @@ def test_writer_driver_mk_uri():
 @pytest.mark.parametrize('protocol', ('file', 's3'))
 def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
     '''Test the `write_dataset_to_storage` method.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=True by default
-    relative = True
     root = s3['root'] if protocol == 's3' \
         else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
+    uri = f'{protocol}://{root}#{group_name}'
     name = 'array1'
     writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),
-        file_uri=f'{protocol}://{root}#{group_name}',
+        file_uri=uri,
         storage_config={'chunking': fixed_chunks['input']}
     )
     if protocol == 'file':
-        _check_zarr_files(data, root, group_name, name, relative, fixed_chunks)
+        _check_zarr_files(data, root, group_name, name, fixed_chunks)
 
     # Load and check data
-    ds_out = _load_dataset(protocol, root, group_name, relative=relative)
+    ds_out = _load_dataset(uri)
     assert ds_in.equals(ds_out)  # Compare values only
 
 
 def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
     '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
-    # write_dataset_to_storage calls save_dataset which uses relative=True by default
-    relative = True
     protocol = 'file'
     root = Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
+    uri = f'{protocol}://{root}#{group_name}'
     name = 'array1'
     writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
@@ -246,11 +244,11 @@ def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
         ds_in.coords[coord_name].attrs['units'] = 'Fake unit'
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),  # The copy should be corrected
-        file_uri=f'{protocol}://{root}#{group_name}',
+        file_uri=uri,
         storage_config={'chunking': fixed_chunks['input']}
     )
     # Load and check data has been corrected
-    ds_out = _load_dataset(protocol, root, group_name, relative=relative)
+    ds_out = _load_dataset(uri)
     assert ds_in.equals(ds_out)  # Values only
     for key, value in SPECTRAL_DEFINITION.items():
         # spectral defs attributes should now start with 'dc_'

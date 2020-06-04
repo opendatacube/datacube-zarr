@@ -121,8 +121,10 @@ def _gen_zarr_dataset(ds, root):
 
     It comprises data attributes required in ODC.'''
     var = list(ds.keys())[0]
-    zio = ZarrIO(protocol='file')
-    zio.save_dataset(root=root, group_name="", dataset=ds)
+    protocol = 'file'
+    uri = f'{protocol}://{root}'
+    zio = ZarrIO()
+    zio.save_dataset(uri=uri, dataset=ds)
     bands = [{
         'name': var,
         'path': str(root)

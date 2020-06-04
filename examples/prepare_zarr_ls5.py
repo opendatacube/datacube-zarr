@@ -117,20 +117,20 @@ def get_groups_with_arrays(group: zarr.Group) -> Generator[str, None, None]:
 def get_zarr_objs(path: Path):
     """Find subdir which are zarr obj roots."""
     protocol, _ = get_protocol_root(path)
-    zio = ZarrIO(protocol=protocol)
+    zio = ZarrIO()
     for r in path.iterdir():
         if next(r.glob(".zgroup"), None) is not None:
             _, root = get_protocol_root(r)
-            root_group = zarr.group(zio.get_root(root))
+            root_group = zarr.group(zio.get_root(r.as_uri()))
             for g in get_groups_with_arrays(root_group):
                 yield r, g if g != "/" else None
 
 
 def load_zarr_dataset(path: Path, group: str) -> xr.DataArray:
     """Open zarr datasets on s3 or file."""
-    protocol, root = get_protocol_root(path)
-    zio = ZarrIO(protocol=protocol)
-    da = zio.open_dataset(root=root, group_name=group)
+    # protocol, root = get_protocol_root(path)
+    zio = ZarrIO()
+    da = zio.open_dataset(uri=path.as_uri())
     return da
 
 
