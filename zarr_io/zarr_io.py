@@ -52,7 +52,6 @@ class ZarrIO(ZarrBase):
             # Persist to s3
             zio.save_dataset(root=root,
                              group_name='dataset1',
-                             relative=True,
                              dataset=data.to_dataset(name='array1'),
                              chunks={'dim_0': 1100, 'dim_1': 1100})
 
@@ -66,15 +65,14 @@ class ZarrIO(ZarrBase):
             # Persist to file
             zio.save_dataset(root=root,
                              group_name='dataset1',
-                             relative=True,
                              dataset=data.to_dataset(name='array1'),
                              chunks={'dim_0': 1100, 'dim_1': 1100})
 
         Loading a xarray.Dataset:
             # Open descriptor
-            ds1 = zio.open_dataset(root=root, group_name='dataset1', relative=True)
+            ds1 = zio.open_dataset(root=root, group_name='dataset1')
             # Load data into memory
-            ds2 = zio.load_dataset(root=root, group_name='dataset1', relative=True)
+            ds2 = zio.load_dataset(root=root, group_name='dataset1')
     """
 
     # Allowed Zarr write modes.
@@ -161,8 +159,7 @@ class ZarrIO(ZarrBase):
                        dataarray: xr.DataArray,
                        name: str,
                        chunks: Optional[dict] = None,
-                       mode: str = 'w-',
-                       relative: bool = True) -> None:
+                       mode: str = 'w-') -> None:
         """
         Saves a xarray.DataArray
 
@@ -175,12 +172,11 @@ class ZarrIO(ZarrBase):
             w: overwrite
             w-: overwrite if exists
             a: overwrite existing variables (create if does not exist)
-        :param bool relative: True for relative indexing and False for global indexing
         """
         dataset = dataarray.to_dataset(name=name)
         self.save_dataset(
             root=root, group_name=group_name, dataset=dataset,
-            chunks=chunks, mode=mode, relative=relative
+            chunks=chunks, mode=mode
         )
 
     def save_dataset(self,
@@ -188,8 +184,7 @@ class ZarrIO(ZarrBase):
                      group_name: str,
                      dataset: xr.Dataset,
                      chunks: Optional[dict] = None,
-                     mode: str = 'w-',
-                     relative: bool = True) -> None:
+                     mode: str = 'w-') -> None:
         """
         Saves a xarray.Dataset
 
@@ -201,20 +196,15 @@ class ZarrIO(ZarrBase):
             w: overwrite
             w-: overwrite if exists
             a: overwrite existing variables (create if does not exist)
-        :param bool relative: True for relative indexing and False for global indexing
         """
         if mode not in self.WRITE_MODES:
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
-        store = self.get_root(root)
-        if not relative and group_name:
-            group = zarr.group(store=store)
-            store, group = self.new_store(store, group, group_name)
-            group_name = group.name
-
         compressor = Zstd(level=9)
         if chunks:
             dataset = dataset.chunk(chunks)
+
+        store = self.get_root(root)
         dataset.to_zarr(store=store,
                         group=group_name,
                         mode=mode,
@@ -223,33 +213,27 @@ class ZarrIO(ZarrBase):
 
     def open_dataset(self,
                      root: str,
-                     group_name: Optional[str] = None,
-                     relative: bool = True) -> xr.Dataset:
+                     group_name: Optional[str] = None) -> xr.Dataset:
         """
         Opens a xarray.Dataset
 
         :param str root: The storage root path.
         :param str group_name: The group_name to store under root
-        :param bool relative: Whether to use relative or absolute addressing.
         """
-        if not relative and group_name:
-            root = '/'.join((root, group_name))
         store = self.get_root(root)
         ds: xr.Dataset = xr.open_zarr(store=store, group=group_name, consolidated=True)
         return ds
 
     def load_dataset(self,
                      root: str,
-                     group_name: Optional[str] = None,
-                     relative: bool = True) -> xr.Dataset:
+                     group_name: Optional[str] = None) -> xr.Dataset:
         """
         Loads a xarray.Dataset
 
         :param str root: The storage root path.
         :param str group_name: The group_name to store under root
-        :param bool relative: Whether to use relative or absolute addressing.
         """
-        ds: xr.Dataset = self.open_dataset(root, group_name=group_name, relative=relative)
+        ds: xr.Dataset = self.open_dataset(root, group_name=group_name)
         ds.load()
         return ds
 

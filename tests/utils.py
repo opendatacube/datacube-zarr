@@ -4,41 +4,36 @@ from json import load
 from zarr_io.zarr_io import ZarrIO
 
 
-def _save_dataarray(data, protocol, root, group_name, name, relative, chunks=None):
+def _save_dataarray(data, protocol, root, group_name, name, chunks=None):
     '''Save DataArray to storage.'''
     zio = ZarrIO(protocol=protocol)
     zio.save_dataarray(root=str(root),
                        group_name=group_name,
                        dataarray=data.copy(),
                        name=name,
-                       chunks=chunks,
-                       relative=relative)
+                       chunks=chunks)
 
 
-def _save_dataset(data, protocol, root, group_name, name, relative, chunks=None):
+def _save_dataset(data, protocol, root, group_name, name, chunks=None):
     '''Save Dataset to storage.'''
     zio = ZarrIO(protocol=protocol)
     zio.save_dataset(root=str(root),
                      group_name=group_name,
-                     relative=relative,
                      dataset=data.copy().to_dataset(name=name),
                      chunks=chunks)
 
 
-def _load_dataset(protocol, root, group_name, relative):
+def _load_dataset(protocol, root, group_name):
     '''Load Dataset from storage.'''
     zio = ZarrIO(protocol=protocol)
     return zio.load_dataset(root=str(root),
-                            group_name=group_name,
-                            relative=relative)
+                            group_name=group_name)
 
 
-def _check_zarr_files(data, root, group_name, name, relative, chunks):
+def _check_zarr_files(data, root, group_name, name, chunks):
     '''Check zarr files in local filesystem.
 
     Only some metadata and chunk file names are checked, not actual binary content.'''
-    if not relative:
-        root = root / group_name
     assert root.exists(), f'Missing {root} after save'
     # Check chunks in root level metadata
     metadata_path = root / '.zmetadata'
