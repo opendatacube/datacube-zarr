@@ -203,14 +203,8 @@ def test_writer_driver_mk_uri():
     assert str(excinfo.value) == f'Unknown driver alias: {driver_alias}'
 
 
-# TODO: parametrize on uri and use driver.uri_split to get (protocol, root, group)
-@pytest.mark.parametrize('protocol', ('file', 's3'))
-def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
+def test_zarr_file_writer_driver_save(uri, fixed_chunks, data, s3):
     '''Test the `write_dataset_to_storage` method.'''
-    root = s3['root'] if protocol == 's3' \
-        else Path(tmpdir) / 'data.zarr'
-    group_name = 'dataset1'
-    uri = f'{protocol}://{root}#{group_name}'
     name = 'array1'
     writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
@@ -219,20 +213,15 @@ def test_zarr_file_writer_driver_save(protocol, fixed_chunks, data, tmpdir, s3):
         file_uri=uri,
         storage_config={'chunking': fixed_chunks['input']}
     )
-    if protocol == 'file':
-        _check_zarr_files(data, root, group_name, name, fixed_chunks)
+    _check_zarr_files(data, uri, name, fixed_chunks, s3)
 
     # Load and check data
     ds_out = _load_dataset(uri)
     assert ds_in.equals(ds_out)  # Compare values only
 
 
-def test_zarr_file_writer_driver_data_corrections(fixed_chunks, data, tmpdir):
+def test_zarr_file_writer_driver_data_corrections(uri, fixed_chunks, data):
     '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
-    protocol = 'file'
-    root = Path(tmpdir) / 'data.zarr'
-    group_name = 'dataset1'
-    uri = f'{protocol}://{root}#{group_name}'
     name = 'array1'
     writer = ZarrWriterDriver()
     ds_in = data.to_dataset(name=name)
