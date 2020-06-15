@@ -14,8 +14,8 @@ from rasterio.crs import CRS
 from zarr.hierarchy import Group
 
 from zarr_io import ZarrIO
-from zarrify import _META_PREFIX, _RASTERIO_BAND_ATTRS, FileOrS3Path
-
+from zarrify import FileOrS3Path
+from zarr_io.utils.raster import _META_PREFIX, _RASTERIO_BAND_ATTRS
 
 def get_dot_zarrs(path: Path) -> Generator[Path, None, None]:
     """Recursively find .zarr dirs."""
