@@ -52,8 +52,17 @@ def s3(s3_bucket_name, mock_aws_aws_credentials):
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
-        root = f's3://{s3_bucket_name}/mock-dir/mock-subdir'
+        root = f'{s3_bucket_name}/mock-dir/mock-subdir'
         yield {'client': client, 'root': root}
+
+
+@pytest.fixture(params=('file', 's3'))
+def uri(request, tmpdir, s3):
+    '''Test URI parametrised for `file` and `s3` protocols.'''
+    protocol = request.param
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
+    group_name = 'dataset1'
+    yield f'{protocol}://{root}#{group_name}'
 
 
 @pytest.fixture
