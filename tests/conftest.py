@@ -1,4 +1,3 @@
-from os import environ
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +6,6 @@ import boto3
 import numpy as np
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
-from mock import patch
 from moto import mock_s3
 from xarray import DataArray
 
@@ -54,8 +52,17 @@ def s3(s3_bucket_name, mock_aws_aws_credentials):
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
-        root = f's3://{s3_bucket_name}/mock-dir/mock-subdir'
+        root = f'{s3_bucket_name}/mock-dir/mock-subdir'
         yield {'client': client, 'root': root}
+
+
+@pytest.fixture(params=('file', 's3'))
+def uri(request, tmpdir, s3):
+    '''Test URI parametrised for `file` and `s3` protocols.'''
+    protocol = request.param
+    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
+    group_name = 'dataset1'
+    yield f'{protocol}://{root}#{group_name}'
 
 
 @pytest.fixture
@@ -122,14 +129,14 @@ def _gen_zarr_dataset(ds, root):
     '''Test dataset as loaded from zarr data in files.
 
     It comprises data attributes required in ODC.'''
-    group_name = list(ds.keys())[0]
-    zio = ZarrIO(protocol='file')
-    zio.save_dataset(root=root / f'{group_name}.zarr',
-                     group_name=group_name,
-                     dataset=ds)
+    var = list(ds.keys())[0]
+    protocol = 'file'
+    uri = f'{protocol}://{root}'
+    zio = ZarrIO()
+    zio.save_dataset(uri=uri, dataset=ds)
     bands = [{
-        'name': group_name,
-        'path': str(root / group_name)
+        'name': var,
+        'path': str(root)
     }]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
     return ds1
@@ -138,13 +145,13 @@ def _gen_zarr_dataset(ds, root):
 @pytest.fixture
 def odc_dataset(dataset, tmpdir):
     '''ODC test zarr dataset.'''
-    root = Path(tmpdir) / 'data'
+    root = Path(tmpdir) / 'data.zarr'
     yield _gen_zarr_dataset(dataset, root)
 
 
 @pytest.fixture
 def odc_dataset_2d(dataset, tmpdir):
     '''ODC test zarr dataset with only 2 dimensions.'''
-    root = Path(tmpdir) / 'data_2d'
+    root = Path(tmpdir) / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)

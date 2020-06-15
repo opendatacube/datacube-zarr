@@ -1,0 +1,52 @@
+# Build a dev/prod image and push it to ECR.
+
+trigger:
+  branches:
+    include:
+    - '*'
+
+variables:
+  NAME: $(Build.Repository.Name)
+  # Use BuildKit for optimised docker performance etc.
+  DOCKER_BUILDKIT: 1
+
+
+resources:
+  repositories:
+  - repository: DatacubeDriversDockerRepo
+    type: git
+    name: datacube-drivers-docker
+    ref: develop
+
+
+stages:
+- stage: BuildAndTest
+  displayName: Build image and test code
+  jobs:
+  - job: BuildAndTestJob
+    displayName: Build image and test code
+    pool:
+      vmImage: 'ubuntu-18.04'
+    steps:
+      # We need -drivers/ under -docker/ so it's in the docker context
+      # It doesn't seem possible to checkout -drivers/ inside -docker/, so we
+      # checkout them side-by-side then move -drivers/ inside docker/ repo
+    - checkout: self
+    - checkout: DatacubeDriversDockerRepo
+    - task: Bash@3
+      displayName: Move $(NAME) into docker context
+      inputs:
+        targetType: 'inline'
+        script: 'mv $(NAME) $(NAME)-docker'
+
+    - task: DockerCompose@0
+      # Compose will build the image, mount fixed secrets into it, and start a postgres
+      # on the side, then run check-code. If successful, the build image become the prod
+      # image in ECR
+      displayName: Build and test image with docker-compose
+      inputs:
+        containerregistrytype: 'Container Registry'
+        dockerComposeFile: '$(NAME)-docker/docker-compose.yaml'
+        qualifyImageNames: false
+        action: 'Run services'
+        detached: false

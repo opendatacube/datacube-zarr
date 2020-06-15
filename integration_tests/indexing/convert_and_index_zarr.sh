@@ -15,7 +15,7 @@ datacube system init
 datacube system check
 
 # Repos
-BASEDIR=/home/odc/okteto
+BASEDIR=/root/okteto
 DATACUBE_DIR=$BASEDIR/datacube-core
 DATACUBE_DRIVER_DIR=$BASEDIR/datacube-drivers
 
@@ -29,7 +29,7 @@ datacube dataset add $DATACUBE_TEST_DIR/$DATASET_NAME/agdc-metadata.yaml
 
 
 # Convert GeoTiff dataset to zarr
-LOCAL_DATA_DIR=$BASEDIR/data/zarr/index_test
+LOCAL_DATA_DIR=/root/data/zarr/index_test
 [ -d $LOCAL_DATA_DIR ] && rm -r $LOCAL_DATA_DIR
 mkdir -p $LOCAL_DATA_DIR
 
@@ -39,7 +39,7 @@ $DATACUBE_DRIVER_DIR/utils/zarrify.py \
     $DATACUBE_TEST_DIR
 
 # Convert GeoTiff dataset to zarr inplace
-LOCAL_DATA_DIR2=$BASEDIR/data/zarr/index_test_inplace
+LOCAL_DATA_DIR2=/root/data/zarr/index_test_inplace
 [ -d $LOCAL_DATA_DIR2 ] && rm -r $LOCAL_DATA_DIR2
 cp -r $DATACUBE_TEST_DIR $LOCAL_DATA_DIR2
 
@@ -55,7 +55,7 @@ $DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR
 tree $ZARR_DATASET_DIR
 
 # Add to datacube
-datacube product add $DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
+datacube product add $DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
 datacube dataset add $ZARR_DATASET_DIR
 
 # Load both datasets and compare
