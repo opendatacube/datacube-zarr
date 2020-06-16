@@ -61,9 +61,10 @@ def convert_dir(
     resolution: Optional[Tuple[float, float]] = None,
     merge_datasets_per_dir: bool = False,
     **zarrgs: Any,
-) -> None:
+) -> List[str]:
     """Recursively convert datasets in a directory to Zarr format."""
     assert in_dir.is_dir()
+    output_zarrs = []
 
     # find and convert datasets
     datasets = [f for t, f in get_datasets(in_dir) if not ignore_file(f[0], ignore)]
@@ -74,7 +75,8 @@ def convert_dir(
             zarr_name = commonprefix([f[0].stem for f in datasets]) or in_dir.name
 
         for files in datasets:
-            convert_to_zarr(files, out_dir, zarr_name, crs, resolution, **zarrgs)
+            zarrs = convert_to_zarr(files, out_dir, zarr_name, crs, resolution, **zarrgs)
+            output_zarrs.extend(zarrs)
             converted_files.extend(files)
 
     ignore_patterns = (ignore or []) + [str(f) for f in converted_files]
@@ -84,13 +86,16 @@ def convert_dir(
         if p.relative_to(in_dir).name and not ignore_file(p, ignore_patterns):
             out_p = out_dir / p.name if out_dir else None
             if p.is_dir():
-                convert_dir(
+                zarrs = convert_dir(
                     p, out_p, ignore, crs, resolution, merge_datasets_per_dir, **zarrgs
                 )
+                output_zarrs.extend(zarrs)
             elif out_p is not None:
                 if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
                     out_p.parent.mkdir(exist_ok=True, parents=True)
                 out_p.write_bytes(p.read_bytes())
+
+    return output_zarrs
 
 
 def convert_to_zarr(
@@ -100,7 +105,7 @@ def convert_to_zarr(
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
-) -> None:
+) -> List[str]:
     """Convert a dataset (of potentially multiple files) to Zarr format."""
     data_file = files[0]
     inplace = out_dir is None
@@ -108,7 +113,7 @@ def convert_to_zarr(
         out_dir = data_file.parent
 
     if data_file.suffix in _RASTERIO_FILES:
-        raster_to_zarr(data_file, out_dir, zarr_name, crs, resolution, **zarrgs)
+        zarrs = raster_to_zarr(data_file, out_dir, zarr_name, crs, resolution, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {data_file.suffix}")
 
@@ -121,3 +126,5 @@ def convert_to_zarr(
             else:
                 f.unlink()
             logger.info(f"delete: {root_as_str(f)}")
+
+    return zarrs

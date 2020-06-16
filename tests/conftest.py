@@ -158,17 +158,23 @@ def odc_dataset_2d(dataset, tmpdir):
     yield _gen_zarr_dataset(dataset, root)
 
 
-def create_random_raster(outdir: Path, height: int, width: int, count: int = 1) -> Path:
+def create_random_raster(
+    outdir: Path,
+    label: str = "raster",
+    height: int = 200,
+    width: int = 300,
+    nbands: int = 1
+) -> Path:
     """Create a raster with random data."""
     dtype = np.float32
-    data = np.random.randn(count, height, width).astype(dtype)
-    file_path = outdir / f"raster_{count}x{height}x{width}.tif"
+    data = np.random.randn(nbands, height, width).astype(dtype)
+    file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
 
     bbox = [149, 35, 150, 36]
     transform = rasterio.transform.from_bounds(*bbox, width, height)
     meta = {
         "driver": "GTiff",
-        "count": count,
+        "count": nbands,
         "width": width,
         "height": height,
         "crs": rasterio.crs.CRS.from_epsg("4326"),
@@ -187,13 +193,22 @@ def create_random_raster(outdir: Path, height: int, width: int, count: int = 1) 
 def tmp_raster(tmpdir_factory):
     """Temporary geotif."""
     outdir = Path(tmpdir_factory.mktemp('files'))
-    raster = create_random_raster(outdir, 200, 300)
+    raster = create_random_raster(outdir)
     yield raster
 
 
 @pytest.fixture(scope="session")
 def tmp_raster_multiband(tmpdir_factory):
-    """Temporary geotif."""
+    """Temporary multiband geotif."""
     outdir = Path(tmpdir_factory.mktemp('files'))
-    raster = create_random_raster(outdir, 200, 300, count=5)
+    raster = create_random_raster(outdir, nbands=5)
     yield raster
+
+
+@pytest.fixture(scope="session")
+def tmp_dir_of_rasters(tmpdir_factory):
+    """Temporary directory of geotifs."""
+    outdir = Path(tmpdir_factory.mktemp('dataset')) / "scene"
+    outdir.mkdir()
+    rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
+    yield outdir, rasters
