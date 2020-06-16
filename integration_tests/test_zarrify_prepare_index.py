@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-import datacube
+#import datacube
+from datacube.api.core import Datacube
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from tools.zarrify import main as zarrify
 
@@ -21,10 +22,9 @@ LBG_NBAR = "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 @pytest.mark.parametrize("datacube_env_name", ("datacube",))
 @pytest.mark.parametrize("convert_inplace", (False, True))
 def test_zarrify_prepare_index(
-    clirunner, tmpdir, convert_inplace, datacube_env_name, index
+    clirunner, tmpdir, convert_inplace, datacube_env_name, index,
 ):
     """Convert test ls5 tifs to zarr, prepare mdetadata, index and compare."""
-
     lbg_dir = Path(tmpdir) / "geotifs" / "lbg"
     zarr_dir = Path(tmpdir) / "zarrs"
 
@@ -40,18 +40,23 @@ def test_zarrify_prepare_index(
     zarrify_args = ["--chunk", "x:500", "--chunk", "y:500"]
     if convert_inplace:
         zarrify_args.append("--inplace")
-        zarr_dir = lbg_dir
+        dataset_path = zarr_dir / "lbg"
+        shutil.copytree(str(lbg_dir), str(dataset_path))
     else:
         zarrify_args.extend(["--outpath", str(zarr_dir)])
-    zarrify_args.append(str(lbg_dir))
+        dataset_path = lbg_dir
+
+    zarrify_args.append(str(dataset_path))
     runner.invoke(zarrify, zarrify_args)
 
+    zarr_dataset_dir = zarr_dir / "lbg" / LBG_NBAR
+
     # prepare metadata for zarr
-    runner.invoke(prepare_zarr_ls5, [str(zarr_dir)])
+    runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir)])
 
     # Add the zarr LS5 product and dataset
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES_ZARR)])
-    clirunner(["-v", "dataset", "add", str(zarr_dir)])
+    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir)])
 
     # LS5 NBAR scene params
     output_crs = "EPSG:28355"
@@ -60,7 +65,8 @@ def test_zarrify_prepare_index(
     longitude = (149.0689, 149.156705)
 
     # Load data
-    dc = datacube.Datacube()
+    dc = Datacube(index=index)
+
     data_tiff = dc.load(
         product="ls5_nbar_scene",
         latitude=latitude,
