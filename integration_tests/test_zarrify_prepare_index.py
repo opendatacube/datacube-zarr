@@ -17,6 +17,7 @@ TEST_DATA = PROJECT_ROOT / "tests" / "data" / "lbg"
 LBG_NBAR = "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 
 
+@pytest.mark.usefixtures("default_metadata_type")
 @pytest.mark.parametrize("datacube_env_name", ("datacube",))
 @pytest.mark.parametrize("convert_inplace", (False, True))
 def test_zarrify_prepare_index(
