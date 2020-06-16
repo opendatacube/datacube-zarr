@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import xarray as xr
 
-from zarr_io.utils.convert import get_datasets, convert_dir
+from zarr_io.utils.convert import convert_dir, get_datasets
 from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
 from zarr_io.zarr_io import ZarrIO

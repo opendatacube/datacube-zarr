@@ -75,7 +75,9 @@ def convert_dir(
             zarr_name = commonprefix([f[0].stem for f in datasets]) or in_dir.name
 
         for files in datasets:
-            zarrs = convert_to_zarr(files, out_dir, zarr_name, crs, resolution, **zarrgs)
+            zarrs = convert_to_zarr(
+                files, out_dir, zarr_name, crs, resolution, **zarrgs
+            )
             output_zarrs.extend(zarrs)
             converted_files.extend(files)
 
