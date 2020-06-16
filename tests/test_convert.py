@@ -25,6 +25,7 @@ def test_raster_to_zarr(tmp_raster, tmpdir, chunks):
         .expand_dims("band")
     )
     assert da_raster.equals(da_zarr)
+    assert da_raster.crs == da_zarr.crs
 
 
 @pytest.mark.parametrize("multi_dim", [True, False])
@@ -47,3 +48,4 @@ def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmpdir, multi_dim):
             {"band": list(range(1, len(ds_zarr) + 1))}
         )
     assert da_raster.equals(da_zarr)
+    assert da_raster.crs == da_zarr.crs
