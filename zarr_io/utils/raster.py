@@ -110,8 +110,9 @@ def raster_to_zarr(
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
-) -> None:
+) -> List[str]:
     """Convert a raster image file to Zarr via rasterio."""
+    output_uris = []
     for dataset in get_rasterio_datasets(raster):
 
         # Generate zarr root and group names for dataset
@@ -143,7 +144,7 @@ def raster_to_zarr(
                 ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
                 tag_names = {k for i in range(nbands) for k in src.tags(i)}
                 for tag in tag_names:
-                    tag_list = [src.tags(i).get(tag) for i in nbands]
+                    tag_list = [src.tags(i).get(tag) for i in range(nbands)]
                     ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
             else:
                 # Rename variable keys to strings required by zarr
@@ -166,3 +167,6 @@ def raster_to_zarr(
         uri = make_zarr_uri(root, group)
         ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
         logger.info(f"Created zarr: {uri}")
+        output_uris.append(uri)
+
+    return output_uris

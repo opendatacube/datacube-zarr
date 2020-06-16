@@ -7,6 +7,7 @@ import numpy as np
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
+import rasterio
 from xarray import DataArray
 
 from zarr_io.zarr_io import ZarrIO
@@ -155,3 +156,44 @@ def odc_dataset_2d(dataset, tmpdir):
     root = Path(tmpdir) / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)
+
+
+def create_random_raster(outdir: Path, height: int, width: int, count: int = 1) -> Path:
+    """Create a raster with random data."""
+    dtype = np.float32
+    data = np.random.randn(count, height, width).astype(dtype)
+    file_path = outdir / f"raster_{count}x{height}x{width}.tif"
+
+    bbox = [149, 35, 150, 36]
+    transform = rasterio.transform.from_bounds(*bbox, width, height)
+    meta = {
+        "driver": "GTiff",
+        "count": count,
+        "width": width,
+        "height": height,
+        "crs": rasterio.crs.CRS.from_epsg("4326"),
+        "nodata": None,
+        "dtype": dtype,
+        "transform": transform,
+    }
+
+    with rasterio.open(file_path, "w", **meta) as dst:
+        dst.write(data)
+
+    return file_path
+
+
+@pytest.fixture(scope="session")
+def tmp_raster(tmpdir_factory):
+    """Temporary geotif."""
+    outdir = Path(tmpdir_factory.mktemp('files'))
+    raster = create_random_raster(outdir, 200, 300)
+    yield raster
+
+
+@pytest.fixture(scope="session")
+def tmp_raster_multiband(tmpdir_factory):
+    """Temporary geotif."""
+    outdir = Path(tmpdir_factory.mktemp('files'))
+    raster = create_random_raster(outdir, 200, 300, count=5)
+    yield raster
