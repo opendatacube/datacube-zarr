@@ -74,3 +74,6 @@ docs/notebooks/
 #Local Visual Studio Code configurations
 .vscode/
 .env
+
+# setuptools_scm generated version file
+zarr_io/_version.py
