@@ -4,11 +4,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-#import datacube
 from datacube.api.core import Datacube
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from tools.zarrify import main as zarrify
-
 
 PROJECT_ROOT = Path(__file__).parents[1]
 CONFIG_SAMPLES = PROJECT_ROOT / "docs/config_samples/"
