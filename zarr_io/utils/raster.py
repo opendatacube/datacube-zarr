@@ -15,7 +15,7 @@ from rasterio.shutil import copy as rio_copy
 from rasterio.warp import calculate_default_transform
 
 from zarr_io import ZarrIO
-from zarr_io.utils.uris import make_zarr_uri
+from zarr_io.utils.uris import uri_join
 
 _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
@@ -23,6 +23,13 @@ _META_PREFIX = "zmeta"
 _RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
 
 logger = logging.getLogger(__name__)
+
+
+def make_zarr_uri(root: Path, group: Optional[str] = None) -> str:
+    """Compose zarr uri from path: <protocol>://<root>[#<group>]."""
+    protocol, root_ = root.as_uri().split("://", 1)
+    uri = uri_join(protocol, root_, group)
+    return uri
 
 
 def zarr_exists(root: Path, group: Optional[str] = None) -> bool:

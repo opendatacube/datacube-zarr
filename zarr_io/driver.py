@@ -4,7 +4,6 @@ Supports storage on S3 and Disk
 Should be able to handle hyperspectral data when ready.
 """
 import itertools
-import os
 from contextlib import contextmanager
 from typing import Dict, Generator, List, Optional, Tuple
 
@@ -15,7 +14,7 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
-from .utils.uris import uri_split
+from .utils.uris import uri_split, uri_join
 from .zarr_io import ZarrIO
 
 PROTOCOL = ['file', 's3']
@@ -179,26 +178,18 @@ class ZarrWriterDriver(object):
     def format(self) -> str:
         return FORMAT
 
-    def mk_uri(self,
-               file_path: str,
-               storage_config: dict) -> str:
+    def mk_uri(self, file_path: str, storage_config: dict) -> str:
         """
         Constructs a uri from the file_path and storage config.
         resource.
         """
         driver_alias = storage_config['driver']
-        file_path = str(file_path)
-        loc = file_path.rfind('/')
-        group = os.path.splitext(file_path[loc+1:])[0]
-
-        root = file_path[:loc] + f'/{group}.zarr'
-
-        if driver_alias == 'zarr s3':
-            return f's3://{root}'
-        elif driver_alias == 'zarr file':
-            return f'file://{root}'
-        else:
+        if driver_alias not in self.aliases:
             raise ValueError(f'Unknown driver alias: {driver_alias}')
+
+        protocol = driver_alias.split()[1]
+        uri = uri_join(protocol, *str(file_path).split("#", 1))
+        return uri
 
     def write_dataset_to_storage(self,
                                  dataset: xr.Dataset,
