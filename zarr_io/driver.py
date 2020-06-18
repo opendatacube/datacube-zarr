@@ -14,7 +14,7 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
-from .utils.uris import uri_split, uri_join
+from .utils.uris import uri_join, uri_split
 from .zarr_io import ZarrIO
 
 PROTOCOL = ['file', 's3']

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from datacube.api.core import Datacube
+
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from tools.zarrify import main as zarrify
 
