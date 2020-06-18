@@ -1,17 +1,21 @@
 from pathlib import Path
 from types import SimpleNamespace
-
+from tempfile import TemporaryDirectory
 import pytest
 import boto3
-from s3path import S3Path
 import numpy as np
+import rasterio
+from moto import mock_s3
+from s3path import S3Path, _s3_accessor
+from xarray import DataArray
+from typing import Any
+
+import threading
+from moto.server import main as moto_server_main
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
-from moto import mock_s3
-import rasterio
-from xarray import DataArray
-
 from zarr_io.zarr_io import ZarrIO
+
 
 CHUNKS = (
     {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
@@ -33,6 +37,7 @@ s3_count = 0
 runs.'''
 
 
+
 @pytest.fixture
 def s3_bucket_name():
     global s3_count
@@ -43,19 +48,51 @@ def s3_bucket_name():
 @pytest.fixture
 def mock_aws_aws_credentials(monkeypatch):
     '''Mocked AWS Credentials for moto.'''
+    monkeypatch.setenv('TEST_SERVER_MODE', "TRUE")
+
     monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
     monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
     monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
 
+    # GDAL AWS connection options
+    monkeypatch.setenv('AWS_S3_ENDPOINT', '127.0.0.1:5000')
+    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
+    monkeypatch.setenv('AWS_HTTPS', 'NO')
+
+
+@pytest.fixture(scope="session")
+def moto_s3_server():
+    """Mock AWS S3 Server."""
+    address = "http://localhost:5000"
+    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
+    thread.daemon = True
+    thread.start()
+    yield address
+
 
 @pytest.fixture
-def s3(s3_bucket_name, mock_aws_aws_credentials):
+def s3(moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
-    with mock_s3():
+    with mock_s3() as m:
+
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
         root = f'{s3_bucket_name}/mock-dir/mock-subdir'
-        yield {'client': client, 'root': root}
+
+        _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
+
+        from botocore.session import Session as RealBotocoreSession
+        import mock
+
+        class FakeBotocoreSession(RealBotocoreSession):
+            """Patch for botocore session. moto doesn't do this."""
+            def create_client(self, *args, **kwargs):
+                if "endpoint_url" not in kwargs:
+                    kwargs["endpoint_url"] = "http://localhost:5000"
+                return super().create_client(*args, **kwargs)
+
+        with mock.patch("botocore.session.Session", FakeBotocoreSession):
+            yield {'client': client, 'root': root, "mock_s3": m}
 
 
 @pytest.fixture(params=('file', 's3'))
@@ -159,7 +196,7 @@ def odc_dataset_2d(dataset, tmpdir):
     yield _gen_zarr_dataset(dataset, root)
 
 
-def create_random_raster(
+def create_random_raster_local(
     outdir: Path,
     label: str = "raster",
     height: int = 200,
@@ -167,7 +204,7 @@ def create_random_raster(
     nbands: int = 1
 ) -> Path:
     """Create a raster with random data."""
-    outdir.mkdir()
+    outdir.mkdir(parents=True, exist_ok=True)
     dtype = np.float32
     data = np.random.randn(nbands, height, width).astype(dtype)
     file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
@@ -191,6 +228,18 @@ def create_random_raster(
     return file_path
 
 
+def create_random_raster(outdir: Path, **kwargs: Any) -> Path:
+    """Create random raster on s3 or locally."""
+    if outdir.as_uri().startswith("file://"):
+        raster_file = create_random_raster_local(outdir, **kwargs)
+    else:
+        with TemporaryDirectory() as savedir:
+            tmp_file = create_random_raster_local(Path(savedir), **kwargs)
+            raster_file = outdir / tmp_file.relative_to(Path(savedir))
+            raster_file.write_bytes(tmp_file.read_bytes())
+    return raster_file
+
+
 @pytest.fixture(params=('file', 's3'))
 def tmp_storage_path(request, tmp_path, s3):
     """Temporary storage path."""
@@ -201,7 +250,7 @@ def tmp_storage_path(request, tmp_path, s3):
         return tmp_path
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def tmp_raster(tmp_storage_path):
     """Temporary geotif."""
     outdir = tmp_storage_path / "geotif"
@@ -209,7 +258,7 @@ def tmp_raster(tmp_storage_path):
     yield raster
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def tmp_raster_multiband(tmp_storage_path):
     """Temporary multiband geotif."""
     outdir = tmp_storage_path / "geotif_multi"
@@ -217,7 +266,7 @@ def tmp_raster_multiband(tmp_storage_path):
     yield raster
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def tmp_dir_of_rasters(tmp_storage_path):
     """Temporary directory of geotifs."""
     outdir = tmp_storage_path / "geotif_scene"

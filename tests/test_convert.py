@@ -2,15 +2,15 @@ from pathlib import Path
 
 import pytest
 import xarray as xr
+from moto import mock_s3
 
 from zarr_io.utils.convert import convert_dir, get_datasets
 from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
 from zarr_io.zarr_io import ZarrIO
+import logging
 
-from moto import mock_s3
 
-@mock_s3
 @pytest.mark.parametrize("a", [1,2])
 def test_abc1(s3, a):
     print(s3, a)
@@ -21,7 +21,7 @@ def test_abc2(s3):
 
 def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
     """Compare raster and zarr files."""
-    da_raster = xr.open_rasterio(raster_file)
+    da_raster = xr.open_rasterio(raster_file.as_uri())
     ds_zarr = ZarrIO().load_dataset(zarr_uri)
 
     if multi_dim is True:
@@ -36,8 +36,9 @@ def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
 
 
 @pytest.mark.parametrize("chunks", [None, {"x": 50, "y": 50}])
-def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks):
+def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks, caplog, s3):
     """Convert raster to zarr."""
+    caplog.set_level(logging.DEBUG)
     uris = raster_to_zarr(tmp_raster, tmp_storage_path, chunks=chunks)
     assert len(uris) == 1
 
