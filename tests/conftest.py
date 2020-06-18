@@ -69,7 +69,7 @@ def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
 
     # GDAL AWS connection options
-    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server)
+    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
     monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
     monkeypatch.setenv('AWS_HTTPS', 'NO')
 
