@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 import boto3
+from s3path import S3Path
 import numpy as np
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
@@ -166,6 +167,7 @@ def create_random_raster(
     nbands: int = 1
 ) -> Path:
     """Create a raster with random data."""
+    outdir.mkdir()
     dtype = np.float32
     data = np.random.randn(nbands, height, width).astype(dtype)
     file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
@@ -183,32 +185,41 @@ def create_random_raster(
         "transform": transform,
     }
 
-    with rasterio.open(file_path, "w", **meta) as dst:
+    with rasterio.open(file_path.as_uri(), "w", **meta) as dst:
         dst.write(data)
 
     return file_path
 
 
+@pytest.fixture(params=('file', 's3'))
+def tmp_storage_path(request, tmp_path, s3):
+    """Temporary storage path."""
+    protocol = request.param
+    if protocol == "s3":
+        return S3Path(f"/{s3['root']}/tmp/")
+    else:
+        return tmp_path
+
+
 @pytest.fixture(scope="session")
-def tmp_raster(tmpdir_factory):
+def tmp_raster(tmp_storage_path):
     """Temporary geotif."""
-    outdir = Path(tmpdir_factory.mktemp('files'))
+    outdir = tmp_storage_path / "geotif"
     raster = create_random_raster(outdir)
     yield raster
 
 
 @pytest.fixture(scope="session")
-def tmp_raster_multiband(tmpdir_factory):
+def tmp_raster_multiband(tmp_storage_path):
     """Temporary multiband geotif."""
-    outdir = Path(tmpdir_factory.mktemp('files'))
+    outdir = tmp_storage_path / "geotif_multi"
     raster = create_random_raster(outdir, nbands=5)
     yield raster
 
 
 @pytest.fixture(scope="session")
-def tmp_dir_of_rasters(tmpdir_factory):
+def tmp_dir_of_rasters(tmp_storage_path):
     """Temporary directory of geotifs."""
-    outdir = Path(tmpdir_factory.mktemp('dataset')) / "scene"
-    outdir.mkdir()
+    outdir = tmp_storage_path / "geotif_scene"
     rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
     yield outdir, rasters

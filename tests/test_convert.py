@@ -8,6 +8,16 @@ from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
 from zarr_io.zarr_io import ZarrIO
 
+from moto import mock_s3
+
+@mock_s3
+@pytest.mark.parametrize("a", [1,2])
+def test_abc1(s3, a):
+    print(s3, a)
+
+def test_abc2(s3):
+    print(s3)
+
 
 def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
     """Compare raster and zarr files."""
@@ -26,26 +36,24 @@ def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
 
 
 @pytest.mark.parametrize("chunks", [None, {"x": 50, "y": 50}])
-def test_raster_to_zarr(tmp_raster, tmpdir, chunks):
+def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks):
     """Convert raster to zarr."""
-    outdir = Path(tmpdir)
-    uris = raster_to_zarr(tmp_raster, outdir, chunks=chunks)
+    uris = raster_to_zarr(tmp_raster, tmp_storage_path, chunks=chunks)
     assert len(uris) == 1
 
-    zarr_file = outdir / f"{tmp_raster.stem}.zarr"
+    zarr_file = tmp_storage_path / f"{tmp_raster.stem}.zarr"
     assert zarr_exists(zarr_file) is True
 
     assert raster_and_zarr_are_equal(tmp_raster, uris[0])
 
 
 @pytest.mark.parametrize("multi_dim", [True, False])
-def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmpdir, multi_dim):
+def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmp_storage_path, multi_dim):
     """Convert multibanded raster to zarr."""
-    outdir = Path(tmpdir)
-    uris = raster_to_zarr(tmp_raster_multiband, outdir, multi_dim=multi_dim)
+    uris = raster_to_zarr(tmp_raster_multiband, tmp_storage_path, multi_dim=multi_dim)
     assert len(uris) == 1
 
-    zarr_file = outdir / f"{tmp_raster_multiband.stem}.zarr"
+    zarr_file = tmp_storage_path / f"{tmp_raster_multiband.stem}.zarr"
     assert zarr_exists(zarr_file) is True
 
     assert raster_and_zarr_are_equal(tmp_raster_multiband, uris[0], multi_dim=multi_dim)
@@ -61,11 +69,10 @@ def test_find_datasets_geotif(tmp_dir_of_rasters):
 
 
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
-def test_convert_dir_geotif(tmp_dir_of_rasters, tmpdir, merge_datasets_per_dir):
+def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir):
     """Test converting a directory of geotifs."""
     data_dir, geotifs = tmp_dir_of_rasters
-    outdir = Path(tmpdir)
-    zarrs = convert_dir(data_dir, outdir, merge_datasets_per_dir=merge_datasets_per_dir)
+    zarrs = convert_dir(data_dir, tmp_storage_path, merge_datasets_per_dir=merge_datasets_per_dir)
     assert len(zarrs) == len(geotifs)
     for z, g in zip(sorted(zarrs), sorted(geotifs)):
         protocol, root, group = uri_split(z)
