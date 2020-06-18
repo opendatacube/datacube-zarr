@@ -1,21 +1,26 @@
+import logging
+import os
+import threading
 from pathlib import Path
-from types import SimpleNamespace
 from tempfile import TemporaryDirectory
-import pytest
-import boto3
-import numpy as np
-import rasterio
-from moto import mock_s3
-from s3path import S3Path, _s3_accessor
-from xarray import DataArray
+from types import SimpleNamespace
 from typing import Any
 
-import threading
-from moto.server import main as moto_server_main
+import pytest
+import boto3
+import mock
+import numpy as np
+import rasterio
+from botocore.session import Session as RealBotocoreSession
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
-from zarr_io.zarr_io import ZarrIO
+from moto import mock_s3
+from moto import settings as moto_settings
+from moto.server import main as moto_server_main
+from s3path import S3Path, _s3_accessor
+from xarray import DataArray
 
+from zarr_io.zarr_io import ZarrIO
 
 CHUNKS = (
     {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
@@ -37,7 +42,6 @@ s3_count = 0
 runs.'''
 
 
-
 @pytest.fixture
 def s3_bucket_name():
     global s3_count
@@ -48,22 +52,15 @@ def s3_bucket_name():
 @pytest.fixture
 def mock_aws_aws_credentials(monkeypatch):
     '''Mocked AWS Credentials for moto.'''
-    monkeypatch.setenv('TEST_SERVER_MODE', "TRUE")
-
     monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
     monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
     monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
-
-    # GDAL AWS connection options
-    monkeypatch.setenv('AWS_S3_ENDPOINT', '127.0.0.1:5000')
-    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
-    monkeypatch.setenv('AWS_HTTPS', 'NO')
 
 
 @pytest.fixture(scope="session")
 def moto_s3_server():
     """Mock AWS S3 Server."""
-    address = "http://localhost:5000"
+    address = "http://127.0.0.1:5000"
     thread = threading.Thread(target=moto_server_main, args=(["s3"],))
     thread.daemon = True
     thread.start()
@@ -71,28 +68,34 @@ def moto_s3_server():
 
 
 @pytest.fixture
-def s3(moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
+def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
-    with mock_s3() as m:
+    #moto_settings.TEST_SERVER_MODE = True
 
+    # GDAL AWS connection options
+    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
+    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
+    monkeypatch.setenv('AWS_HTTPS', 'NO')
+
+    with mock_s3():
+        print('\n#--', moto_settings.TEST_SERVER_MODE)
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
         root = f'{s3_bucket_name}/mock-dir/mock-subdir'
 
+        # Required for S3Path
         _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
 
-        from botocore.session import Session as RealBotocoreSession
-        import mock
-
+        # Required for botocore
         class FakeBotocoreSession(RealBotocoreSession):
             """Patch for botocore session. moto doesn't do this."""
             def create_client(self, *args, **kwargs):
                 if "endpoint_url" not in kwargs:
-                    kwargs["endpoint_url"] = "http://localhost:5000"
+                    kwargs["endpoint_url"] = moto_s3_server
                 return super().create_client(*args, **kwargs)
 
-        with mock.patch("botocore.session.Session", FakeBotocoreSession):
-            yield {'client': client, 'root': root, "mock_s3": m}
+        #with mock.patch("botocore.session.Session", FakeBotocoreSession):
+        yield {'client': client, 'root': root}
 
 
 @pytest.fixture(params=('file', 's3'))
@@ -250,25 +253,46 @@ def tmp_storage_path(request, tmp_path, s3):
         return tmp_path
 
 
+tmp_raster_storage_path = tmp_storage_path
+
+
 @pytest.fixture()
-def tmp_raster(tmp_storage_path):
+def tmp_raster(tmp_raster_storage_path):
     """Temporary geotif."""
-    outdir = tmp_storage_path / "geotif"
+    outdir = tmp_raster_storage_path / "geotif"
     raster = create_random_raster(outdir)
     yield raster
 
 
 @pytest.fixture()
-def tmp_raster_multiband(tmp_storage_path):
+def tmp_raster_multiband(tmp_raster_storage_path):
     """Temporary multiband geotif."""
-    outdir = tmp_storage_path / "geotif_multi"
+    outdir = tmp_raster_storage_path / "geotif_multi"
     raster = create_random_raster(outdir, nbands=5)
     yield raster
 
 
 @pytest.fixture()
-def tmp_dir_of_rasters(tmp_storage_path):
+def tmp_dir_of_rasters(tmp_raster_storage_path):
     """Temporary directory of geotifs."""
-    outdir = tmp_storage_path / "geotif_scene"
+    outdir = tmp_raster_storage_path / "geotif_scene"
     rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
     yield outdir, rasters
+
+
+PROJECT_ROOT = Path(__file__).parents[1]
+TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
+
+@pytest.fixture()
+def ls5_on_s3(s3, caplog):
+    caplog.set_level(logging.DEBUG)
+    client = s3["client"]
+    bucket, root = s3["root"].split("/", 1)
+    test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
+    for f in test_files:
+        f_rel = f.relative_to(TEST_DATA.parent)
+        key = os.path.join(root, f_rel)
+        client.upload_file(str(f), bucket, key)
+        print(bucket, key)
+
+    yield f"s3://{bucket}/{root}/lbg"

@@ -1,22 +1,51 @@
-from pathlib import Path
+import logging
 
 import pytest
+import boto3
+import botocore
+import rasterio
 import xarray as xr
-from moto import mock_s3
+from s3path import S3Path
 
 from zarr_io.utils.convert import convert_dir, get_datasets
 from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
 from zarr_io.zarr_io import ZarrIO
-import logging
 
 
-@pytest.mark.parametrize("a", [1,2])
-def test_abc1(s3, a):
-    print(s3, a)
+def test_mock_s3_path(s3):
+    """Check test bucket exists with S3Path."""
+    bucket = s3['root'].split('/')[0]
+    path = S3Path(f"/{bucket}")
+    assert path.exists()
 
-def test_abc2(s3):
-    print(s3)
+
+def test_mock_s3_botocore(s3):
+    """Check test bucket exists with botocore."""
+    bucket = s3['root'].split('/')[0]
+    client = botocore.session.Session().create_client("s3")
+    resp = client.head_bucket(Bucket=bucket)
+    assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+def test_mock_s3_boto3_client(s3):
+    """Check test bucket exists with boto3 client."""
+    bucket = s3['root'].split('/')[0]
+    client = boto3.client('s3')
+    resp = client.head_bucket(Bucket=bucket)
+    assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+
+def test_mock_s3_boto3_resource(s3):
+    """Check test bucket exists with boto3 resource."""
+    bucket = s3['root'].split('/')[0]
+    s3 = boto3.resource('s3')
+    assert s3.Bucket(bucket) in s3.buckets.all()
+
+def test_mock_s3_rasterio2(ls5_on_s3):
+    """Test rasterio can access mock s3."""
+    raster = ls5_on_s3 + f"/LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323/scene01/LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323_B10.tif"
+    rasterio.open(raster)
 
 
 def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
@@ -70,10 +99,14 @@ def test_find_datasets_geotif(tmp_dir_of_rasters):
 
 
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
-def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir):
+def test_convert_dir_geotif(
+    tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir
+):
     """Test converting a directory of geotifs."""
     data_dir, geotifs = tmp_dir_of_rasters
-    zarrs = convert_dir(data_dir, tmp_storage_path, merge_datasets_per_dir=merge_datasets_per_dir)
+    zarrs = convert_dir(
+        data_dir, tmp_storage_path, merge_datasets_per_dir=merge_datasets_per_dir
+    )
     assert len(zarrs) == len(geotifs)
     for z, g in zip(sorted(zarrs), sorted(geotifs)):
         protocol, root, group = uri_split(z)
