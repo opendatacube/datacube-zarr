@@ -43,6 +43,11 @@ _EXAMPLE_LS5_NBAR_DATASET_FILE = INTEGRATION_TESTS_DIR / 'example-ls5-nbar.yaml'
 NUM_TIME_SLICES = 3
 
 PROJECT_ROOT = Path(__file__).parents[1]
+
+TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
+LBG_NBAR = 'LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323'
+LBG_PQ = 'LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323'
+
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs' / 'config_samples'
 
 CONFIG_FILE_PATHS = [str(INTEGRATION_TESTS_DIR / 'agdcintegration.conf'),
@@ -385,6 +390,19 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
         types.append(index.products.add_document(product))
 
     return types
+
+
+@pytest.fixture
+def ls5_on_s3(s3):
+    client = s3["client"]
+    bucket, root = s3["root"][5:].split("/", 1)
+    test_prefix = os.path.join(root, "lbg")
+    test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
+    for f in test_files:
+        f_rel = f.relative_to(TEST_DATA.parent)
+        client.upload_file(str(f), bucket, os.path.join(test_prefix, f_rel))
+
+    yield test_prefix
 
 
 @pytest.fixture

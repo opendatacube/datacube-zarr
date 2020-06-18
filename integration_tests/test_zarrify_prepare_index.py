@@ -16,6 +16,18 @@ TEST_DATA = PROJECT_ROOT / "tests" / "data" / "lbg"
 LBG_NBAR = "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 
 
+
+
+@pytest.mark.usefixtures("default_metadata_type")
+@pytest.mark.parametrize("datacube_env_name", ("datacube",))
+@pytest.mark.parametrize("convert_inplace", (False, True))
+def test_zarrify_prepare_index_s3(
+    clirunner, tmpdir, convert_inplace, datacube_env_name, index, ls5_on_s3
+):
+    print(ls5_on_s3)
+    assert False
+
+
 @pytest.mark.usefixtures("default_metadata_type")
 @pytest.mark.parametrize("datacube_env_name", ("datacube",))
 @pytest.mark.parametrize("convert_inplace", (False, True))
@@ -65,20 +77,21 @@ def test_zarrify_prepare_index(
     # Load data
     dc = Datacube(index=index)
 
-    data_tiff = dc.load(
-        product="ls5_nbar_scene",
-        latitude=latitude,
-        longitude=longitude,
-        output_crs=output_crs,
-        resolution=resolution,
-    )
-    data_zarr = dc.load(
-        product="ls5_nbar_scene_zarr",
-        latitude=latitude,
-        longitude=longitude,
-        output_crs=output_crs,
-        resolution=resolution,
-    )
+    for prod in ("ls5_nbar_scene", "ls5_nbar_albers"):
+        data_tiff = dc.load(
+            product=prod,
+            latitude=latitude,
+            longitude=longitude,
+            output_crs=output_crs,
+            resolution=resolution,
+        )
+        data_zarr = dc.load(
+            product=f"{prod}_zarr",
+            latitude=latitude,
+            longitude=longitude,
+            output_crs=output_crs,
+            resolution=resolution,
+        )
 
     # compare datasets
     assert data_zarr.equals(data_tiff)
