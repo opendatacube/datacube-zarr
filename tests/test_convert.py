@@ -3,7 +3,6 @@ import logging
 import pytest
 import boto3
 import botocore
-import rasterio
 import xarray as xr
 from s3path import S3Path
 
@@ -15,14 +14,14 @@ from zarr_io.zarr_io import ZarrIO
 
 def test_mock_s3_path(s3):
     """Check test bucket exists with S3Path."""
-    bucket = s3['root'].split('/')[0]
+    bucket = s3["root"].split("/")[0]
     path = S3Path(f"/{bucket}")
     assert path.exists()
 
 
 def test_mock_s3_botocore(s3):
     """Check test bucket exists with botocore."""
-    bucket = s3['root'].split('/')[0]
+    bucket = s3["root"].split("/")[0]
     client = botocore.session.Session().create_client("s3")
     resp = client.head_bucket(Bucket=bucket)
     assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
@@ -30,22 +29,17 @@ def test_mock_s3_botocore(s3):
 
 def test_mock_s3_boto3_client(s3):
     """Check test bucket exists with boto3 client."""
-    bucket = s3['root'].split('/')[0]
-    client = boto3.client('s3')
+    bucket = s3["root"].split("/")[0]
+    client = boto3.client("s3")
     resp = client.head_bucket(Bucket=bucket)
     assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
 
 
 def test_mock_s3_boto3_resource(s3):
     """Check test bucket exists with boto3 resource."""
-    bucket = s3['root'].split('/')[0]
-    s3 = boto3.resource('s3')
+    bucket = s3["root"].split("/")[0]
+    s3 = boto3.resource("s3")
     assert s3.Bucket(bucket) in s3.buckets.all()
-
-def test_mock_s3_rasterio2(ls5_on_s3):
-    """Test rasterio can access mock s3."""
-    raster = ls5_on_s3 + f"/LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323/scene01/LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323_B10.tif"
-    rasterio.open(raster)
 
 
 def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
@@ -99,9 +93,7 @@ def test_find_datasets_geotif(tmp_dir_of_rasters):
 
 
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
-def test_convert_dir_geotif(
-    tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir
-):
+def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir):
     """Test converting a directory of geotifs."""
     data_dir, geotifs = tmp_dir_of_rasters
     zarrs = convert_dir(

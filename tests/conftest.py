@@ -1,21 +1,17 @@
-import logging
-import os
 import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import sleep
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import boto3
-import mock
 import numpy as np
 import rasterio
-from botocore.session import Session as RealBotocoreSession
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
-from moto import settings as moto_settings
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 from xarray import DataArray
@@ -64,37 +60,24 @@ def moto_s3_server():
     thread = threading.Thread(target=moto_server_main, args=(["s3"],))
     thread.daemon = True
     thread.start()
+    sleep(0.3)
     yield address
 
 
 @pytest.fixture
 def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
-    #moto_settings.TEST_SERVER_MODE = True
 
     # GDAL AWS connection options
-    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
+    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server)
     monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
     monkeypatch.setenv('AWS_HTTPS', 'NO')
 
     with mock_s3():
-        print('\n#--', moto_settings.TEST_SERVER_MODE)
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
         root = f'{s3_bucket_name}/mock-dir/mock-subdir'
-
-        # Required for S3Path
         _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
-
-        # Required for botocore
-        class FakeBotocoreSession(RealBotocoreSession):
-            """Patch for botocore session. moto doesn't do this."""
-            def create_client(self, *args, **kwargs):
-                if "endpoint_url" not in kwargs:
-                    kwargs["endpoint_url"] = moto_s3_server
-                return super().create_client(*args, **kwargs)
-
-        #with mock.patch("botocore.session.Session", FakeBotocoreSession):
         yield {'client': client, 'root': root}
 
 
@@ -278,21 +261,3 @@ def tmp_dir_of_rasters(tmp_raster_storage_path):
     outdir = tmp_raster_storage_path / "geotif_scene"
     rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
     yield outdir, rasters
-
-
-PROJECT_ROOT = Path(__file__).parents[1]
-TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
-
-@pytest.fixture()
-def ls5_on_s3(s3, caplog):
-    caplog.set_level(logging.DEBUG)
-    client = s3["client"]
-    bucket, root = s3["root"].split("/", 1)
-    test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
-    for f in test_files:
-        f_rel = f.relative_to(TEST_DATA.parent)
-        key = os.path.join(root, f_rel)
-        client.upload_file(str(f), bucket, key)
-        print(bucket, key)
-
-    yield f"s3://{bucket}/{root}/lbg"

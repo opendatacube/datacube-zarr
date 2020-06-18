@@ -4,9 +4,12 @@ Common methods for index integration tests.
 """
 import itertools
 import os
+import shutil
+import threading
 from copy import copy, deepcopy
 from datetime import timedelta
 from pathlib import Path
+from time import sleep
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -22,6 +25,8 @@ from datacube.index import index_connect
 from datacube.index._metadata_types import default_metadata_type_docs
 from hypothesis import HealthCheck, settings
 from moto import mock_s3
+from moto.server import main as moto_server_main
+from s3path import S3Path, _s3_accessor
 
 from integration_tests.utils import (
     GEOTIFF,
@@ -81,13 +86,31 @@ def mock_aws_aws_credentials(monkeypatch):
     monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
 
 
+@pytest.fixture(scope="session")
+def moto_s3_server():
+    """Mock AWS S3 Server."""
+    address = "http://127.0.0.1:5000"
+    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
+    thread.daemon = True
+    thread.start()
+    sleep(0.3)
+    yield address
+
+
 @pytest.fixture
-def s3(s3_bucket_name, mock_aws_aws_credentials):
+def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
+
+    # GDAL AWS connection options
+    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
+    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
+    monkeypatch.setenv('AWS_HTTPS', 'NO')
+
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
-        root = f's3://{s3_bucket_name}/mock-dir/mock-subdir'
+        root = f'{s3_bucket_name}/mock-dir/mock-subdir'
+        _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
         yield {'client': client, 'root': root}
 
 
@@ -392,17 +415,23 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
     return types
 
 
-@pytest.fixture
-def ls5_on_s3(s3):
-    client = s3["client"]
-    bucket, root = s3["root"][5:].split("/", 1)
-    test_prefix = os.path.join(root, "lbg")
-    test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
-    for f in test_files:
-        f_rel = f.relative_to(TEST_DATA.parent)
-        client.upload_file(str(f), bucket, os.path.join(test_prefix, f_rel))
-
-    yield test_prefix
+@pytest.fixture(params=["file", "s3"])
+def ls5_dataset_path(request, s3, tmpdir):
+    """LS5 test dataset on filesystem and s3."""
+    if request.param == "file":
+        lbg_dir = Path(tmpdir) / "geotifs" / "lbg"
+        shutil.copytree(str(TEST_DATA), str(lbg_dir))
+        dataset = lbg_dir
+    else:
+        client = s3["client"]
+        bucket, root = s3["root"].split("/", 1)
+        test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
+        for f in test_files:
+            f_rel = f.relative_to(TEST_DATA.parent)
+            key = os.path.join(root, f_rel)
+            client.upload_file(str(f), bucket, key)
+        dataset = S3Path(f"/{bucket}/{root}/lbg")
+    return dataset
 
 
 @pytest.fixture

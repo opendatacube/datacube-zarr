@@ -1,7 +1,7 @@
-import shutil
 from pathlib import Path
 
 import pytest
+import rasterio
 from click.testing import CliRunner
 from datacube.api.core import Datacube
 
@@ -16,47 +16,42 @@ TEST_DATA = PROJECT_ROOT / "tests" / "data" / "lbg"
 LBG_NBAR = "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
 
 
-
-
-@pytest.mark.usefixtures("default_metadata_type")
-@pytest.mark.parametrize("datacube_env_name", ("datacube",))
-@pytest.mark.parametrize("convert_inplace", (False, True))
-def test_zarrify_prepare_index_s3(
-    clirunner, tmpdir, convert_inplace, datacube_env_name, index, ls5_on_s3
-):
-    print(ls5_on_s3)
-    assert False
+def test_ls5_dataset_access(ls5_dataset_path):
+    """Test rasterio can access ls5 data."""
+    raster = (
+        ls5_dataset_path
+        / "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
+        / "scene01"
+        / "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323_B10.tif"
+    )
+    rasterio.open(raster.as_uri())
 
 
 @pytest.mark.usefixtures("default_metadata_type")
 @pytest.mark.parametrize("datacube_env_name", ("datacube",))
 @pytest.mark.parametrize("convert_inplace", (False, True))
 def test_zarrify_prepare_index(
-    clirunner, tmpdir, convert_inplace, datacube_env_name, index,
+    clirunner, tmpdir, convert_inplace, datacube_env_name, index, ls5_dataset_path
 ):
     """Convert test ls5 tifs to zarr, prepare mdetadata, index and compare."""
-    lbg_dir = Path(tmpdir) / "geotifs" / "lbg"
-    zarr_dir = Path(tmpdir) / "zarrs"
-
-    # copy test data to tmp dir
-    shutil.copytree(str(TEST_DATA), str(lbg_dir))
+    if convert_inplace and ls5_dataset_path.as_uri().startswith("s3"):
+        pytest.skip()
 
     # Add the geotiff LS5 product and dataset
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES)])
-    clirunner(["-v", "dataset", "add", str(lbg_dir / LBG_NBAR)])
+    clirunner(["-v", "dataset", "add", str(TEST_DATA / LBG_NBAR)])
 
     # zarrify geotiffs
     runner = CliRunner()
     zarrify_args = ["--chunk", "x:500", "--chunk", "y:500"]
     if convert_inplace:
         zarrify_args.append("--inplace")
-        dataset_path = zarr_dir / "lbg"
-        shutil.copytree(str(lbg_dir), str(dataset_path))
+        zarr_dir = ls5_dataset_path.parent
     else:
+        zarr_dir = Path(tmpdir) / "zarrs"
         zarrify_args.extend(["--outpath", str(zarr_dir)])
-        dataset_path = lbg_dir
 
-    zarrify_args.append(str(dataset_path))
+    zarrify_args.append(ls5_dataset_path.as_uri())
     runner.invoke(zarrify, zarrify_args)
 
     zarr_dataset_dir = zarr_dir / "lbg" / LBG_NBAR
@@ -77,7 +72,7 @@ def test_zarrify_prepare_index(
     # Load data
     dc = Datacube(index=index)
 
-    for prod in ("ls5_nbar_scene", "ls5_nbar_albers"):
+    for prod in ("ls5_nbar_scene",):
         data_tiff = dc.load(
             product=prod,
             latitude=latitude,

@@ -84,9 +84,7 @@ def warped_vrt(
 
 @contextmanager
 def rasterio_src(
-    uri: str,
-    crs: Optional[CRS] = None,
-    resolution: Optional[Tuple[float, float]] = None,
+    uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None,
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually warp if required."""
     with rasterio.open(uri) as src:
