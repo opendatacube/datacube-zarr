@@ -21,12 +21,13 @@ DATACUBE_DRIVER_DIR=$BASEDIR/datacube-drivers
 
 # Geotiff test data
 DATACUBE_TEST_DIR=$DATACUBE_DIR/tests/data/lbg
-DATASET_NAME="LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
+LBG_NBAR="LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
+LBG_PQ="LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323"
 
 # Index the original LS5 GeoTiff product
 datacube product add $DATACUBE_DIR/docs/config_samples/dataset_types/ls5_scenes.yaml
-datacube dataset add $DATACUBE_TEST_DIR/$DATASET_NAME/agdc-metadata.yaml
-
+datacube dataset add $DATACUBE_TEST_DIR/$LBG_NBAR
+datacube dataset add $DATACUBE_TEST_DIR/$LBG_PQ
 
 # Convert GeoTiff dataset to zarr
 LOCAL_DATA_DIR=/root/data/zarr/index_test
@@ -50,13 +51,14 @@ $DATACUBE_DRIVER_DIR/tools/zarrify.py \
 
 
 # Prepare zarr dataset metadata
-ZARR_DATASET_DIR=$LOCAL_DATA_DIR/$(basename $DATACUBE_TEST_DIR)/$DATASET_NAME
-$DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR
+ZARR_DATASET_DIR=$LOCAL_DATA_DIR/$(basename $DATACUBE_TEST_DIR)
+$DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR/$LBG_NBAR
 tree $ZARR_DATASET_DIR
 
 # Add to datacube
 datacube product add $DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
-datacube dataset add $ZARR_DATASET_DIR
+datacube dataset add $ZARR_DATASET_DIR/$LBG_NBAR
+datacube dataset add $ZARR_DATASET_DIR/$LBG_PQ
 
 # Load both datasets and compare
 $DATACUBE_DRIVER_DIR/integration_tests/indexing/load_and_compare_zarr.py
