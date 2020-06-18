@@ -21,7 +21,6 @@ from datacube.drivers.postgres import PostgresDb, _core
 from datacube.index import index_connect
 from datacube.index._metadata_types import default_metadata_type_docs
 from hypothesis import HealthCheck, settings
-from mock import patch
 from moto import mock_s3
 
 from integration_tests.utils import (
