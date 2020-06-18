@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
 
 tests_require = [
+    'flask',
     'hypothesis',
     'isort>=4.3.21',
     'mypy',
@@ -34,15 +35,15 @@ setup(
     },
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'zarr',
-        'xarray',
         'boto3',
-        's3fs',
         'numcodecs',
+        's3path',
+        's3fs',
+        'xarray',
+        'zarr',
     ],
     extras_require={
         'test': tests_require,
-        'index': ['s3path']
     },
     tests_require=tests_require,
 
