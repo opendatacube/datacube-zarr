@@ -24,7 +24,7 @@ def test_ls5_dataset_access(ls5_dataset_path):
         / "scene01"
         / "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323_B10.tif"
     )
-    rasterio.open(raster.as_uri())
+    rasterio.open(raster.as_uri()).close()
 
 
 @pytest.mark.usefixtures("default_metadata_type")
