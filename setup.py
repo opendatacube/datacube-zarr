@@ -35,12 +35,12 @@ setup(
     },
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'boto3',
-        'numcodecs',
-        's3path',
-        's3fs',
-        'xarray',
-        'zarr',
+        'boto3>=1.9',
+        'numcodecs>=0.6.2',
+        's3path>=0.1.93',
+        's3fs>=0.2',
+        'xarray>=0.14.1',
+        'zarr>=2.3.2',
     ],
     extras_require={
         'test': tests_require,
