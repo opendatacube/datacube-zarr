@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
 
 tests_require = [
+    'click',
     'flask',
     'hypothesis',
     'isort>=4.3.21',
@@ -37,6 +38,7 @@ setup(
     install_requires=[
         'boto3>=1.9',
         'numcodecs>=0.6.2',
+        'rasterio>=1.0.4',
         's3path>=0.1.93',
         's3fs>=0.2',
         'xarray>=0.14.1',
@@ -44,6 +46,7 @@ setup(
     ],
     extras_require={
         'test': tests_require,
+        'tools': ['click'],
     },
     tests_require=tests_require,
 
