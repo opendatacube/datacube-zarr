@@ -10,7 +10,7 @@ import re
 import uuid
 from datetime import timedelta
 from pathlib import Path
-from typing import Generator, Optional, Tuple
+from typing import Generator, Optional
 from xml.etree import ElementTree
 
 import click
@@ -95,33 +95,28 @@ def crazy_parse(timestr):
         return parser.parse(timestr[:-2] + '00') + timedelta(minutes=1)
 
 
-def get_protocol_root(path: Path) -> Tuple[str, str]:
-    """Split path intp protocol and root."""
-    if path.as_uri().startswith("s3://"):
-        protocol = "s3"
-        root = path.as_uri()
-    else:
-        protocol = "file"
-        root = str(path)
-    return protocol, root
+def get_groups_with_arrays(group: zarr.Group) -> Generator[str, None, None]:
+    """Find any arrays within zarr heirarchy."""
+    if list(group.arrays()):
+        yield group.name
+    for _, g in group.groups():
+        yield from get_groups_with_arrays(g)
 
 
 def get_zarr_objs(path: Path):
     """Find subdir which are zarr obj roots."""
-    protocol, _ = get_protocol_root(path)
-    zio = ZarrIO(protocol=protocol)
+    zio = ZarrIO()
     for r in path.iterdir():
         if next(r.glob(".zgroup"), None) is not None:
-            _, root = get_protocol_root(r)
-            for g in zarr.group(zio.get_root(root)):
-                yield r, g
+            root_group = zarr.group(zio.get_root(r.as_uri()))
+            for g in get_groups_with_arrays(root_group):
+                yield r, g if g != "/" else None
 
 
 def load_zarr_dataset(path: Path, group: str) -> xr.DataArray:
     """Open zarr datasets on s3 or file."""
-    protocol, root = get_protocol_root(path)
-    zio = ZarrIO(protocol=protocol)
-    da = zio.open_dataset(root=root, group_name=group)
+    zio = ZarrIO()
+    da = zio.open_dataset(uri=path.as_uri())
     return da
 
 
@@ -136,8 +131,8 @@ def prep_dataset(fields, path):
     scene = path / "scene01"
     zarrs = list(get_zarr_objs(scene))
     zarr_paths = {
-        band_name(g): {
-            "path": str((r.parent).relative_to(path) / g),
+        band_name(r.stem): {
+            "path": "#".join([str(r.relative_to(path))] + ([g] if g else [])),
             "layer": "band1",
         } for r, g in zarrs
     }
