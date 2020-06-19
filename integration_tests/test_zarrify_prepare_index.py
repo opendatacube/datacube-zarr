@@ -14,6 +14,7 @@ LS5_DATASET_TYPES = CONFIG_SAMPLES / "dataset_types/ls5_scenes.yaml"
 LS5_DATASET_TYPES_ZARR = CONFIG_SAMPLES / "dataset_types/ls5_scenes_zarr.yaml"
 TEST_DATA = PROJECT_ROOT / "tests" / "data" / "lbg"
 LBG_NBAR = "LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323"
+LBG_PQ = "LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323"
 
 
 def test_ls5_dataset_access(ls5_dataset_path):
@@ -34,12 +35,14 @@ def test_zarrify_prepare_index(
     clirunner, tmpdir, convert_inplace, datacube_env_name, index, ls5_dataset_path
 ):
     """Convert test ls5 tifs to zarr, prepare mdetadata, index and compare."""
+
     if convert_inplace and ls5_dataset_path.as_uri().startswith("s3"):
         pytest.skip()
 
     # Add the geotiff LS5 product and dataset
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES)])
     clirunner(["-v", "dataset", "add", str(TEST_DATA / LBG_NBAR)])
+    clirunner(["-v", "dataset", "add", str(TEST_DATA / LBG_PQ)])
 
     # zarrify geotiffs
     runner = CliRunner()
@@ -54,14 +57,15 @@ def test_zarrify_prepare_index(
     zarrify_args.append(ls5_dataset_path.as_uri())
     runner.invoke(zarrify, zarrify_args)
 
-    zarr_dataset_dir = zarr_dir / "lbg" / LBG_NBAR
+    zarr_dataset_dir = zarr_dir / "lbg"
 
     # prepare metadata for zarr
-    runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir)])
+    runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir / LBG_NBAR)])
 
     # Add the zarr LS5 product and dataset
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES_ZARR)])
-    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir)])
+    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir / LBG_NBAR)])
+    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir / LBG_PQ)])
 
     # LS5 NBAR scene params
     output_crs = "EPSG:28355"
