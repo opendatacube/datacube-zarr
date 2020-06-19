@@ -1,5 +1,4 @@
 '''Unit tests for the zarr_io.driver module.'''
-from pathlib import Path
 from random import random, sample
 
 import pytest

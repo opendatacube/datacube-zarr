@@ -16,6 +16,7 @@ from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 from xarray import DataArray
 
+from zarr_io.utils.uris import uri_join
 from zarr_io.zarr_io import ZarrIO
 
 CHUNKS = (
@@ -87,7 +88,7 @@ def uri(request, tmpdir, s3):
     protocol = request.param
     root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
     group_name = 'dataset1'
-    yield f'{protocol}://{root}#{group_name}'
+    yield uri_join(protocol, root, group_name)
 
 
 @pytest.fixture
@@ -156,7 +157,7 @@ def _gen_zarr_dataset(ds, root):
     It comprises data attributes required in ODC.'''
     var = list(ds.keys())[0]
     protocol = 'file'
-    uri = f'{protocol}://{root}'
+    uri = uri_join(protocol, root)
     zio = ZarrIO()
     zio.save_dataset(uri=uri, dataset=ds)
     bands = [{
