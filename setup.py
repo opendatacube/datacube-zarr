@@ -37,6 +37,7 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=[
         'boto3>=1.9',
+        'datacube>1.8.0',
         'numcodecs>=0.6.2',
         'rasterio>=1.0.4',
         's3path>=0.1.93',
