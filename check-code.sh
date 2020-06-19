@@ -17,7 +17,7 @@ pycodestyle zarr_io tests integration_tests --max-line-length 120
 pylint -j 2 --reports no zarr_io utils
 
 # static type checker
-mypy zarr_io utils
+mypy zarr_io tools
 
 # Check imports are sorted
 # Todo: Re-enable this when the base image is stable.

@@ -5,7 +5,6 @@ import pytest
 import numpy
 import rasterio
 from datacube.api.core import Datacube
-from datacube.api.query import query_group_by
 
 from integration_tests.utils import prepare_test_ingestion_configuration
 
@@ -31,7 +30,7 @@ def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
     shutil.copytree(str(TEST_DATA), str(tmpdir / 'lbg'))
 
     for file in ingest_configs.values():
-        prepare_test_ingestion_configuration(tmpdir, tmpdir, INGESTER_CONFIGS/file,
+        prepare_test_ingestion_configuration(tmpdir, tmpdir, INGESTER_CONFIGS / file,
                                              mode='end2end',
                                              s3_bucket_name=s3_bucket_name)
 

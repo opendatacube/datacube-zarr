@@ -1,12 +1,19 @@
+import threading
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from time import sleep
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import boto3
 import numpy as np
+import rasterio
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
+from moto.server import main as moto_server_main
+from s3path import S3Path, _s3_accessor
 from xarray import DataArray
 
 from zarr_io.zarr_io import ZarrIO
@@ -46,13 +53,31 @@ def mock_aws_aws_credentials(monkeypatch):
     monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
 
 
+@pytest.fixture(scope="session")
+def moto_s3_server():
+    """Mock AWS S3 Server."""
+    address = "http://127.0.0.1:5000"
+    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
+    thread.daemon = True
+    thread.start()
+    sleep(0.3)
+    yield address
+
+
 @pytest.fixture
-def s3(s3_bucket_name, mock_aws_aws_credentials):
+def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
     '''Mock s3 client and root url.'''
+
+    # GDAL AWS connection options
+    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
+    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
+    monkeypatch.setenv('AWS_HTTPS', 'NO')
+
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
         client.create_bucket(Bucket=s3_bucket_name)
         root = f'{s3_bucket_name}/mock-dir/mock-subdir'
+        _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
         yield {'client': client, 'root': root}
 
 
@@ -155,3 +180,84 @@ def odc_dataset_2d(dataset, tmpdir):
     root = Path(tmpdir) / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)
+
+
+def create_random_raster_local(
+    outdir: Path,
+    label: str = "raster",
+    height: int = 200,
+    width: int = 300,
+    nbands: int = 1
+) -> Path:
+    """Create a raster with random data."""
+    outdir.mkdir(parents=True, exist_ok=True)
+    dtype = np.float32
+    data = np.random.randn(nbands, height, width).astype(dtype)
+    file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
+
+    bbox = [149, 35, 150, 36]
+    transform = rasterio.transform.from_bounds(*bbox, width, height)
+    meta = {
+        "driver": "GTiff",
+        "count": nbands,
+        "width": width,
+        "height": height,
+        "crs": rasterio.crs.CRS.from_epsg("4326"),
+        "nodata": None,
+        "dtype": dtype,
+        "transform": transform,
+    }
+
+    with rasterio.open(file_path.as_uri(), "w", **meta) as dst:
+        dst.write(data)
+
+    return file_path
+
+
+def create_random_raster(outdir: Path, **kwargs: Any) -> Path:
+    """Create random raster on s3 or locally."""
+    if outdir.as_uri().startswith("file://"):
+        raster_file = create_random_raster_local(outdir, **kwargs)
+    else:
+        with TemporaryDirectory() as savedir:
+            tmp_file = create_random_raster_local(Path(savedir), **kwargs)
+            raster_file = outdir / tmp_file.relative_to(Path(savedir))
+            raster_file.write_bytes(tmp_file.read_bytes())
+    return raster_file
+
+
+@pytest.fixture(params=('file', 's3'))
+def tmp_storage_path(request, tmp_path, s3):
+    """Temporary storage path."""
+    protocol = request.param
+    if protocol == "s3":
+        return S3Path(f"/{s3['root']}/tmp/")
+    else:
+        return tmp_path
+
+
+tmp_raster_storage_path = tmp_storage_path
+
+
+@pytest.fixture()
+def tmp_raster(tmp_raster_storage_path):
+    """Temporary geotif."""
+    outdir = tmp_raster_storage_path / "geotif"
+    raster = create_random_raster(outdir)
+    yield raster
+
+
+@pytest.fixture()
+def tmp_raster_multiband(tmp_raster_storage_path):
+    """Temporary multiband geotif."""
+    outdir = tmp_raster_storage_path / "geotif_multi"
+    raster = create_random_raster(outdir, nbands=5)
+    yield raster
+
+
+@pytest.fixture()
+def tmp_dir_of_rasters(tmp_raster_storage_path):
+    """Temporary directory of geotifs."""
+    outdir = tmp_raster_storage_path / "geotif_scene"
+    rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
+    yield outdir, rasters

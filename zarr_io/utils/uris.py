@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 
@@ -22,3 +22,9 @@ def uri_split(uri: str) -> Tuple[str, str, str]:
         raise ValueError(f'uri scheme not found: {uri}')
     group = components.fragment
     return scheme, path, group
+
+
+def uri_join(protocol: str, root: str, group: Optional[str] = None) -> str:
+    """Compose zarr uri from components: <protocol>://<root>[#<group>]."""
+    uri = f"{protocol}://{root}" + (f"#{group}" if group else "")
+    return uri
