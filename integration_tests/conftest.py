@@ -78,18 +78,37 @@ def s3_bucket_name():
     s3_count += 1
 
 
-@pytest.fixture
-def mock_aws_aws_credentials(monkeypatch):
+@pytest.fixture(scope='session')
+def monkeypatch_session():
+    """A patch for a session-scoped `monkeypatch`
+    https://github.com/pytest-dev/pytest/issues/1872
+    note: private import _pytest).
+    """
+    from _pytest.monkeypatch import MonkeyPatch
+    m = MonkeyPatch()
+    yield m
+    m.undo()
+
+
+@pytest.fixture(scope='session')
+def mock_aws_aws_credentials(monkeypatch_session):
     '''Mocked AWS Credentials for moto.'''
-    monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
-    monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
-    monkeypatch.setenv('AWS_DEFAULT_REGION', 'mock-region')
+    monkeypatch_session.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
+    monkeypatch_session.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
+    monkeypatch_session.setenv('AWS_DEFAULT_REGION', 'mock-region')
 
 
 @pytest.fixture(scope="session")
-def moto_s3_server():
+def moto_s3_server(monkeypatch_session):
     """Mock AWS S3 Server."""
     address = "http://127.0.0.1:5000"
+
+    # GDAL AWS connection options
+    monkeypatch_session.setenv('AWS_S3_ENDPOINT', address.split("://")[1])
+    monkeypatch_session.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
+    monkeypatch_session.setenv('AWS_HTTPS', 'NO')
+
+    # Run a moto server
     thread = threading.Thread(target=moto_server_main, args=(["s3"],))
     thread.daemon = True
     thread.start()
@@ -97,21 +116,21 @@ def moto_s3_server():
     yield address
 
 
-@pytest.fixture
-def s3(monkeypatch, moto_s3_server, s3_bucket_name, mock_aws_aws_credentials):
-    '''Mock s3 client and root url.'''
-
-    # GDAL AWS connection options
-    monkeypatch.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
-    monkeypatch.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
-    monkeypatch.setenv('AWS_HTTPS', 'NO')
-
+@pytest.fixture(scope="session")
+def s3_client(moto_s3_server, mock_aws_aws_credentials):
+    '''Mock s3 client.'''
     with mock_s3():
         client = boto3.client('s3', region_name='mock-region')
-        client.create_bucket(Bucket=s3_bucket_name)
-        root = f'{s3_bucket_name}/mock-dir/mock-subdir'
         _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
-        yield {'client': client, 'root': root}
+        yield client
+
+
+@pytest.fixture
+def s3(s3_client, s3_bucket_name):
+    '''Mock s3 client and root url.'''
+    s3_client.create_bucket(Bucket=s3_bucket_name)
+    root = f'{s3_bucket_name}/mock-dir/mock-subdir'
+    yield {'client': s3_client, 'root': root}
 
 
 @pytest.fixture
