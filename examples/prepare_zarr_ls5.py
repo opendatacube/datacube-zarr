@@ -233,7 +233,9 @@ class FileOrS3Path(click.ParamType):
         if value.startswith("s3:/"):
             path = S3Path(value[4:])
         else:
-            path = Path(value)
+            if value.startswith("file://"):
+                value = value[7:]
+            path = Path(value).resolve()
 
         if self.exists and not path.exists:
             raise ValueError(f"{path.as_uri()} does not exist.")
