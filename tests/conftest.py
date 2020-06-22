@@ -1,3 +1,6 @@
+
+import random
+import string
 import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -250,10 +253,11 @@ def create_random_raster(outdir: Path, **kwargs: Any) -> Path:
 def tmp_storage_path(request, tmp_path, s3):
     """Temporary storage path."""
     protocol = request.param
+    prefix = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
     if protocol == "s3":
-        return S3Path(f"/{s3['root']}/tmp/")
+        return S3Path(f"/{s3['root']}/{prefix}/")
     else:
-        return tmp_path
+        return tmp_path / prefix
 
 
 tmp_raster_storage_path = tmp_storage_path
@@ -280,4 +284,8 @@ def tmp_dir_of_rasters(tmp_raster_storage_path):
     """Temporary directory of geotifs."""
     outdir = tmp_raster_storage_path / "geotif_scene"
     rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
-    yield outdir, rasters
+    others = [outdir / "metadata.xml", outdir / "path" / "to" / "otherfile.txt"]
+    for o in others:
+        o.parent.mkdir(exist_ok=True, parents=True)
+        o.touch()
+    yield outdir, rasters, others

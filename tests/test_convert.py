@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import pytest
 import boto3
@@ -6,10 +7,22 @@ import botocore
 import xarray as xr
 from s3path import S3Path
 
-from zarr_io.utils.convert import convert_dir, get_datasets
+from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
 from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
 from zarr_io.zarr_io import ZarrIO
+
+
+def copytree(p1: Path, p2: Path) -> None:
+    """Copytree for local/s3 paths."""
+    for o1 in p1.iterdir():
+        o2 = p2 / o1.name
+        if o1.is_dir():
+            copytree(o1, o2)
+        else:
+            if o2.as_uri().startswith("file") and not o2.parent.exists():
+                o2.parent.mkdir(parents=True)
+            o2.write_bytes(o1.read_bytes())
 
 
 def test_mock_s3_path(s3):
@@ -85,20 +98,31 @@ def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmp_storage_path, multi
 
 def test_find_datasets_geotif(tmp_dir_of_rasters):
     """Test finding geotif datasets."""
-    data_dir, geotifs = tmp_dir_of_rasters
+    data_dir, geotifs, others = tmp_dir_of_rasters
     found_types, found_datasets = zip(*get_datasets(data_dir))
     found_geotifs = [ds[0] for ds in found_datasets]
     assert all(t == "GeoTiff" for t in found_types)
     assert set(geotifs) == set(found_geotifs)
 
 
+@pytest.mark.parametrize("inplace", [False, True])
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
-def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir):
+def test_convert_dir_geotif(
+    tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir, inplace
+):
     """Test converting a directory of geotifs."""
-    data_dir, geotifs = tmp_dir_of_rasters
-    zarrs = convert_dir(
-        data_dir, tmp_storage_path, merge_datasets_per_dir=merge_datasets_per_dir
-    )
+    data_dir, geotifs, others = tmp_dir_of_rasters
+    others_rel = [o.relative_to(data_dir) for o in others]
+    if inplace:
+        copytree(data_dir, tmp_storage_path)
+        data_dir = tmp_storage_path
+        outdir = None
+    else:
+        outdir = tmp_storage_path / "outdir"
+
+    zarrs = convert_dir(data_dir, outdir, merge_datasets_per_dir=merge_datasets_per_dir)
+
+    # check generated zarrs
     assert len(zarrs) == len(geotifs)
     for z, g in zip(sorted(zarrs), sorted(geotifs)):
         protocol, root, group = uri_split(z)
@@ -111,3 +135,16 @@ def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets
             assert group == ""
 
         assert raster_and_zarr_are_equal(g, z)
+
+    # check other data
+    converted_dir = outdir or data_dir
+    for o in others_rel:
+        assert (converted_dir / o).exists()
+
+
+def test_convert_unsupported(tmp_path):
+    """Test unsupported file format."""
+    dataset = tmp_path / "data.he5"
+    dataset.touch()
+    with pytest.raises(ValueError):
+        convert_to_zarr([dataset])
