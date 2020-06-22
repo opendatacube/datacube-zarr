@@ -1,7 +1,8 @@
 from pathlib import Path
-import yaml
+
 import pytest
 import rasterio
+import yaml
 from click.testing import CliRunner
 from datacube.api.core import Datacube
 from datacube.index.hl import Doc2Dataset
