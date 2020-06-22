@@ -1,9 +1,10 @@
 from pathlib import Path
-
+import yaml
 import pytest
 import rasterio
 from click.testing import CliRunner
 from datacube.api.core import Datacube
+from datacube.index.hl import Doc2Dataset
 
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from tools.zarrify import main as zarrify
@@ -32,12 +33,9 @@ def test_ls5_dataset_access(ls5_dataset_path):
 @pytest.mark.parametrize("datacube_env_name", ("datacube",))
 @pytest.mark.parametrize("convert_inplace", (False, True))
 def test_zarrify_prepare_index(
-    clirunner, tmpdir, convert_inplace, datacube_env_name, index, ls5_dataset_path
+    clirunner, tmp_path, convert_inplace, datacube_env_name, index, ls5_dataset_path
 ):
     """Convert test ls5 tifs to zarr, prepare mdetadata, index and compare."""
-
-    if convert_inplace and ls5_dataset_path.as_uri().startswith("s3"):
-        pytest.skip()
 
     # Add the geotiff LS5 product and dataset
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES)])
@@ -51,21 +49,36 @@ def test_zarrify_prepare_index(
         zarrify_args.append("--inplace")
         zarr_dir = ls5_dataset_path.parent
     else:
-        zarr_dir = Path(tmpdir) / "zarrs"
+        zarr_dir = tmp_path / "zarrs"
         zarrify_args.extend(["--outpath", str(zarr_dir)])
 
     zarrify_args.append(ls5_dataset_path.as_uri())
-    runner.invoke(zarrify, zarrify_args)
+    res_zarrify = runner.invoke(zarrify, zarrify_args)
+    assert res_zarrify.exit_code == 0, res_zarrify.stdout
 
     zarr_dataset_dir = zarr_dir / "lbg"
 
     # prepare metadata for zarr
-    runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir / LBG_NBAR)])
+    res_prep = runner.invoke(prepare_zarr_ls5, [(zarr_dataset_dir / LBG_NBAR).as_uri()])
+    assert res_prep.exit_code == 0, res_prep.stdout
 
-    # Add the zarr LS5 product and dataset
+    # Add the zarr LS5 products
     clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES_ZARR)])
-    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir / LBG_NBAR)])
-    clirunner(["-v", "dataset", "add", str(zarr_dataset_dir / LBG_PQ)])
+
+    # Add the zarr datasets
+    for ds in (LBG_NBAR, LBG_PQ):
+        ds_dir = zarr_dataset_dir / ds
+        if ds_dir.as_uri().startswith("s3"):
+            # Quick index from s3. Recommended process:
+            # `s3-find --skip-check '<base_uri>/*/*yaml' | s3-to-tar | dc-index-from-tar --env <env> --ignore-lineage`
+            doc2ds = Doc2Dataset(index, skip_lineage=True)
+            zarr_meta_s3 = ds_dir / "agdc-metadata.yaml"
+            doc = yaml.safe_load(zarr_meta_s3.read_text())
+            ds, err = doc2ds(doc, zarr_meta_s3.as_uri())
+            assert ds is not None, err
+            index.datasets.add(ds)
+        else:
+            clirunner(["-v", "dataset", "add", str(ds_dir)])
 
     # LS5 NBAR scene params
     output_crs = "EPSG:28355"
