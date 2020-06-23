@@ -2,8 +2,36 @@
 import re
 from json import load, loads
 from pathlib import Path
-
+import xarray as xr
 from zarr_io.zarr_io import ZarrIO
+
+
+def copytree(p1: Path, p2: Path) -> None:
+    """Copytree for local/s3 paths."""
+    for o1 in p1.iterdir():
+        o2 = p2 / o1.name
+        if o1.is_dir():
+            copytree(o1, o2)
+        else:
+            if o2.as_uri().startswith("file") and not o2.parent.exists():
+                o2.parent.mkdir(parents=True)
+            o2.write_bytes(o1.read_bytes())
+
+
+def raster_and_zarr_are_equal(raster_uri, zarr_uri, multi_dim=False):
+    """Compare raster and zarr files."""
+    da_raster = xr.open_rasterio(raster_uri)
+    ds_zarr = ZarrIO().load_dataset(zarr_uri)
+
+    if multi_dim is True:
+        da_zarr = ds_zarr["array"]
+    else:
+        da_zarr = xr.concat(ds_zarr.data_vars.values(), dim="band").assign_coords(
+            {"band": list(range(1, len(ds_zarr) + 1))}
+        )
+    data_coords_dims_equal = da_raster.equals(da_zarr)
+    crs_equal = da_raster.crs == da_zarr.crs
+    return data_coords_dims_equal and crs_equal
 
 
 def _save_dataarray(data, uri, name, chunks=None):

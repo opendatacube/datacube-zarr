@@ -8,6 +8,7 @@ from time import sleep
 from types import SimpleNamespace
 from typing import Any
 
+import pyproj
 import pytest
 import boto3
 import numpy as np
@@ -17,10 +18,17 @@ from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_imag
 from moto import mock_s3
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
-from xarray import DataArray
+import xarray as xr
 
 from zarr_io.utils.uris import uri_join
 from zarr_io.zarr_io import ZarrIO
+
+from .utils import copytree
+
+
+PROJECT_ROOT = Path(__file__).parents[1]
+
+TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 
 CHUNKS = (
     {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
@@ -128,7 +136,7 @@ def chunks(request):
 @pytest.fixture
 def data():
     '''Random test data.'''
-    yield DataArray(np.random.randn(1300, 1300))
+    yield xr.DataArray(np.random.randn(1300, 1300))
 
 
 @pytest.fixture
@@ -280,6 +288,32 @@ def tmp_raster_multiband(tmp_raster_storage_path):
 
 
 @pytest.fixture()
+def tmp_hdf4_dataset(tmp_path):
+    """Create a HDF4 path."""
+    outdir = tmp_path / "geotif"
+    outdir.mkdir()
+    raster = create_random_raster(outdir, nbands=5)
+    da = xr.open_rasterio(raster.as_uri())
+
+    # make dataset and add spatial ref
+    grid_map_attrs = pyproj.CRS.from_string(da.crs).to_cf()
+    da.coords["spatial_ref"] = xr.Variable((), 0)
+    da.coords["spatial_ref"].attrs.update(grid_map_attrs)
+    da.attrs["grid_mapping"] = "spatial_ref"
+    ds = da.to_dataset(dim="band")
+    ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
+    for var in ds.data_vars:
+        ds[var].attrs["grid_mapping"] = "spatial_ref"
+
+    # save as netcdf
+    hdf_path = tmp_path / "hdf" / f"{raster.stem}.nc"
+    hdf_path.parent.mkdir()
+    ds.to_netcdf(hdf_path, format="NETCDF4")
+
+    return hdf_path
+
+
+@pytest.fixture()
 def tmp_dir_of_rasters(tmp_raster_storage_path):
     """Temporary directory of geotifs."""
     outdir = tmp_raster_storage_path / "geotif_scene"
@@ -289,3 +323,24 @@ def tmp_dir_of_rasters(tmp_raster_storage_path):
         o.parent.mkdir(exist_ok=True, parents=True)
         o.touch()
     yield outdir, rasters, others
+
+
+@pytest.fixture()
+def tmp_empty_dataset(tmp_path):
+    """Empty geotif."""
+    hdf = tmp_path / "empty" / "nothing.hdf"
+    hdf.parent.mkdir(parents=True)
+    xr.DataArray().to_netcdf(hdf)
+    yield hdf
+
+
+@pytest.fixture(params=["file", "s3"])
+def ls5_dataset_path(request, s3, tmp_path):
+    """LS5 test dataset on filesystem and s3."""
+    if request.param == "file":
+        dataset_path = tmp_path / "geotifs" / "lbg"
+    else:
+        bucket, root = s3["root"].split("/", 1)
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA, dataset_path)
+    return dataset_path

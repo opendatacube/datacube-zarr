@@ -1,28 +1,12 @@
-import logging
-from pathlib import Path
-
 import pytest
 import boto3
 import botocore
-import xarray as xr
 from s3path import S3Path
 
 from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
-from zarr_io.utils.raster import raster_to_zarr, zarr_exists
 from zarr_io.utils.uris import uri_split
-from zarr_io.zarr_io import ZarrIO
 
-
-def copytree(p1: Path, p2: Path) -> None:
-    """Copytree for local/s3 paths."""
-    for o1 in p1.iterdir():
-        o2 = p2 / o1.name
-        if o1.is_dir():
-            copytree(o1, o2)
-        else:
-            if o2.as_uri().startswith("file") and not o2.parent.exists():
-                o2.parent.mkdir(parents=True)
-            o2.write_bytes(o1.read_bytes())
+from .utils import copytree, raster_and_zarr_are_equal
 
 
 def test_mock_s3_path(s3):
@@ -53,47 +37,6 @@ def test_mock_s3_boto3_resource(s3):
     bucket = s3["root"].split("/")[0]
     s3 = boto3.resource("s3")
     assert s3.Bucket(bucket) in s3.buckets.all()
-
-
-def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
-    """Compare raster and zarr files."""
-    da_raster = xr.open_rasterio(raster_file.as_uri())
-    ds_zarr = ZarrIO().load_dataset(zarr_uri)
-
-    if multi_dim is True:
-        da_zarr = ds_zarr["array"]
-    else:
-        da_zarr = xr.concat(ds_zarr.data_vars.values(), dim="band").assign_coords(
-            {"band": list(range(1, len(ds_zarr) + 1))}
-        )
-    data_coords_dims_equal = da_raster.equals(da_zarr)
-    crs_equal = da_raster.crs == da_zarr.crs
-    return data_coords_dims_equal and crs_equal
-
-
-@pytest.mark.parametrize("chunks", [None, {"x": 50, "y": 50}])
-def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks, caplog, s3):
-    """Convert raster to zarr."""
-    caplog.set_level(logging.DEBUG)
-    uris = raster_to_zarr(tmp_raster, tmp_storage_path, chunks=chunks)
-    assert len(uris) == 1
-
-    zarr_file = tmp_storage_path / f"{tmp_raster.stem}.zarr"
-    assert zarr_exists(zarr_file) is True
-
-    assert raster_and_zarr_are_equal(tmp_raster, uris[0])
-
-
-@pytest.mark.parametrize("multi_dim", [True, False])
-def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmp_storage_path, multi_dim):
-    """Convert multibanded raster to zarr."""
-    uris = raster_to_zarr(tmp_raster_multiband, tmp_storage_path, multi_dim=multi_dim)
-    assert len(uris) == 1
-
-    zarr_file = tmp_storage_path / f"{tmp_raster_multiband.stem}.zarr"
-    assert zarr_exists(zarr_file) is True
-
-    assert raster_and_zarr_are_equal(tmp_raster_multiband, uris[0], multi_dim=multi_dim)
 
 
 def test_find_datasets_geotif(tmp_dir_of_rasters):
@@ -134,7 +77,7 @@ def test_convert_dir_geotif(
             assert root_stem == g.stem
             assert group == ""
 
-        assert raster_and_zarr_are_equal(g, z)
+        assert raster_and_zarr_are_equal(g.as_uri(), z)
 
     # check other data
     converted_dir = outdir or data_dir
