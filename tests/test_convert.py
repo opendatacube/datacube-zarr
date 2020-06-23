@@ -1,15 +1,12 @@
-import logging
-
 import pytest
 import boto3
 import botocore
-import xarray as xr
 from s3path import S3Path
 
-from zarr_io.utils.convert import convert_dir, get_datasets
-from zarr_io.utils.raster import raster_to_zarr, zarr_exists
+from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
 from zarr_io.utils.uris import uri_split
-from zarr_io.zarr_io import ZarrIO
+
+from .utils import copytree, raster_and_zarr_are_equal
 
 
 def test_mock_s3_path(s3):
@@ -42,63 +39,33 @@ def test_mock_s3_boto3_resource(s3):
     assert s3.Bucket(bucket) in s3.buckets.all()
 
 
-def raster_and_zarr_are_equal(raster_file, zarr_uri, multi_dim=False):
-    """Compare raster and zarr files."""
-    da_raster = xr.open_rasterio(raster_file.as_uri())
-    ds_zarr = ZarrIO().load_dataset(zarr_uri)
-
-    if multi_dim is True:
-        da_zarr = ds_zarr["array"]
-    else:
-        da_zarr = xr.concat(ds_zarr.data_vars.values(), dim="band").assign_coords(
-            {"band": list(range(1, len(ds_zarr) + 1))}
-        )
-    data_coords_dims_equal = da_raster.equals(da_zarr)
-    crs_equal = da_raster.crs == da_zarr.crs
-    return data_coords_dims_equal and crs_equal
-
-
-@pytest.mark.parametrize("chunks", [None, {"x": 50, "y": 50}])
-def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks, caplog, s3):
-    """Convert raster to zarr."""
-    caplog.set_level(logging.DEBUG)
-    uris = raster_to_zarr(tmp_raster, tmp_storage_path, chunks=chunks)
-    assert len(uris) == 1
-
-    zarr_file = tmp_storage_path / f"{tmp_raster.stem}.zarr"
-    assert zarr_exists(zarr_file) is True
-
-    assert raster_and_zarr_are_equal(tmp_raster, uris[0])
-
-
-@pytest.mark.parametrize("multi_dim", [True, False])
-def test_raster_to_zarr_multi_band(tmp_raster_multiband, tmp_storage_path, multi_dim):
-    """Convert multibanded raster to zarr."""
-    uris = raster_to_zarr(tmp_raster_multiband, tmp_storage_path, multi_dim=multi_dim)
-    assert len(uris) == 1
-
-    zarr_file = tmp_storage_path / f"{tmp_raster_multiband.stem}.zarr"
-    assert zarr_exists(zarr_file) is True
-
-    assert raster_and_zarr_are_equal(tmp_raster_multiband, uris[0], multi_dim=multi_dim)
-
-
 def test_find_datasets_geotif(tmp_dir_of_rasters):
     """Test finding geotif datasets."""
-    data_dir, geotifs = tmp_dir_of_rasters
+    data_dir, geotifs, others = tmp_dir_of_rasters
     found_types, found_datasets = zip(*get_datasets(data_dir))
     found_geotifs = [ds[0] for ds in found_datasets]
     assert all(t == "GeoTiff" for t in found_types)
     assert set(geotifs) == set(found_geotifs)
 
 
+@pytest.mark.parametrize("inplace", [False, True])
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
-def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir):
+def test_convert_dir_geotif(
+    tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir, inplace
+):
     """Test converting a directory of geotifs."""
-    data_dir, geotifs = tmp_dir_of_rasters
-    zarrs = convert_dir(
-        data_dir, tmp_storage_path, merge_datasets_per_dir=merge_datasets_per_dir
-    )
+    data_dir, geotifs, others = tmp_dir_of_rasters
+    others_rel = [o.relative_to(data_dir) for o in others]
+    if inplace:
+        copytree(data_dir, tmp_storage_path)
+        data_dir = tmp_storage_path
+        outdir = None
+    else:
+        outdir = tmp_storage_path / "outdir"
+
+    zarrs = convert_dir(data_dir, outdir, merge_datasets_per_dir=merge_datasets_per_dir)
+
+    # check generated zarrs
     assert len(zarrs) == len(geotifs)
     for z, g in zip(sorted(zarrs), sorted(geotifs)):
         protocol, root, group = uri_split(z)
@@ -110,4 +77,17 @@ def test_convert_dir_geotif(tmp_dir_of_rasters, tmp_storage_path, merge_datasets
             assert root_stem == g.stem
             assert group == ""
 
-        assert raster_and_zarr_are_equal(g, z)
+        assert raster_and_zarr_are_equal(g.as_uri(), z)
+
+    # check other data
+    converted_dir = outdir or data_dir
+    for o in others_rel:
+        assert (converted_dir / o).exists()
+
+
+def test_convert_unsupported(tmp_path):
+    """Test unsupported file format."""
+    dataset = tmp_path / "data.he5"
+    dataset.touch()
+    with pytest.raises(ValueError):
+        convert_to_zarr([dataset])

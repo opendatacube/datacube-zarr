@@ -435,10 +435,10 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
 
 
 @pytest.fixture(params=["file", "s3"])
-def ls5_dataset_path(request, s3, tmpdir):
+def ls5_dataset_path(request, s3, tmp_path):
     """LS5 test dataset on filesystem and s3."""
     if request.param == "file":
-        lbg_dir = Path(tmpdir) / "geotifs" / "lbg"
+        lbg_dir = tmp_path / "geotifs" / "lbg"
         shutil.copytree(str(TEST_DATA), str(lbg_dir))
         dataset = lbg_dir
     else:
