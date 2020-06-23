@@ -112,7 +112,7 @@ def raster_to_zarr(
         group = group.replace(":", "/")
 
         if zarr_exists(root, group):
-            logger.warn(f"zarr already exists: {make_zarr_uri(root, group)}")
+            logger.warning(f"zarr already exists: {make_zarr_uri(root, group)}")
             continue
 
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
