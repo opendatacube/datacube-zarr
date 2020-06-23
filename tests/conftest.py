@@ -8,23 +8,22 @@ from time import sleep
 from types import SimpleNamespace
 from typing import Any
 
-import pyproj
 import pytest
 import boto3
 import numpy as np
+import pyproj
 import rasterio
+import xarray as xr
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
-import xarray as xr
 
 from zarr_io.utils.uris import uri_join
 from zarr_io.zarr_io import ZarrIO
 
 from .utils import copytree
-
 
 PROJECT_ROOT = Path(__file__).parents[1]
 
