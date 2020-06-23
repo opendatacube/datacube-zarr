@@ -2,7 +2,6 @@
 
 import logging
 import re
-import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
@@ -11,7 +10,6 @@ import rasterio
 import xarray as xr
 import zarr
 from rasterio.crs import CRS
-from rasterio.shutil import copy as rio_copy
 from rasterio.warp import calculate_default_transform
 
 from zarr_io import ZarrIO
@@ -49,15 +47,7 @@ def warped_vrt(
     src_crs = src.crs
     src_transform = src.transform
     src_params = {"height": src.height, "width": src.width}
-    if src_crs:
-        src_params.update(src.bounds._asdict())
-    elif src.gcps[1]:
-        gcps, src_crs = src.gcps
-        src_params["gcps"] = gcps
-        src_transform = rasterio.transform.from_gcps(gcps)
-    else:
-        raise ValueError(f"Dataset has no CRS or Ground Control Points: {src.name}.")
-
+    src_params.update(src.bounds._asdict())
     dst_crs = crs or src_crs
     transform, width, height = calculate_default_transform(
         src_crs=src_crs, dst_crs=dst_crs, resolution=resolution, **src_params,
@@ -71,15 +61,7 @@ def warped_vrt(
         height=height,
         width=width,
     ) as vrt:
-        if not src.crs:
-            # For src with gcps write reprojection to temporary file
-            # Required due to bug in xarray.open_rasterio() (see xarray PR #4104)
-            with tempfile.NamedTemporaryFile() as tmpfile:
-                rio_copy(vrt, tmpfile.name, driver="GTiff")
-                with rasterio.open(tmpfile) as tmp_src:
-                    yield tmp_src
-        else:
-            yield vrt
+        yield vrt
 
 
 @contextmanager
@@ -88,9 +70,7 @@ def rasterio_src(
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually warp if required."""
     with rasterio.open(uri) as src:
-        reproject = crs is not None or resolution is not None
-        gcps = src.crs is None
-        if reproject or gcps:
+        if crs is not None or resolution is not None:
             with warped_vrt(src, crs=crs, resolution=resolution) as vrt:
                 yield vrt
         else:
