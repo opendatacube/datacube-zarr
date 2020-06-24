@@ -98,7 +98,10 @@ class ZarrIO(ZarrBase):
         protocol, root, group = uri_split(uri)
         if protocol == 's3':
             store = s3fs.S3Map(root=root,
-                               s3=s3fs.S3FileSystem(client_kwargs=dict(region_name=auto_find_region())),
+                               s3=s3fs.S3FileSystem(
+                                   client_kwargs=dict(region_name=auto_find_region()),
+                                   use_listings_cache=False
+                               ),
                                check=False)
         elif protocol == 'file':
             store = zarr.DirectoryStore(root)
