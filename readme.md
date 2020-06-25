@@ -6,10 +6,16 @@ This provides additional drivers for the Open Data Cube (ODC) project.
 
 For ODC documentation and repository, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/) and [ODC repository](https://github.com/opendatacube/datacube-core/)
 
+## User Guides
+- Index and Ingestion
+  - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
+  - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)
+
+
 ## Drivers provided
 
-- Zarr 2D s3 storage driver
-- Zarr 2D file storage driver
+- Zarr 2D driver
+  - supports (s3, file) protocols
 
 ## Requirements
 
@@ -32,7 +38,7 @@ conda activate odc
 4. Install new drivers from this repository.
 ```
 cd datacube-drivers
-python setup.py install
+pip install --upgrade -e .[test,tools]
 ```
 5. Run unit tests + PyLint
 ```
@@ -50,55 +56,4 @@ This docker includes database server pre-configured for running integration test
 Add ``--with-docker`` command line option as a first argument to ``./check-code.sh`` script.
 ```
 ./check-code.sh --with-docker integration_tests
-```
-
-## Convert to Zarr and Index (Recommended)
-1. Convert to Zarr (`zarrify.py --help` for usage instructions)
-```
-python utils/zarrify.py --outpath <zarr output dir> --chunk x:2000 --chunk y:2000 <path to ls5 scenes>
-```
-Note: `<zarr output dir>` can be a s3 path e.g. s3://my-bucket/my_folder
-2.  Generate `agdc_metadata` file
-```
-python examples/prepare_zarr_ls5.py <zarr output dir>
-```
-3. Initialise ODC DB
-```
-datacube -v system init
-```
-4. Adding product definition
-```
-datacube product add docs/config_samples/dataset_types/ls5_scenes_zarr.yaml
-```
-5. Index scenes
-```
-datacube dataset add <zarr output dir>
-```
-
-## Index and Ingest (Not Recommended)
-1. Generate `agdc_metadata` file
-See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
-```
-python galsprepare.py <path to ls5 scenes>/*
-```
-2. Initialise ODC DB
-```
-datacube -v system init
-```
-3. Adding product definition
-See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
-```
-datacube product add docs/config_samples/dataset_types/ls5_scenes.yaml
-```
-4. Index scenes
-```
-datacube dataset add <path to ls5 scenes>/*
-```
-5. Ingest scenes to Zarr format
-```
-datacube -v ingest -c ls5_nbar_albers_zarr.yaml
-```
-You can specify `--executor multiproc <num_processes>` to enable multi-processing.
-```
-datacube -v ingest -c ls5_nbar_albers.yaml --executor multiproc <num_processes>
 ```
