@@ -26,11 +26,13 @@ RasterWindow = Tuple[Tuple[int, int]]
 
 class ZarrDataSource(object):
     class BandDataSource(object):
-        def __init__(self,
-                     dataset: xr.Dataset,
-                     var_name: str,
-                     time_idx: Optional[int],
-                     no_data: Optional[float]):
+        def __init__(
+            self,
+            dataset: xr.Dataset,
+            var_name: str,
+            time_idx: Optional[int],
+            no_data: Optional[float],
+        ):
             """
             Initialises the BandDataSource class.
 
@@ -43,7 +45,11 @@ class ZarrDataSource(object):
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
-            self._nodata = self.da.nodata if 'nodata' in self.da.attrs and self.da.nodata else no_data
+            self._nodata = (
+                self.da.nodata
+                if 'nodata' in self.da.attrs and self.da.nodata
+                else no_data
+            )
             if not self._nodata:
                 raise ValueError('nodata not found in dataset and product definition')
             self._nodata = num2numpy(self._nodata, self.dtype)
@@ -92,9 +98,11 @@ class ZarrDataSource(object):
             else:
                 raise ValueError(f'time_idx exceeded {time_count}')
 
-        def read(self,
-                 window: Optional[RasterWindow] = None,
-                 out_shape: Optional[RasterShape] = None) -> np.ndarray:
+        def read(
+            self,
+            window: Optional[RasterWindow] = None,
+            out_shape: Optional[RasterShape] = None,
+        ) -> np.ndarray:
             """
             Reads a slice into the xr.DataArray.
 
@@ -141,7 +149,10 @@ class ZarrDataSource(object):
         ds = zio.open_dataset(uri=self.uri)
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
-            dataset=ds, var_name=var_name, time_idx=self._band_info.band, no_data=self._band_info.nodata
+            dataset=ds,
+            var_name=var_name,
+            time_idx=self._band_info.band,
+            no_data=self._band_info.nodata,
         )
 
 
@@ -151,14 +162,10 @@ class ZarrReaderDriver(object):
         self.protocols = PROTOCOL + ['zarr']
         self.formats = [FORMAT]
 
-    def supports(self,
-                 protocol: str,
-                 fmt: str) -> bool:
-        return (protocol in self.protocols and
-                fmt in self.formats)
+    def supports(self, protocol: str, fmt: str) -> bool:
+        return protocol in self.protocols and fmt in self.formats
 
-    def new_datasource(self,
-                       band: BandInfo) -> ZarrDataSource:
+    def new_datasource(self, band: BandInfo) -> ZarrDataSource:
         return ZarrDataSource(band)
 
 
@@ -191,13 +198,15 @@ class ZarrWriterDriver(object):
         uri = uri_join(protocol, *str(file_path).split("#", 1))
         return uri
 
-    def write_dataset_to_storage(self,
-                                 dataset: xr.Dataset,
-                                 file_uri: str,
-                                 global_attributes: Optional[dict] = None,
-                                 variable_params: Optional[dict] = None,
-                                 storage_config: Optional[dict] = None,
-                                 **kwargs: str) -> Dict:
+    def write_dataset_to_storage(
+        self,
+        dataset: xr.Dataset,
+        file_uri: str,
+        global_attributes: Optional[dict] = None,
+        variable_params: Optional[dict] = None,
+        storage_config: Optional[dict] = None,
+        **kwargs: str,
+    ) -> Dict:
         """
         Persists a xr.DataSet to storage.
 
@@ -213,8 +222,12 @@ class ZarrWriterDriver(object):
             data_var = dataset.data_vars[var_name]
             if 'spectral_definition' in data_var.attrs:
                 spectral_definition = data_var.attrs.pop('spectral_definition', None)
-                data_var.attrs['dc_spectral_definition_response'] = spectral_definition['response']
-                data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition['wavelength']
+                data_var.attrs['dc_spectral_definition_response'] = spectral_definition[
+                    'response'
+                ]
+                data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition[
+                    'wavelength'
+                ]
 
         # Renaming units: units is a reserved name in Xarray coordinates
         for var_name in dataset.coords:
@@ -225,11 +238,13 @@ class ZarrWriterDriver(object):
 
         zio = ZarrIO()
         # Should be a directory but actually get passed a file, which becomes a directory.
-        metadata = zio.save_dataset_to_zarr(uri=file_uri,
-                                            dataset=dataset,
-                                            global_attributes=global_attributes,
-                                            variable_params=variable_params,
-                                            storage_config=storage_config)
+        metadata = zio.save_dataset_to_zarr(
+            uri=file_uri,
+            dataset=dataset,
+            global_attributes=global_attributes,
+            variable_params=variable_params,
+            storage_config=storage_config,
+        )
 
         # extra metadata to be stored in database
         return metadata

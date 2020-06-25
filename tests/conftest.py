@@ -1,4 +1,3 @@
-
 import random
 import string
 import threading
@@ -33,13 +32,13 @@ CHUNKS = (
     {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
         'input': None,
         'chunks_per_side': 4,
-        'output': [325, 325]
+        'output': [325, 325],
     },
     {  # User specified chunks, input and output should match
         'input': {'dim_0': 1000, 'dim_1': 1100},
         'chunks_per_side': 2,
-        'output': [1000, 1100]
-    }
+        'output': [1000, 1100],
+    },
 )
 '''Zarr chunk sizes to be tested and expected output in metadata and number of chunks
 per side.'''
@@ -63,6 +62,7 @@ def monkeypatch_session():
     note: private import _pytest).
     """
     from _pytest.monkeypatch import MonkeyPatch
+
     m = MonkeyPatch()
     yield m
     m.undo()
@@ -145,18 +145,18 @@ def dataset(tmpdir):
     Based on datacube-core/tests/test_load_data.py'''
     tmpdir = Path(str(tmpdir))
 
-    spatial = dict(resolution=(15, -15),
-                   offset=(11230, 1381110),)
+    spatial = dict(resolution=(15, -15), offset=(11230, 1381110),)
 
     nodata = -999
     array = mk_test_image(96, 64, 'int16', nodata=nodata)
 
-    ds, gbox = gen_tiff_dataset([SimpleNamespace(name='aa', values=array,
-                                                 nodata=nodata)],
-                                tmpdir,
-                                prefix='ds1-',
-                                timestamp='2018-07-19',
-                                **spatial)
+    ds, gbox = gen_tiff_dataset(
+        [SimpleNamespace(name='aa', values=array, nodata=nodata)],
+        tmpdir,
+        prefix='ds1-',
+        timestamp='2018-07-19',
+        **spatial,
+    )
     sources = Datacube.group_datasets([ds], 'time')
     mm = ['aa']
     mm = [ds.type.measurements[k] for k in mm]
@@ -167,8 +167,12 @@ def dataset(tmpdir):
         data_var = dc_dataset.data_vars[var_name]
         if 'spectral_definition' in data_var.attrs:
             spectral_definition = data_var.attrs.pop('spectral_definition', None)
-            data_var.attrs['dc_spectral_definition_response'] = spectral_definition['response']
-            data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition['wavelength']
+            data_var.attrs['dc_spectral_definition_response'] = spectral_definition[
+                'response'
+            ]
+            data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition[
+                'wavelength'
+            ]
 
     # Renaming units: units is a reserved name in Xarray coordinates
     for var_name in dc_dataset.coords:
@@ -189,10 +193,7 @@ def _gen_zarr_dataset(ds, root):
     uri = uri_join(protocol, root)
     zio = ZarrIO()
     zio.save_dataset(uri=uri, dataset=ds)
-    bands = [{
-        'name': var,
-        'path': str(root)
-    }]
+    bands = [{'name': var, 'path': str(root)}]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
     return ds1
 
@@ -217,7 +218,7 @@ def create_random_raster_local(
     label: str = "raster",
     height: int = 200,
     width: int = 300,
-    nbands: int = 1
+    nbands: int = 1,
 ) -> Path:
     """Create a raster with random data."""
     outdir.mkdir(parents=True, exist_ok=True)

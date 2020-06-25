@@ -25,32 +25,49 @@ from s3path import S3Path
 from zarr_io import ZarrIO
 
 _STATIONS = {
-    '023': 'TKSC', '022': 'SGS', '010': 'GNC', '011': 'HOA',
-    '012': 'HEOC', '013': 'IKR', '014': 'KIS', '015': 'LGS',
-    '016': 'MGR', '017': 'MOR', '032': 'LGN', '019': 'MTI', '030': 'KHC',
-    '031': 'MLK', '018': 'MPS', '003': 'BJC', '002': 'ASN', '001': 'AGS',
-    '007': 'DKI', '006': 'CUB', '005': 'CHM', '004': 'BKT', '009': 'GLC',
-    '008': 'EDC', '029': 'JSA', '028': 'COA', '021': 'PFS', '020': 'PAC'
+    '023': 'TKSC',
+    '022': 'SGS',
+    '010': 'GNC',
+    '011': 'HOA',
+    '012': 'HEOC',
+    '013': 'IKR',
+    '014': 'KIS',
+    '015': 'LGS',
+    '016': 'MGR',
+    '017': 'MOR',
+    '032': 'LGN',
+    '019': 'MTI',
+    '030': 'KHC',
+    '031': 'MLK',
+    '018': 'MPS',
+    '003': 'BJC',
+    '002': 'ASN',
+    '001': 'AGS',
+    '007': 'DKI',
+    '006': 'CUB',
+    '005': 'CHM',
+    '004': 'BKT',
+    '009': 'GLC',
+    '008': 'EDC',
+    '029': 'JSA',
+    '028': 'COA',
+    '021': 'PFS',
+    '020': 'PAC',
 }
 
-_PRODUCTS = {
-    'NBART': 'nbart',
-    'NBAR': 'nbar',
-    'PQ': 'pqa',
-    'FC': 'fc'
-}
+_PRODUCTS = {'NBART': 'nbart', 'NBAR': 'nbar', 'PQ': 'pqa', 'FC': 'fc'}
 
 
 def band_name(name):
     position = name.rfind('_')
     if position == -1:
         raise ValueError(f'Unexpected zarr dataset found: {name}')
-    if re.match(r"[Bb]\d+", name[position + 1:]):
-        band_number = name[position + 2:position + 3]
-    elif name[position + 1:].startswith('1111111111111100'):
+    if re.match(r"[Bb]\d+", name[position + 1 :]):
+        band_number = name[position + 2 : position + 3]
+    elif name[position + 1 :].startswith('1111111111111100'):
         band_number = 'pqa'
     else:
-        band_number = name[position + 1:]
+        band_number = name[position + 1 :]
     return band_number
 
 
@@ -59,11 +76,11 @@ def get_projection(ds):
     proj = {
         "spatial_reference": ds.geobox.crs.wkt,
         "geo_ref_points": {
-                'ul': {'x': left, 'y': top},
-                'ur': {'x': right, 'y': top},
-                'll': {'x': left, 'y': bottom},
-                'lr': {'x': right, 'y': bottom},
-            }
+            'ul': {'x': left, 'y': top},
+            'ur': {'x': right, 'y': top},
+            'll': {'x': left, 'y': bottom},
+            'lr': {'x': right, 'y': bottom},
+        },
     }
     return proj
 
@@ -134,7 +151,8 @@ def prep_dataset(fields, path):
         band_name(r.stem): {
             "path": "#".join([str(r.relative_to(path))] + ([g] if g else [])),
             "layer": "band1",
-        } for r, g in zarrs
+        }
+        for r, g in zarrs
     }
 
     doc = {
@@ -145,27 +163,29 @@ def prep_dataset(fields, path):
         'platform': {'code': "LANDSAT_" + fields["vehicle"][2]},
         'instrument': {'name': fields["instrument"]},
         'acquisition': {
-            'groundstation': {
-                'code': _STATIONS[fields["groundstation"]]
-            },
+            'groundstation': {'code': _STATIONS[fields["groundstation"]]},
             'aos': str(aos),
-            'los': str(los)
+            'los': str(los),
         },
         'extent': {
             'from_dt': str(start_time),
             'to_dt': str(end_time),
-            'center_dt': str(start_time + (end_time - start_time) // 2)
+            'center_dt': str(start_time + (end_time - start_time) // 2),
         },
         'format': {'name': 'zarr'},
-        'grid_spatial': {
-            'projection': get_projection(load_zarr_dataset(*zarrs[0]))
-        },
+        'grid_spatial': {'projection': get_projection(load_zarr_dataset(*zarrs[0]))},
         'image': {
-            'satellite_ref_point_start': {'x': int(fields["path"]), 'y': int(fields["row"])},
-            'satellite_ref_point_end': {'x': int(fields["path"]), 'y': int(fields["row"])},
-            'bands': zarr_paths
+            'satellite_ref_point_start': {
+                'x': int(fields["path"]),
+                'y': int(fields["row"]),
+            },
+            'satellite_ref_point_end': {
+                'x': int(fields["path"]),
+                'y': int(fields["row"]),
+            },
+            'bands': zarr_paths,
         },
-        'lineage': {'source_datasets': {}}
+        'lineage': {'source_datasets': {}},
     }
     populate_coord(doc)
     return doc
@@ -190,7 +210,8 @@ def prepare_datasets(nbar_path, pq_path=None, fc_path=None):
             r"_(?P<date>[12][0-9]{7})"
             "$"
         ),
-        nbar_path.stem).groupdict()
+        nbar_path.stem,
+    ).groupdict()
 
     nbar = prep_dataset(fields, nbar_path)
 
@@ -200,9 +221,7 @@ def prepare_datasets(nbar_path, pq_path=None, fc_path=None):
         return [(nbar, nbar_path)]
 
     pq = prep_dataset(fields, pq_path or nbar_path.parent)
-    pq['lineage']['source_datasets'] = {
-        nbar['id']: nbar
-    }
+    pq['lineage']['source_datasets'] = {nbar['id']: nbar}
 
     fields.update({'type': 'FC', 'level': 'P54'})
     fc_path = (fc_path or nbar_path.parent).joinpath(dataset_folder(fields))
@@ -210,10 +229,7 @@ def prepare_datasets(nbar_path, pq_path=None, fc_path=None):
         return (nbar, nbar_path), (pq, pq_path)
 
     fc = prep_dataset(fields, fc_path or nbar_path.parent)
-    fc['lineage']['source_datasets'] = {
-        nbar['id']: nbar,
-        pq['id']: pq
-    }
+    fc['lineage']['source_datasets'] = {nbar['id']: nbar, pq['id']: pq}
 
     return (nbar, nbar_path), (pq, pq_path), (fc, fc_path)
 

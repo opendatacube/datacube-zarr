@@ -39,18 +39,13 @@ def raster_and_zarr_are_equal(raster_uri, zarr_uri, multi_dim=False):
 def _save_dataarray(data, uri, name, chunks=None):
     '''Save DataArray to storage.'''
     zio = ZarrIO()
-    zio.save_dataarray(uri=uri,
-                       dataarray=data.copy(),
-                       name=name,
-                       chunks=chunks)
+    zio.save_dataarray(uri=uri, dataarray=data.copy(), name=name, chunks=chunks)
 
 
 def _save_dataset(data, uri, name, chunks=None):
     '''Save Dataset to storage.'''
     zio = ZarrIO()
-    zio.save_dataset(uri=uri,
-                     dataset=data.copy().to_dataset(name=name),
-                     chunks=chunks)
+    zio.save_dataset(uri=uri, dataset=data.copy().to_dataset(name=name), chunks=chunks)
 
 
 def _load_dataset(uri):
@@ -79,8 +74,9 @@ def _check_zarr_filesystem(data, root, group_name, name, chunks):
     assert metadata_path.exists(), f'Missing .zmetadata in {root}'
     with metadata_path.open() as fh:
         metadata = load(fh)
-    assert metadata['metadata'][f'{group_name}/{name}/.zarray']['chunks'] == \
-        chunks['output'], 'Chunks not as set'
+    assert (
+        metadata['metadata'][f'{group_name}/{name}/.zarray']['chunks'] == chunks['output']
+    ), 'Chunks not as set'
 
     dataset_dir = root / group_name
     assert dataset_dir.exists(), f'Missing {group_name}/ in {root}'
@@ -97,9 +93,13 @@ def _check_zarr_filesystem(data, root, group_name, name, chunks):
 
     # Check chunk files
     chunk_files = sorted([path.name for path in array_dir.glob('?.?')])
-    expected_chunk_files = sorted([f'{i}.{j}'
-                                   for i in range(chunks['chunks_per_side'])
-                                   for j in range(chunks['chunks_per_side'])])
+    expected_chunk_files = sorted(
+        [
+            f'{i}.{j}'
+            for i in range(chunks['chunks_per_side'])
+            for j in range(chunks['chunks_per_side'])
+        ]
+    )
     assert chunk_files == expected_chunk_files, 'Unexpected chunk files'
 
 
@@ -118,8 +118,9 @@ def _check_zarr_bucket(data, root, group_name, name, chunks, s3):
     assert key in keys, f'Missing {key} after save'
     response = client.get_object(Bucket=bucket, Key=key)
     metadata = loads(response['Body'].read())
-    assert metadata['metadata'][f'{group_name}/{name}/.zarray']['chunks'] == \
-        chunks['output'], 'Chunks not as set'
+    assert (
+        metadata['metadata'][f'{group_name}/{name}/.zarray']['chunks'] == chunks['output']
+    ), 'Chunks not as set'
 
     # Check chunks in array level metadata
     array_dir = root / group_name / name
@@ -131,9 +132,14 @@ def _check_zarr_bucket(data, root, group_name, name, chunks, s3):
     assert metadata['shape'] == list(data.shape), 'Data shape not as set'
 
     # Check chunk files
-    chunk_files = sorted([key.rsplit('/', 1)[1] for key in keys if
-                          re.match(fr'{array_dir}/\d+\.\d+', key)])
-    expected_chunk_files = sorted([f'{i}.{j}'
-                                   for i in range(chunks['chunks_per_side'])
-                                   for j in range(chunks['chunks_per_side'])])
+    chunk_files = sorted(
+        [key.rsplit('/', 1)[1] for key in keys if re.match(fr'{array_dir}/\d+\.\d+', key)]
+    )
+    expected_chunk_files = sorted(
+        [
+            f'{i}.{j}'
+            for i in range(chunks['chunks_per_side'])
+            for j in range(chunks['chunks_per_side'])
+        ]
+    )
     assert chunk_files == expected_chunk_files, 'Unexpected chunk files'

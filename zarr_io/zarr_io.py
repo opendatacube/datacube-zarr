@@ -13,7 +13,7 @@ from numcodecs import Zstd
 from .utils.uris import uri_split
 
 
-class ZarrBase():
+class ZarrBase:
     def __init__(self) -> None:
         """
         :param str protocol: Supported protocols are ['s3', 'file']
@@ -76,8 +76,7 @@ class ZarrIO(ZarrBase):
 
         super().__init__()
 
-    def print_tree(self,
-                   uri: str) -> zarr.util.TreeViewer:
+    def print_tree(self, uri: str) -> zarr.util.TreeViewer:
         """
         Prints the Zarr array tree structure.
 
@@ -97,12 +96,14 @@ class ZarrIO(ZarrBase):
         """
         protocol, root, group = uri_split(uri)
         if protocol == 's3':
-            store = s3fs.S3Map(root=root,
-                               s3=s3fs.S3FileSystem(
-                                   client_kwargs=dict(region_name=auto_find_region()),
-                                   use_listings_cache=False
-                               ),
-                               check=False)
+            store = s3fs.S3Map(
+                root=root,
+                s3=s3fs.S3FileSystem(
+                    client_kwargs=dict(region_name=auto_find_region()),
+                    use_listings_cache=False,
+                ),
+                check=False,
+            )
         elif protocol == 'file':
             store = zarr.DirectoryStore(root)
         else:
@@ -110,8 +111,7 @@ class ZarrIO(ZarrBase):
 
         return store
 
-    def clean_store(self,
-                    uri: str) -> None:
+    def clean_store(self, uri: str) -> None:
         """
         Cleans the Zarr store.
         Will delete everything from the group root and below.
@@ -131,12 +131,14 @@ class ZarrIO(ZarrBase):
             if root_path.exists() and root_path.is_dir():
                 shutil.rmtree(root_path)
 
-    def save_dataarray(self,
-                       uri: str,
-                       dataarray: xr.DataArray,
-                       name: str,
-                       chunks: Optional[dict] = None,
-                       mode: str = 'w-') -> None:
+    def save_dataarray(
+        self,
+        uri: str,
+        dataarray: xr.DataArray,
+        name: str,
+        chunks: Optional[dict] = None,
+        mode: str = 'w-',
+    ) -> None:
         """
         Saves a xarray.DataArray
 
@@ -151,16 +153,15 @@ class ZarrIO(ZarrBase):
             a: overwrite existing variables (create if does not exist)
         """
         dataset = dataarray.to_dataset(name=name)
-        self.save_dataset(
-            uri=uri, dataset=dataset,
-            chunks=chunks, mode=mode
-        )
+        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks, mode=mode)
 
-    def save_dataset(self,
-                     uri: str,
-                     dataset: xr.Dataset,
-                     chunks: Optional[dict] = None,
-                     mode: str = 'w-') -> None:
+    def save_dataset(
+        self,
+        uri: str,
+        dataset: xr.Dataset,
+        chunks: Optional[dict] = None,
+        mode: str = 'w-',
+    ) -> None:
         """
         Saves a xarray.Dataset
 
@@ -181,14 +182,15 @@ class ZarrIO(ZarrBase):
 
         protocol, root, group = uri_split(uri)
         store = self.get_root(uri)
-        dataset.to_zarr(store=store,
-                        group=group,
-                        mode=mode,
-                        consolidated=True,
-                        encoding={var: {'compressor': compressor} for var in dataset.data_vars})
+        dataset.to_zarr(
+            store=store,
+            group=group,
+            mode=mode,
+            consolidated=True,
+            encoding={var: {'compressor': compressor} for var in dataset.data_vars},
+        )
 
-    def open_dataset(self,
-                     uri: str) -> xr.Dataset:
+    def open_dataset(self, uri: str) -> xr.Dataset:
         """
         Opens a xarray.Dataset
 
@@ -200,8 +202,7 @@ class ZarrIO(ZarrBase):
         ds: xr.Dataset = xr.open_zarr(store=store, group=group, consolidated=True)
         return ds
 
-    def load_dataset(self,
-                     uri: str) -> xr.Dataset:
+    def load_dataset(self, uri: str) -> xr.Dataset:
         """
         Loads a xarray.Dataset
 
@@ -212,12 +213,14 @@ class ZarrIO(ZarrBase):
         ds.load()
         return ds
 
-    def save_dataset_to_zarr(self,
-                             uri: str,
-                             dataset: xr.Dataset,
-                             global_attributes: Optional[dict] = None,
-                             variable_params: Optional[dict] = None,
-                             storage_config: Optional[dict] = None) -> Dict[str, Any]:
+    def save_dataset_to_zarr(
+        self,
+        uri: str,
+        dataset: xr.Dataset,
+        global_attributes: Optional[dict] = None,
+        variable_params: Optional[dict] = None,
+        storage_config: Optional[dict] = None,
+    ) -> Dict[str, Any]:
         """
         ODC driver calls this
         Saves a Data Cube style xarray Dataset to a Storage Unit
@@ -236,7 +239,5 @@ class ZarrIO(ZarrBase):
             chunks = storage_config['chunking']
 
         metadata: Dict[str, Any] = {}
-        self.save_dataset(uri=uri,
-                          dataset=dataset,
-                          chunks=chunks)
+        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks)
         return metadata

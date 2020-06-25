@@ -15,14 +15,14 @@ data_tiff = dc.load(
     latitude=latitude,
     longitude=longitude,
     output_crs=output_crs,
-    resolution=resolution
+    resolution=resolution,
 )
 data_zarr = dc.load(
     product='ls5_nbar_scene_zarr',
     latitude=latitude,
     longitude=longitude,
     output_crs=output_crs,
-    resolution=resolution
+    resolution=resolution,
 )
 
 # compare datasets

@@ -16,11 +16,15 @@ pycodestyle zarr_io tests integration_tests --max-line-length 120
 
 pylint -j 2 --reports no zarr_io utils
 
+# flake8 .
+
 # static type checker
 mypy zarr_io tools
 
 # Check imports are sorted
 isort --check-only --recursive .
+
+black --skip-string-normalization --line-length 90 --check .
 
 # Run tests, taking coverage.
 # Users can specify extra folders as arguments.

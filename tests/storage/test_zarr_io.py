@@ -75,16 +75,28 @@ def test_print_tree(uri, fixed_chunks, data):
     '''Test zarr print data tree with a mix of Datasets and DataArrays co-existing.'''
     root_uri = uri.rsplit('#', 1)[0]
     zio = ZarrIO()
-    zio.save_dataarray(uri=f'{root_uri}#dataset1', dataarray=data,
-                       name='array1', chunks=fixed_chunks['input'])
-    zio.save_dataarray(uri=f'{root_uri}#dataset2', dataarray=data,
-                       name='array2', chunks=fixed_chunks['input'])
-    zio.save_dataset(uri=f'{root_uri}#dataset3',
-                     dataset=data.to_dataset(name='array1'),
-                     chunks=fixed_chunks['input'])
-    zio.save_dataset(uri=f'{root_uri}#dataset4',
-                     dataset=data.to_dataset(name='array2'),
-                     chunks=fixed_chunks['input'])
+    zio.save_dataarray(
+        uri=f'{root_uri}#dataset1',
+        dataarray=data,
+        name='array1',
+        chunks=fixed_chunks['input'],
+    )
+    zio.save_dataarray(
+        uri=f'{root_uri}#dataset2',
+        dataarray=data,
+        name='array2',
+        chunks=fixed_chunks['input'],
+    )
+    zio.save_dataset(
+        uri=f'{root_uri}#dataset3',
+        dataset=data.to_dataset(name='array1'),
+        chunks=fixed_chunks['input'],
+    )
+    zio.save_dataset(
+        uri=f'{root_uri}#dataset4',
+        dataset=data.to_dataset(name='array2'),
+        chunks=fixed_chunks['input'],
+    )
     actual = str(zio.print_tree(root_uri))
     expected = '''/
  ├── dataset1
@@ -102,19 +114,31 @@ def test_clean_store(uri, fixed_chunks, data):
     '''Test cleaning of zarr store.'''
     root_uri = uri.rsplit('#', 1)[0]
     zio = ZarrIO()
-    zio.save_dataset(uri=f'{root_uri}#dataset1',
-                     dataset=data.to_dataset(name='array1'),
-                     chunks=fixed_chunks['input'])
-    assert str(zio.print_tree(root_uri)) == '''/
+    zio.save_dataset(
+        uri=f'{root_uri}#dataset1',
+        dataset=data.to_dataset(name='array1'),
+        chunks=fixed_chunks['input'],
+    )
+    assert (
+        str(zio.print_tree(root_uri))
+        == '''/
  └── dataset1
      └── array1 (1300, 1300) float64'''
+    )
     # Clean and store something else
     zio.clean_store(root_uri)
-    zio.save_dataarray(uri=f'{root_uri}#dataset2', dataarray=data,
-                       name='array2', chunks=fixed_chunks['input'])
-    assert str(zio.print_tree(root_uri)) == '''/
+    zio.save_dataarray(
+        uri=f'{root_uri}#dataset2',
+        dataarray=data,
+        name='array2',
+        chunks=fixed_chunks['input'],
+    )
+    assert (
+        str(zio.print_tree(root_uri))
+        == '''/
  └── dataset2
      └── array2 (1300, 1300) float64'''
+    )
 
 
 def test_invalid_protocol():
@@ -129,19 +153,25 @@ def test_invalid_mode(uri, fixed_chunks, data):
     '''Test exceptions when an invalid mode is used.'''
     zio = ZarrIO()
     with pytest.raises(ValueError) as excinfo:
-        zio.save_dataset(uri,
-                         dataset=data.to_dataset(name='array1'),
-                         chunks=fixed_chunks['input'],
-                         mode='xxx')
-    assert str(excinfo.value) == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
+        zio.save_dataset(
+            uri,
+            dataset=data.to_dataset(name='array1'),
+            chunks=fixed_chunks['input'],
+            mode='xxx',
+        )
+    assert (
+        str(excinfo.value)
+        == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
+    )
 
     with pytest.raises(ValueError) as excinfo:
-        zio.save_dataarray(uri,
-                           dataarray=data,
-                           name='array1',
-                           chunks=fixed_chunks['input'],
-                           mode='xxx')
-    assert str(excinfo.value) == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
+        zio.save_dataarray(
+            uri, dataarray=data, name='array1', chunks=fixed_chunks['input'], mode='xxx'
+        )
+    assert (
+        str(excinfo.value)
+        == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
+    )
 
 
 def test_overwrite_dataset(uri, fixed_chunks, data):
@@ -152,10 +182,7 @@ def test_overwrite_dataset(uri, fixed_chunks, data):
         name = f'array{i}'
         dataset = (data.copy() + i).to_dataset(name=name)
         zio.save_dataset(
-            uri=uri,
-            dataset=dataset,
-            chunks=fixed_chunks['input'],
-            mode='w',
+            uri=uri, dataset=dataset, chunks=fixed_chunks['input'], mode='w',
         )
     ds = zio.load_dataset(uri=uri)
     np.array_equal(dataset[name], ds[name].values)
