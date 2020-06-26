@@ -1,9 +1,12 @@
-"""Function for converting datasets to zarr format."""
+"""
+Functions for converting datasets to zarr format.
+Conversions are supported on a local filesystem or S3
+"""
 
 import logging
 from os.path import commonprefix
 from pathlib import Path
-from typing import Any, Generator, List, Optional, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
 import boto3
 from rasterio.crs import CRS
@@ -32,18 +35,28 @@ _RASTERIO_FILES = [
 logger = logging.getLogger(__name__)
 
 
-def root_as_str(path: Path) -> str:
+def _root_as_str(path: Path) -> str:
     """uri path to str."""
     return path.as_uri() if path.as_uri().startswith("s3://") else str(path)
 
 
 def ignore_file(path: Path, patterns: Optional[List[str]]) -> bool:
-    """Check if path matches ignore patterns."""
+    """Check if path matches ignore patterns.
+
+    :param path: path to compar with ignore pattern
+    :param patterns: list of glob patterns specifying which paths to ignore
+    :return True if path is to be ignored
+    """
     return any(path.match(p) for p in patterns) if patterns else False
 
 
-def get_datasets(in_dir: Path) -> Generator[Tuple[str, List[Path]], None, None]:
-    """Find supported datasets within a directory."""
+def get_datasets(in_dir: Path) -> Iterator[Tuple[str, List[Path]]]:
+    """
+    Find supported datasets within a directory.
+
+    :param in_dir: directory (or S3 path) under-which to look for datasets
+    :return: iterator of datasets specified by type and file paths
+    """
     for fmt, filetypes in _SUPPORTED_FORMATS.items():
         for exts in [ft.split("/") for ft in filetypes]:
             data_ext = exts.pop(0)
@@ -62,7 +75,22 @@ def convert_dir(
     merge_datasets_per_dir: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
-    """Recursively convert datasets in a directory to Zarr format."""
+    """
+    Recursively convert datasets in a directory to Zarr format.
+
+    All supported datasets found underneath `in_dir` are (optionally) reprojected and
+    converted to zarr format. All other files are copied to the `out_dir` unless ignored.
+    If `out_dir` is not specfied the conversion is performed inplace and the original
+    raster files are removed.
+
+    :param in_dir: directory (or S3 path) under-which to convert rasters to zarr
+    :param out_dir: directory (or S3 path) to save converted datasets
+    :param ignore: list of glob patterns specifying files to ignore
+    :param crs: output coordinate system to reproject to
+    :param resolution: output resolution
+    :param merge_datasets_per_dir: option to merge all tifs found at a directory level
+    :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
+    """
     assert in_dir.is_dir()
     output_zarrs = []
 
@@ -106,7 +134,17 @@ def convert_to_zarr(
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
 ) -> List[str]:
-    """Convert a dataset (of potentially multiple files) to Zarr format."""
+    """
+    Convert a supported dataset to Zarr format.
+
+    :param files: list of file making up the dataset (local filesystem or S3)
+    :param out_dir: output directory (local filesystem or S3)
+    :param zarr_name: name to give the created `.zarr` dataset
+    :param crs: output coordinate system to reproject to
+    :param resolution: output resolution
+    :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
+    :return: list of generated zarr URIs
+    """
     data_file = files[0]
     inplace = out_dir is None
     if out_dir is None:
@@ -125,6 +163,6 @@ def convert_to_zarr(
                 boto3.resource("s3").Object(bucket, key).delete()
             else:
                 f.unlink()
-            logger.info(f"delete: {root_as_str(f)}")
+            logger.info(f"delete: {_root_as_str(f)}")
 
     return zarrs

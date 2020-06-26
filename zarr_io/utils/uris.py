@@ -25,6 +25,12 @@ def uri_split(uri: str) -> Tuple[str, str, str]:
 
 
 def uri_join(protocol: str, root: str, group: Optional[str] = None) -> str:
-    """Compose zarr uri from components: <protocol>://<root>[#<group>]."""
+    """Compose zarr uri from components: <protocol>://<root>[#<group>].
+
+    :param protocol: storage protocol ('file' or 's3')
+    :param root: location of zarr dataset root
+    :param group: name of zarr group
+    :return: zarr URI '<protocol>://<root>[#<group>]'
+    """
     uri = f"{protocol}://{root}" + (f"#{group}" if group else "")
     return uri
