@@ -10,6 +10,7 @@ For ODC documentation and repository, please see [ODC documentation](http://data
 - Index and Ingestion
   - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
   - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)
+- [ZarrIO usage](/docs/zarr_io.md)
 
 
 ## Drivers provided

@@ -1,0 +1,26 @@
+# ZarrIOC examples
+
+## Saving a xarray.Dataset:
+    data = xr.DataArray(np.random.randn(1300, 1300))
+
+    uri = 'file:///root/mydata.zarr#dataset1'
+    # uri = 's3://my-bucket/mydata.zarr#dataset1'
+    zio = ZarrIO()
+    zio.save_dataset(
+        uri=uri,
+        dataset=data.to_dataset(name='array1'),
+        chunks={'dim_0': 1100, 'dim_1': 1100},
+    )
+
+## Loading a xarray.Dataset:
+    ds = zio.load_dataset(uri=uri)
+
+## Viewing the Zarr tree
+    zio.print_tree(uri=uri)
+
+    /
+    └── dataset1
+        └── array1 (1300, 1300) float64
+
+## Removing Zarr objects
+    zio.clean_store(uri=uri)
