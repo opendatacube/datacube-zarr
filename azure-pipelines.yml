@@ -16,7 +16,7 @@ resources:
   - repository: DatacubeDriversDockerRepo
     type: git
     name: datacube-drivers-docker
-    ref: develop
+    ref: feature/cov-in-azure
 
 
 stages:
@@ -51,9 +51,20 @@ stages:
         action: 'Run services'
         detached: false
 
+    - task: Bash@3
+      displayName: List contents of directories
+      inputs:
+        targetType: 'inline'
+        script: |
+          pwd
+          echo $(System.DefaultWorkingDirectory)
+          ls $(System.DefaultWorkingDirectory)
+          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/
+          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)
+
     - task: PublishCodeCoverageResults@1
       inputs:
         codeCoverageTool: 'Cobertura'
         summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/coverage.xml'
-        pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)'
-        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/htmlcov'
+        pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/cov.xml'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/htmlcov'
