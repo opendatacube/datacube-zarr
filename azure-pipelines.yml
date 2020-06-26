@@ -59,13 +59,11 @@ stages:
           pwd
           echo $(System.DefaultWorkingDirectory)
           ls $(System.DefaultWorkingDirectory)
-          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/
-          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)
-          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/coverage
+          ls $(System.DefaultWorkingDirectory)/coverage
 
     - task: PublishCodeCoverageResults@1
       inputs:
         codeCoverageTool: 'Cobertura'
-        summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/coverage/cov.xml'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage/cov.xml'
         pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)'
-        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/coverage/htmlcov'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/coverage/htmlcov'
