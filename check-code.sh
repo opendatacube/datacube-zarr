@@ -24,8 +24,12 @@ isort --check-only --recursive .
 
 # Run tests, taking coverage.
 # Users can specify extra folders as arguments.
-pytest -r a --cov-report html:htmlcov --cov-report xml:cov.xml --cov zarr_io \
-  --doctest-ignore-import-errors --durations=5 zarr_io tests $@
+ls -al
+pytest -r a --cov-report html:coverage/htmlcov --cov-report xml:coverage/cov.xml \
+  --cov zarr_io --doctest-ignore-import-errors --durations=5 zarr_io tests/test_convert.py
+
+# pytest -r a --cov-report html:coverage/htmlcov --cov-report xml:coverage/cov.xml \
+#   --cov zarr_io --doctest-ignore-import-errors --durations=5 zarr_io tests $@
 
 set +x
 

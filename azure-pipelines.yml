@@ -61,10 +61,11 @@ stages:
           ls $(System.DefaultWorkingDirectory)
           ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/
           ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)
+          ls $(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/coverage
 
     - task: PublishCodeCoverageResults@1
       inputs:
         codeCoverageTool: 'Cobertura'
-        summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/coverage.xml'
-        pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/cov.xml'
-        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/htmlcov'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/coverage/cov.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)/coverage/htmlcov'
