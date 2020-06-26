@@ -145,7 +145,7 @@ def test_invalid_protocol():
     '''Test exceptions when an invalid protocol is used.'''
     with pytest.raises(ValueError) as excinfo:
         zio = ZarrIO()
-        zio.get_root(f'xxx://root')
+        zio.get_root('xxx://root')
     assert str(excinfo.value) == 'unknown protocol: xxx'
 
 

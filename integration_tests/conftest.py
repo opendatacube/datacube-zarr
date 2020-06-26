@@ -187,13 +187,13 @@ def uninitialised_postgres_db(local_config, request):
     )
 
     # Drop tables so our tests have a clean db.
-    # with db.begin() as c:  # Creates a new PostgresDbAPI, by passing a new connection to it
     _core.drop_db(db._engine)
     db._engine.execute(
         'alter database %s set timezone = %r' % (local_config['db_database'], timezone)
     )
 
-    # We need to run this as well, I think because SQLAlchemy grabs them into it's MetaData,
+    # We need to run this as well
+    # I think because SQLAlchemy grabs them into it's MetaData,
     # and attempts to recreate them. WTF TODO FIX
     remove_dynamic_indexes()
 
@@ -280,7 +280,8 @@ def geotiffs(tmpdir_factory):
             'day':..., # compact day string, e.g. `19900302`
             'uuid':..., # a unique UUID for this dataset (i.e. specific day)
             'path':..., # path to the yaml ingestion file
-            'tiffs':... # list of paths to the actual geotiffs in that dataset, one per band.
+            'tiffs':... # list of paths to the actual geotiffs in that dataset,
+                        # one per band.
         }
 
     """

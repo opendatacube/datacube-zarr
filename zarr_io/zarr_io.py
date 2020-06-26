@@ -232,7 +232,8 @@ class ZarrIO(ZarrBase):
         :param group: The group name for the dataset
         :param global_attributes: Global file attributes. dict of attr_name: attr_value
         :param variable_params: dict of variable_name: {param_name: param_value, [...]}
-                                Allows setting storage and compression options per variable.
+                                Allows setting storage and compression options per
+                                variable.
         """
         chunks = None
         if storage_config:

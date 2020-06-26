@@ -192,7 +192,10 @@ def prep_dataset(fields, path):
 
 
 def dataset_folder(fields):
-    fmt_str = "{vehicle}_{instrument}_{type}_{level}_GA{type}{product}-{groundstation}_{path}_{row}_{date}"
+    fmt_str = (
+        "{vehicle}_{instrument}_{type}_{level}_GA{type}{product}-"
+        "{groundstation}_{path}_{row}_{date}"
+    )
     return fmt_str.format(**fields)
 
 

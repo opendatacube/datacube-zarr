@@ -153,7 +153,7 @@ def test_uri_split_no_scheme():
     with pytest.raises(ValueError) as excinfo:
         uri_split('/some/path/group.zarr')
 
-    assert str(excinfo.value) == f'uri scheme not found: /some/path/group.zarr'
+    assert str(excinfo.value) == 'uri scheme not found: /some/path/group.zarr'
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):

@@ -88,7 +88,7 @@ def get_rasterio_datasets(path: Path) -> List[str]:
     return names
 
 
-def raster_to_zarr(
+def raster_to_zarr(  # noqa: C901
     raster: Path,
     out_dir: Path,
     zarr_name: Optional[str] = None,

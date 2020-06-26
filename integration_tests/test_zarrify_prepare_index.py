@@ -71,7 +71,8 @@ def test_zarrify_prepare_index(
         ds_dir = zarr_dataset_dir / ds
         if ds_dir.as_uri().startswith("s3"):
             # Quick index from s3. Recommended process:
-            # `s3-find --skip-check '<base_uri>/*/*yaml' | s3-to-tar | dc-index-from-tar --env <env> --ignore-lineage`
+            # `s3-find --skip-check '<base_uri>/*/*yaml' | \
+            #   s3-to-tar | dc-index-from-tar --env <env> --ignore-lineage`
             doc2ds = Doc2Dataset(index, skip_lineage=True)
             zarr_meta_s3 = ds_dir / "agdc-metadata.yaml"
             doc = yaml.safe_load(zarr_meta_s3.read_text())
