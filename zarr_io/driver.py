@@ -41,6 +41,7 @@ class ZarrDataSource(object):
             :param xr.Dataset dataset: The xr.Dataset
             :param str var_name: The variable name of the xr.DataArray
             :param int time_idx: The time index override if known
+            :param float no_data: The no data value if known
             """
             self.ds = dataset
             self._var_name = var_name
@@ -133,7 +134,7 @@ class ZarrDataSource(object):
             raise ValueError('BandInfo.band must be > 0')
 
         # convert band.uri -> protocol, root and group
-        protocol, root, group_name = uri_split(band.uri)
+        protocol, _, _ = uri_split(band.uri)
         if protocol not in PROTOCOL + ['zarr']:
             raise ValueError('Expected file:// or zarr:// url')
 
@@ -142,8 +143,8 @@ class ZarrDataSource(object):
     @contextmanager
     def open(self) -> Generator[BandDataSource, None, None]:
         """
-        Lazy open a Zarr endpoint.
-        Only loads metadata.
+        Opens a Zarr endpoint.
+        This only loads metadata, in preperations for reads.
         """
         zio = ZarrIO()
         ds = zio.open_dataset(uri=self.uri)
@@ -187,8 +188,12 @@ class ZarrWriterDriver(object):
 
     def mk_uri(self, file_path: str, storage_config: dict) -> str:
         """
-        Constructs a uri from the file_path and storage config.
-        resource.
+        Constructs a URI from the file_path and storage config.
+
+        :param Path file_path: The file path of the file to be converted into a URI.
+        :param dict storage_config: The dict holding the storage config found in the
+                                    ingest definition.
+        :return: file_path as a URI that the Driver understands.
         """
         driver_alias = storage_config['driver']
         if driver_alias not in self.aliases:

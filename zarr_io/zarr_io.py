@@ -15,10 +15,6 @@ from .utils.uris import uri_split
 
 class ZarrBase:
     def __init__(self) -> None:
-        """
-        :param str protocol: Supported protocols are ['s3', 'file']
-        """
-
         self._logger = logging.getLogger(self.__class__.__name__)
 
 
@@ -28,45 +24,21 @@ class ZarrIO(ZarrBase):
 
     Storage support: [S3, Disk]
 
-    Future:
-      - Sparse tree of dense arrays.
-      - Parallel IO (immediate, delayed)
-        - Local:
-          - ThreadPoolExecutor
-        - External:
-          - dask.distributed with dc.load e.g. with `dask_chunks={'time': 1})`
     Example usage:
-        Saving a xarray.Dataset in S3:
-            root = 'easi-dc-data/staging/zarr-peter/store'
+        Saving a xarray.Dataset:
             data = xr.DataArray(np.random.randn(1300, 1300))
 
-            zio = ZarrIO(protocol='s3')
-            # Clean storage area
-            zio.clean_store(root=root)
-            # Persist to s3
-            zio.save_dataset(root=root,
-                             group_name='dataset1',
-                             dataset=data.to_dataset(name='array1'),
-                             chunks={'dim_0': 1100, 'dim_1': 1100})
-
-        Saving a xarray.Dataset on disk:
-            root = '/home/ubuntu/odc/test/data'
-            data = xr.DataArray(np.random.randn(1300, 1300))
-
-            zio = ZarrIO(protocol='file')
-            # Clean storage area
-            zio.clean_store(root=root)
-            # Persist to file
-            zio.save_dataset(root=root,
-                             group_name='dataset1',
-                             dataset=data.to_dataset(name='array1'),
-                             chunks={'dim_0': 1100, 'dim_1': 1100})
+            # uri = 'file:///root/mydata.zarr#dataset1'
+            uri = 's3://my-bucket/mydata.zarr#dataset1'
+            zio = ZarrIO()
+            zio.save_dataset(
+                uri=uri,
+                dataset=data.to_dataset(name='array1'),
+                chunks={'dim_0': 1100, 'dim_1': 1100},
+            )
 
         Loading a xarray.Dataset:
-            # Open descriptor
-            ds1 = zio.open_dataset(root=root, group_name='dataset1')
-            # Load data into memory
-            ds2 = zio.load_dataset(root=root, group_name='dataset1')
+            ds = zio.load_dataset(uri=uri)
     """
 
     # Allowed Zarr write modes.
@@ -80,7 +52,8 @@ class ZarrIO(ZarrBase):
         """
         Prints the Zarr array tree structure.
 
-        :param str uri: The storage uri.
+        :param str uri: The storage URI.
+        :return: A zarr.util.TreeViewer view of the Zarr group
         """
         store = self.get_root(uri)
         group = zarr.open_group(store=store, mode="r")
@@ -92,9 +65,10 @@ class ZarrIO(ZarrBase):
         """
         Sets up the Zarr Group root for IO operations, similar to a Path.
 
-        :param str uri: The storage uri.
+        :param str uri: The storage URI.
+        :return: The Zarr store for this URI.
         """
-        protocol, root, group = uri_split(uri)
+        protocol, root, _ = uri_split(uri)
         if protocol == 's3':
             store = s3fs.S3Map(
                 root=root,
@@ -116,9 +90,9 @@ class ZarrIO(ZarrBase):
         Cleans the Zarr store.
         Will delete everything from the group root and below.
 
-        :param str uri: The storage uri.
+        :param str uri: The storage URI.
         """
-        protocol, root, group_name = uri_split(uri)
+        protocol, root, _ = uri_split(uri)
         if protocol == 's3':
             self._logger.info(f'Deleting S3 {root}')
             store = self.get_root(uri)
@@ -142,8 +116,7 @@ class ZarrIO(ZarrBase):
         """
         Saves a xarray.DataArray
 
-        :param str root: The storage root path.
-        :param str group_name: The name of the group
+        :param str uri: The output URI.
         :param `xarray.DataArray` dataarray: The xarray.DataArray to be saved
         :param str name: The name of the xarray.DataArray
         :param dict chunks: The chunking parameter for each dimension.
@@ -165,7 +138,7 @@ class ZarrIO(ZarrBase):
         """
         Saves a xarray.Dataset
 
-        :param str uri: The storage uri.
+        :param str uri: The output storage URI.
         :param `xarray.Dataset` dataset: The xarray.Dataset to be saved
         :param dict chunks: The chunking parameter for each dimension.
         :param str mode: {'w', 'w-', 'a', None}
@@ -180,7 +153,7 @@ class ZarrIO(ZarrBase):
         if chunks:
             dataset = dataset.chunk(chunks)
 
-        protocol, root, group = uri_split(uri)
+        _, _, group = uri_split(uri)
         store = self.get_root(uri)
         dataset.to_zarr(
             store=store,
@@ -194,10 +167,11 @@ class ZarrIO(ZarrBase):
         """
         Opens a xarray.Dataset
 
-        :param str uri: The storage uri.
+        :param str uri: The storage URI.
         :param str group_name: The group_name to store under root
+        :return: The opened xr.Dataset
         """
-        protocol, root, group = uri_split(uri)
+        _, _, group = uri_split(uri)
         store = self.get_root(uri)
         ds: xr.Dataset = xr.open_zarr(store=store, group=group, consolidated=True)
         return ds
@@ -206,8 +180,8 @@ class ZarrIO(ZarrBase):
         """
         Loads a xarray.Dataset
 
-        :param str root: The storage root path.
-        :param str group_name: The group_name to store under root
+        :param str uri: The dataset URI
+        :return: The loaded xr.Dataset
         """
         ds: xr.Dataset = self.open_dataset(uri)
         ds.load()
@@ -227,13 +201,16 @@ class ZarrIO(ZarrBase):
 
         Requires a spatial Dataset, with attached coordinates and global crs attribute.
 
-        :param str uri: The storage uri.
-        :param `xarray.Dataset` dataset:
-        :param group: The group name for the dataset
-        :param global_attributes: Global file attributes. dict of attr_name: attr_value
-        :param variable_params: dict of variable_name: {param_name: param_value, [...]}
-                                Allows setting storage and compression options per
-                                variable.
+        :param str uri: The output storage URI.
+        :param `xarray.Dataset` dataset: The xarray Dataset to be saved to Zarr
+        :param dict global_attributes: Global file attributes.
+                                       dict of attr_name: attr_value
+        :param dict variable_params: dict of variable_name:
+                                       {param_name: param_value, [...]}
+                                     Allows setting storage and compression options per
+                                     variable.
+        :param dict storage_config: The storage config from the ingest definition.
+        :return: dict containing additional driver metadata to be stored in the database
         """
         chunks = None
         if storage_config:
