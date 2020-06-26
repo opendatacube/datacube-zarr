@@ -50,3 +50,10 @@ stages:
         qualifyImageNames: false
         action: 'Run services'
         detached: false
+
+    - task: PublishCodeCoverageResults@1
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/coverage.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/$(NAME)'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/$(NAME)-docker/htmlcov'
