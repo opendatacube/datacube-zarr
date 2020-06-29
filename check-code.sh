@@ -24,7 +24,8 @@ black --skip-string-normalization --line-length 90 --check .
 
 # Run tests, taking coverage.
 # Users can specify extra folders as arguments.
-pytest -r a --cov zarr_io --doctest-ignore-import-errors --durations=5 zarr_io tests $@
+pytest -r a --cov-report html:coverage/htmlcov --cov-report xml:coverage/cov.xml \
+  --cov zarr_io --doctest-ignore-import-errors --durations=5 zarr_io tests $@
 
 set +x
 
