@@ -17,7 +17,7 @@ resources:
   - repository: DatacubeDriversDockerRepo
     type: git
     name: datacube-drivers-docker
-    ref: feature/cov-in-azure
+    ref: develop
 
 
 stages:
