@@ -7,6 +7,7 @@ trigger:
 
 variables:
   NAME: $(Build.Repository.Name)
+  DOCKER_REPO: datacube-drivers-docker
   # Use BuildKit for optimised docker performance etc.
   DOCKER_BUILDKIT: 1
 
@@ -16,7 +17,8 @@ resources:
   - repository: DatacubeDriversDockerRepo
     type: git
     name: datacube-drivers-docker
-    ref: develop
+    ref: rename-driver
+    # ref: develop
 
 
 stages:
@@ -37,7 +39,9 @@ stages:
       displayName: Move $(NAME) into docker context
       inputs:
         targetType: 'inline'
-        script: 'mv $(NAME) $(NAME)-docker'
+        script: |
+          mkdir -p $(DOCKER_REPO)/datacube-drivers
+          mv $(NAME) $(DOCKER_REPO)/datacube-drivers
 
     - task: DockerCompose@0
       # Compose will build the image, mount fixed secrets into it, and start a postgres
@@ -46,7 +50,7 @@ stages:
       displayName: Build and test image with docker-compose
       inputs:
         containerregistrytype: 'Container Registry'
-        dockerComposeFile: '$(NAME)-docker/docker-compose.yaml'
+        dockerComposeFile: '$(DOCKER_REPO)/docker-compose.yaml'
         qualifyImageNames: false
         action: 'Run services'
         detached: false
