@@ -17,8 +17,7 @@ resources:
   - repository: DatacubeDriversDockerRepo
     type: git
     name: datacube-drivers-docker
-    ref: driver-rename
-    # ref: develop
+    ref: develop
 
 
 stages:
