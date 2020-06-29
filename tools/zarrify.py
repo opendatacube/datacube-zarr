@@ -12,6 +12,7 @@ import click
 from rasterio.crs import CRS
 from s3path import S3Path
 
+from zarr_io._version import version
 from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets, ignore_file
 
 logger = logging.getLogger()
@@ -171,6 +172,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     is_eager=True,
     help="Enables verbose mode.",
 )
+@click.version_option(version=version)
 def main(
     dataset: Path,
     outpath: Optional[Path],
