@@ -19,9 +19,15 @@ from bs4 import BeautifulSoup
 import yaml
 import click
 
+from affine import Affine
+from rasterio.crs import CRS
+
+from eodatasets3.images import GridSpec
 from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
 from eo3_assemble import EO3DatasetAssembler
+
+from zarr_io import ZarrIO
 
 # label = Optional. Use as a human-readable version of the dataset ID (unique)
 #         Example: f"{p.product_name}-{p.properties['landsat:landsat_scene_id']}"
@@ -145,6 +151,24 @@ def read_xml(xml: Path) -> dict:
     return d
 
 
+def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path):
+    """
+    Add zarr file measurements to `EO3DatasetAssembler`.
+
+    This replaces the call to EO3DatasetAssembler.note_measurement() which
+    works for geotiffs only at this stage.
+    """
+    ds = ZarrIO().open_dataset(uri=file_path.as_uri())
+    da = ds["band1"]
+    transform = Affine(*ds.transform)
+    crs = CRS.from_proj4(ds.crs)
+    grid = GridSpec(da.shape, transform, crs)
+    path = str(file_path.relative_to(assmebler._metadata_path.parent))
+    img = da.values
+    nodata = ds.nodatavals[0]
+    assmebler._measurements.record_image(name, grid, path, img, nodata)
+
+
 # 1. Sanity check source metadata
 # 2. Populate EO3DatasetAssembler class from source metadata
 # 3. Call p.done() to validate and write the dataset YAML document
@@ -185,7 +209,7 @@ def prepare_and_write(
     data_format = mtl_doc["product_metadata"]["output_format"]
     if data_format.upper() != "GEOTIFF":
         raise NotImplementedError(f"Only GeoTIFF currently supported: {data_format}")
-    file_format = FileFormat.GeoTIFF
+    file_format = "Zarr"
     # Get and grid cell size
     projection_params = mtl_doc["projection_parameters"]
     if (
@@ -199,7 +223,6 @@ def prepare_and_write(
         raise NotImplementedError("reflective and thermal have different cell sizes")
     ground_sample_distance = projection_params["grid_cell_size_reflective"]
 
-
     ## Assemble and output
     with EO3DatasetAssembler(
         dataset_path = ds_path,
@@ -210,7 +233,7 @@ def prepare_and_write(
 
         # Detministic ID based on USGS's product id (which changes when the scene is reprocessed by them)
         p.dataset_id = uuid.uuid5(USGS_UUID_NAMESPACE,
-                                  mtl_doc["metadata_file_info"]["landsat_product_id"])
+                                  mtl_doc["metadata_file_info"]["landsat_product_id"] + "zarr")
         p.product_uri = f"https://easi-eo.solutions/product/{p.product_name}"
         p.label = f"{p.product_name}-{mtl_doc['metadata_file_info']['landsat_scene_id']}"
 
@@ -240,13 +263,10 @@ def prepare_and_write(
         p.region_code = f"{p.properties['landsat:wrs_path']:03d}{p.properties['landsat:wrs_row']:03d}"
         p.dataset_version = f"{usgs_collection_number}.0.{p.processed:%Y%m%d}"
 
-        measurement_map = p.map_measurements_to_files('T\d_(\w+).tif')
+        measurement_map = p.map_measurements_to_files('T\d_(\w+).zarr')
         for measurement_name, file_location in measurement_map.items():
             logging.debug(f'Measurement map: {measurement_name} > {file_location}')
-            p.note_measurement(
-                measurement_name,
-                file_location,
-            )
+            add_measurements(p, measurement_name, file_location)
 
         p.add_accessory_file("metadata:landsat_mtl", mtl_path.name)
 

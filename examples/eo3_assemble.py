@@ -181,7 +181,7 @@ class EO3DatasetAssembler(EoFields):
         Return the product name from the product yaml
         """
         with self._product_yaml.open() as f:
-            y = yaml.load(f, Loader=yaml.FullLoader) 
+            y = yaml.load(f, Loader=yaml.FullLoader)
             return y['name']
 
     def get_product_measurements(self) -> list:
@@ -275,6 +275,11 @@ class EO3DatasetAssembler(EoFields):
         :returns: The id and final path to the dataset metadata file.
         """
         crs, grid_docs, measurement_docs = self._measurements.as_geo_docs()
+
+        # Add layer to specify zarr variable to load
+        # This should be added to `MeasurementRecord.record_image()`
+        for md in measurement_docs.values():
+            md.layer = "band1"
 
         if measurement_docs and sort_measurements:
             measurement_docs = dict(sorted(measurement_docs.items()))
