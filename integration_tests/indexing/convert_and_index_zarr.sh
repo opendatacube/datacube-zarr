@@ -17,7 +17,7 @@ datacube system check
 # Repos
 BASEDIR=/root/okteto
 DATACUBE_DIR=$BASEDIR/datacube-core
-DATACUBE_DRIVER_DIR=$BASEDIR/datacube-drivers
+DATACUBE_DRIVER_DIR=$BASEDIR/datacube-zarr
 
 # Geotiff test data
 DATACUBE_TEST_DIR=$DATACUBE_DIR/tests/data/lbg
@@ -53,6 +53,7 @@ $DATACUBE_DRIVER_DIR/tools/zarrify.py \
 # Prepare zarr dataset metadata
 ZARR_DATASET_DIR=$LOCAL_DATA_DIR/$(basename $DATACUBE_TEST_DIR)
 $DATACUBE_DRIVER_DIR/examples/prepare_zarr_ls5.py $ZARR_DATASET_DIR/$LBG_NBAR
+cat $ZARR_DATASET_DIR/$LBG_NBAR/agdc-metadata.yaml
 tree $ZARR_DATASET_DIR
 
 # Add to datacube

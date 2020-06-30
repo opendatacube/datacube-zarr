@@ -22,12 +22,12 @@ datacube system check
 # Repos
 BASEDIR=/root/okteto
 DATACUBE_DIR=$BASEDIR/datacube-core
-DATACUBE_DRIVER_DIR=$BASEDIR/datacube-drivers
+DATACUBE_DRIVER_DIR=$BASEDIR/datacube-zarr
 EO3_ASSEMBLE_DIR=$BASEDIR/eo3-assemble
 DATA_PIPELINE_DIR=$BASEDIR/data-pipeline
 
 # Geotiff test data
-LS8_SR_TEST_DATA=$DATACUBE_DRIVER_DIR/tests/data/espa/ls8_sr_2
+LS8_SR_TEST_DATA=$DATACUBE_DRIVER_DIR/tests/data/espa/ls8_sr
 cp -r $LS8_SR_TEST_DATA $TMP_DIR
 LS8_SR_TEST_DATA_TMP=$TMP_DIR/$(basename $LS8_SR_TEST_DATA)
 LS8_SR_GTIF_PRODUCT=$DATA_PIPELINE_DIR/live_ingester/source_drivers/espa/definitions/product/usgs_espa_ls8c1_sr.yaml
@@ -38,6 +38,17 @@ python $EO3_ASSEMBLE_DIR/eo3prepare_usgs_espa_ls8c1_l2.py -p $LS8_SR_GTIF_PRODUC
 datacube dataset add $LS8_SR_TEST_DATA_TMP/odc-metadata.yaml
 
 # Convert GeoTiff dataset to zarr
-zarrify --outpath $TMP_DIR/zarr --chunk x:500 --chunk y:500 --ignore "*.tar.gz,*.md5" $LS8_SR_TEST_DATA_TMP
+zarrify --outpath $TMP_DIR/zarr --chunk x:500 --chunk y:500 $LS8_SR_TEST_DATA_TMP
+LS8_SR_TEST_DATA_ZARR=$TMP_DIR/zarr/$(basename $LS8_SR_TEST_DATA_TMP)
+tree $LS8_SR_TEST_DATA_ZARR
 
 # Add/index the LS5 zarr product
+LS8_SR_ZARR_PRODUCT=$DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml
+datacube product add $LS8_SR_ZARR_PRODUCT
+python $DATACUBE_DRIVER_DIR/examples/eo3prepare_usgs_espa_ls8c1_l2_zarr.py \
+    -p $LS8_SR_ZARR_PRODUCT $LS8_SR_TEST_DATA_ZARR
+cat $LS8_SR_TEST_DATA_ZARR/odc-metadata.yaml
+datacube dataset add $LS8_SR_TEST_DATA_ZARR/odc-metadata.yaml
+
+# Load both datasets and compare
+$DATACUBE_DRIVER_DIR/integration_tests/indexing/load_and_compare_zarr_ls8_sr.py
