@@ -30,7 +30,7 @@ DATA_PIPELINE_DIR=$BASEDIR/data-pipeline
 LS8_SR_TEST_DATA=$DATACUBE_DRIVER_DIR/tests/data/espa/ls8_sr
 cp -r $LS8_SR_TEST_DATA $TMP_DIR
 LS8_SR_TEST_DATA_TMP=$TMP_DIR/$(basename $LS8_SR_TEST_DATA)
-LS8_SR_GTIF_PRODUCT=$DATA_PIPELINE_DIR/live_ingester/source_drivers/espa/definitions/product/usgs_espa_ls8c1_sr.yaml
+LS8_SR_GTIF_PRODUCT=$DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/usgs_espa_ls8c1_sr.yaml
 
 # Add/index the original LS5 GeoTiff product
 datacube product add $LS8_SR_GTIF_PRODUCT
