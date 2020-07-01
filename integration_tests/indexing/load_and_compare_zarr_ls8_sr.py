@@ -2,9 +2,9 @@
 
 import datacube
 
-# LS5 NBAR scene params
+# LS8 scene params
 output_crs = "EPSG:32655"
-resolution = (25, -25)
+resolution = (30, -30)
 latitude = (-35.282468, -35.315409)
 longitude = (149.0689, 149.156705)
 
@@ -15,14 +15,14 @@ data_tiff = dc.load(
     latitude=latitude,
     longitude=longitude,
     output_crs=output_crs,
-    resolution=resolution
+    resolution=resolution,
 )
 data_zarr = dc.load(
     product='usgs_espa_ls8c1_sr_zarr',
     latitude=latitude,
     longitude=longitude,
     output_crs=output_crs,
-    resolution=resolution
+    resolution=resolution,
 )
 
 # compare datasets

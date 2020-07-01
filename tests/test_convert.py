@@ -6,7 +6,7 @@ from s3path import S3Path
 from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
 from zarr_io.utils.uris import uri_split
 
-from .utils import copytree, raster_and_zarr_are_equal, _load_dataset
+from .utils import _load_dataset, copytree, raster_and_zarr_are_equal
 
 
 def test_mock_s3_path(s3):

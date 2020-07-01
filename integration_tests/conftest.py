@@ -4,7 +4,6 @@ Common methods for index integration tests.
 """
 import itertools
 import os
-import shutil
 import threading
 from copy import copy, deepcopy
 from datetime import timedelta
@@ -32,6 +31,7 @@ from integration_tests.utils import (
     GEOTIFF,
     _make_geotiffs,
     _make_ls5_scene_datasets,
+    copytree,
     load_test_products,
     load_yaml_file,
 )
@@ -52,6 +52,8 @@ PROJECT_ROOT = Path(__file__).parents[1]
 TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 LBG_NBAR = 'LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323'
 LBG_PQ = 'LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323'
+
+TEST_DATA_LS8 = PROJECT_ROOT / 'tests' / 'data' / 'espa' / 'ls8_sr'
 
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs' / 'config_samples'
 
@@ -442,19 +444,24 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
 def ls5_dataset_path(request, s3, tmp_path):
     """LS5 test dataset on filesystem and s3."""
     if request.param == "file":
-        lbg_dir = tmp_path / "geotifs" / "lbg"
-        shutil.copytree(str(TEST_DATA), str(lbg_dir))
-        dataset = lbg_dir
+        dataset_path = tmp_path / "geotifs" / "lbg"
     else:
-        client = s3["client"]
         bucket, root = s3["root"].split("/", 1)
-        test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
-        for f in test_files:
-            f_rel = f.relative_to(TEST_DATA.parent)
-            key = os.path.join(root, f_rel)
-            client.upload_file(str(f), bucket, key)
-        dataset = S3Path(f"/{bucket}/{root}/lbg")
-    return dataset
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA, dataset_path)
+    return dataset_path
+
+
+@pytest.fixture(params=["file"])
+def ls8_dataset_path(request, s3, tmp_path):
+    """LS8 test dataset on filesystem and s3."""
+    if request.param == "file":
+        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
+    else:
+        bucket, root = s3["root"].split("/", 1)
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA_LS8, dataset_path)
+    return dataset_path
 
 
 @pytest.fixture
