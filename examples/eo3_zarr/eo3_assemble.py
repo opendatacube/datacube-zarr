@@ -2,23 +2,24 @@ import os
 import re
 import uuid
 import warnings
-from pathlib import Path
 from collections import defaultdict
-from typing import List, Dict, Tuple, Optional
-import yaml
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-from eodatasets3 import serialise, validate, images
-from eodatasets3.validate import Level
-from eodatasets3.properties import EoFields
-from eodatasets3.images import GridSpec, MeasurementRecord
-from eodatasets3.model import StacPropertyView, DatasetDoc, ProductDoc, AccessoryDoc
 import rasterio
+import yaml
+from eodatasets3 import images, serialise, validate
+from eodatasets3.images import GridSpec, MeasurementRecord
+from eodatasets3.model import AccessoryDoc, DatasetDoc, ProductDoc, StacPropertyView
+from eodatasets3.properties import EoFields
+from eodatasets3.validate import Level
 from rasterio.crs import CRS
 
 # Adapted from
 # https://github.com/GeoscienceAustralia/eo-datasets/blob/eodatasets3/eodatasets3/assemble.py
 
 METADATA_NAME = 'odc-metadata.yaml'
+
 
 class EO3DatasetAssembler(EoFields):
     def __init__(
@@ -166,7 +167,9 @@ class EO3DatasetAssembler(EoFields):
             # TODO: fix for multi-band files
             ds: DatasetReader
             if ds.count != 1:
-                raise NotImplementedError("TODO: Only single-band files currently supported")
+                raise NotImplementedError(
+                    "TODO: Only single-band files currently supported"
+                )
             self._measurements.record_image(
                 measurement_name,
                 images.GridSpec.from_rio(ds),
@@ -199,9 +202,7 @@ class EO3DatasetAssembler(EoFields):
         return measurements
 
     def map_measurements_to_files(
-        self,
-        band_regex: str,
-        supplementary: dict = None,
+        self, band_regex: str, supplementary: dict = None,
     ) -> dict:
         """
         Return dict of {measurement names: filenames} for matching files in dataset_location.
@@ -256,13 +257,13 @@ class EO3DatasetAssembler(EoFields):
                 c = common.pop()
                 measurement2file[supplementary[c]] = band_ids[c]
                 continue
-            raise RuntimeError(f'No unique match for measurements {mtuple} in files: {self._dataset_location}')
+            raise RuntimeError(
+                f'No unique match for measurements {mtuple} in files: {self._dataset_location}'
+            )
         return measurement2file
 
     def done(
-        self,
-        validate_correctness: bool = True,
-        sort_measurements: bool = True
+        self, validate_correctness: bool = True, sort_measurements: bool = True
     ) -> Tuple[uuid.UUID, Path]:
         """
         Validate and write the dataset metadata doc.
@@ -293,9 +294,7 @@ class EO3DatasetAssembler(EoFields):
         dataset = DatasetDoc(
             id=self._dataset_id,
             label=self.label,
-            product=ProductDoc(
-                name=self._product_name, href=self._product_uri
-            ),
+            product=ProductDoc(name=self._product_name, href=self._product_uri),
             crs=self._crs_str(crs) if crs is not None else None,
             geometry=valid_data,
             grids=grid_docs,

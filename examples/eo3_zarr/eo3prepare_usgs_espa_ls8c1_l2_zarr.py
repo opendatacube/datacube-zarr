@@ -14,19 +14,18 @@ import uuid
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Union, Iterable, Dict
-from bs4 import BeautifulSoup
-import yaml
+from typing import Dict, Iterable, List, Optional, Union
+
 import click
-
+import yaml
 from affine import Affine
-from rasterio.crs import CRS
-
+from bs4 import BeautifulSoup
 from eodatasets3.images import GridSpec
 from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
-from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
+from rasterio.crs import CRS
 
+from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
 from zarr_io import ZarrIO
 
 # label = Optional. Use as a human-readable version of the dataset ID (unique)
@@ -73,16 +72,20 @@ from zarr_io import ZarrIO
 
 # Source metadata elements copied into properties:landsat:<field>
 _COPYABLE_MTL_FIELDS = [
-    ("metadata_file_info",
-        ("landsat_scene_id", "landsat_product_id", "station_id",),
-    ),
-    ("product_metadata",
+    ("metadata_file_info", ("landsat_scene_id", "landsat_product_id", "station_id",),),
+    (
+        "product_metadata",
         ("ephemeris_type", "wrs_path", "wrs_row", "collection_category"),
     ),
-    ("image_attributes",
-        ("ground_control_points_version", "ground_control_points_model",
-         "geometric_rmse_model_x", "geometric_rmse_model_y",
-         "ground_control_points_verify", "geometric_rmse_verify",
+    (
+        "image_attributes",
+        (
+            "ground_control_points_version",
+            "ground_control_points_model",
+            "geometric_rmse_model_x",
+            "geometric_rmse_model_y",
+            "ground_control_points_verify",
+            "geometric_rmse_verify",
         ),
     ),
     ("projection_parameters", ("scan_gap_interpolation",)),
@@ -93,6 +96,8 @@ USGS_UUID_NAMESPACE = uuid.UUID("276af61d-99f8-4aa3-b2fb-d7df68c5e28f")
 
 # Read MTL file into a dict
 MTL_PAIRS_RE = re.compile(r"(\w+)\s=\s(.*)")
+
+
 def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:
     def _parse_value(s: str) -> Union[int, float, str]:
         s = s.strip('"')
@@ -102,9 +107,8 @@ def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:
             except ValueError:
                 pass
         return s
-    def _parse_group(
-        lines: Iterable[Union[str, bytes]],
-    ) -> dict:
+
+    def _parse_group(lines: Iterable[Union[str, bytes]],) -> dict:
         tree = {}
         for line in lines:
             # If line is bytes-like convert to str
@@ -120,9 +124,11 @@ def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:
                 else:
                     tree[key.lower()] = _parse_value(value)
         return tree
+
     with mtl_path.open("r") as fp:
         tree = _parse_group(fp)
     return tree[root_element]
+
 
 # Read XML file into a dict
 def read_xml(xml: Path) -> dict:
@@ -141,7 +147,7 @@ def read_xml(xml: Path) -> dict:
     with xml.open('r') as fp:
         soup = BeautifulSoup(fp, 'xml')
         for tag in soup.find_all('band'):
-            #d['filenames'].append(tag.file_name.string.strip())  # Not used
+            # d['filenames'].append(tag.file_name.string.strip())  # Not used
             app = tag.app_version.string.strip()
             prod = tag['product']
             if prod in d['app_versions']:
@@ -173,10 +179,7 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
 # 2. Populate EO3DatasetAssembler class from source metadata
 # 3. Call p.done() to validate and write the dataset YAML document
 def prepare_and_write(
-    ds_path: Path,
-    product_yaml: Path,
-    output_path: Optional[Path],
-    overwrite: bool,
+    ds_path: Path, product_yaml: Path, output_path: Optional[Path], overwrite: bool,
 ) -> uuid.UUID:
     """
     Prepare an eo3 metadata file for a Level-2 dataset.
@@ -225,15 +228,17 @@ def prepare_and_write(
 
     ## Assemble and output
     with EO3DatasetAssembler(
-        dataset_path = ds_path,
-        product_yaml = product_yaml,
-        metadata_path = output_path,
-        overwrite = overwrite,
+        dataset_path=ds_path,
+        product_yaml=product_yaml,
+        metadata_path=output_path,
+        overwrite=overwrite,
     ) as p:
 
         # Detministic ID based on USGS's product id (which changes when the scene is reprocessed by them)
-        p.dataset_id = uuid.uuid5(USGS_UUID_NAMESPACE,
-                                  mtl_doc["metadata_file_info"]["landsat_product_id"] + "zarr")
+        p.dataset_id = uuid.uuid5(
+            USGS_UUID_NAMESPACE,
+            mtl_doc["metadata_file_info"]["landsat_product_id"] + "zarr",
+        )
         p.product_uri = f"https://easi-eo.solutions/product/{p.product_name}"
         p.label = f"{p.product_name}-{mtl_doc['metadata_file_info']['landsat_scene_id']}"
 
@@ -260,7 +265,9 @@ def prepare_and_write(
                 if value is not None:
                     p.properties[f"landsat:{field}"] = value
 
-        p.region_code = f"{p.properties['landsat:wrs_path']:03d}{p.properties['landsat:wrs_row']:03d}"
+        p.region_code = (
+            f"{p.properties['landsat:wrs_path']:03d}{p.properties['landsat:wrs_row']:03d}"
+        )
         p.dataset_version = f"{usgs_collection_number}.0.{p.processed:%Y%m%d}"
 
         measurement_map = p.map_measurements_to_files('T\d_(\w+).zarr')
@@ -272,7 +279,9 @@ def prepare_and_write(
 
         # Ignore stac property warnings (generated in eodatasets3:properties:263)
         # eodatasets3 validates properties against a hardcoded list, which includes DEA stuff so no harm if we add our own
-        warnings.filterwarnings('ignore', message='.*Unknown stac property.+landsat:l2_software_version_')
+        warnings.filterwarnings(
+            'ignore', message='.*Unknown stac property.+landsat:l2_software_version_'
+        )
 
         if xml_path:
             p.add_accessory_file("metadata:landsat_xml", xml_path.name)
@@ -285,18 +294,19 @@ def prepare_and_write(
 
 @click.command(help=__doc__)
 @click.argument(
-    'datasets',
-    type=PathPath(exists=True, readable=True, dir_okay=True),
-    nargs=-1
+    'datasets', type=PathPath(exists=True, readable=True, dir_okay=True), nargs=-1
 )
 @click.option(
-    '-p', '--product', 'product_yaml',
+    '-p',
+    '--product',
+    'product_yaml',
     type=PathPath(exists=True, readable=True, dir_okay=False, file_okay=True),
     help='Product YAML to associate with the dataset',
     required=True,
 )
 @click.option(
-    '-o', '--output-path',
+    '-o',
+    '--output-path',
     help='Write metadata files elsewhere instead of alongside each dataset',
     required=False,
     type=PathPath(exists=True, writable=True, dir_okay=True, file_okay=False),
@@ -319,13 +329,14 @@ def main(
     if output_path is not None:
         output_path = output_path.resolve()  # full path
     for ds in datasets:
-            output_uuid, metadata_file = prepare_and_write(
-                ds_path = ds.resolve(),  # full path
-                product_yaml = product_yaml,
-                output_path = output_path,
-                overwrite = overwrite
-            )
-            logging.info("Wrote dataset %s to %s", output_uuid, metadata_file)
+        output_uuid, metadata_file = prepare_and_write(
+            ds_path=ds.resolve(),  # full path
+            product_yaml=product_yaml,
+            output_path=output_path,
+            overwrite=overwrite,
+        )
+        logging.info("Wrote dataset %s to %s", output_uuid, metadata_file)
+
 
 if __name__ == "__main__":
     main()
