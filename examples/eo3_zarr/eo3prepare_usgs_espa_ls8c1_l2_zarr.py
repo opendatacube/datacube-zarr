@@ -8,67 +8,64 @@ https://github.com/GeoscienceAustralia/eo-datasets/blob/eodatasets3/eodatasets3/
 """
 
 import logging
-import os
 import re
 import uuid
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
 import click
-import yaml
 from affine import Affine
 from bs4 import BeautifulSoup
 from eodatasets3.images import GridSpec
-from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
 from rasterio.crs import CRS
 
 from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
 from zarr_io import ZarrIO
 
-# label = Optional. Use as a human-readable version of the dataset ID (unique)
-#         Example: f"{p.product_name}-{p.properties['landsat:landsat_scene_id']}"
-# product
-# - name = Taken from product_yaml
-# - href = Product reference URL
-# geometry = Trust these are good
-# grids = Trust these are good
-# properties = Mostly optional additional information populated from source metadata
-#    'eo' elements should be STAC compliant
-#    'landsat' elements are sensor relevant (possibly validated deep in eodatasets3 = TBA)
-#    'odc' elements are helpful addition categorisation information for the ODC
-#    (uppercase = MTL field. xml = alternative XML field if present)
-# - datetime = DATE_ACQUIRED + SCENE_CENTER_TIME (xml: acquisition_date + scene_center_time)
-# - eo:cloud_cover = CLOUD_COVER (mtl only)
-# - eo:gsd = min(GRID_CELL_SIZE_*) (mtl only)
-# - eo:instrument = SENSOR_ID (xml: instrument)
-# - eo:platform = SPACECRAFT_ID (xml: satellite) - munged somewhere
-# - eo:sun_azimuth = SUN_AZIMUTH (xml: solar_angles:azimuth)
-# - eo:sun_elevation = SUN_ELEVATION (xml: 90-solar_angles:zenith)
-# - landsat:collection_category = COLLECTION_CATEGORY (mtl only, other than in filenames)
-# - landsat:collection_number = COLLECTION_NUMBER (mtl only)
-# - landsat:geometric_rmse_model_x = GEOMETRIC_RMSE_MODEL_X (mtl only)
-# - landsat:geometric_rmse_model_y = GEOMETRIC_RMSE_MODEL_Y (mtl only)
-# - landsat:ground_control_points_model = GROUND_CONTROL_POINTS_MODEL (mtl only)
-# - landsat:ground_control_points_version = GROUND_CONTROL_POINTS_VERSION (mtl only)
-# - landsat:landsat_product_id = LANDSAT_PRODUCT_ID (xml: product_id)
-# - landsat:landsat_scene_id = LANDSAT_SCENE_ID (mtl only)
-# - landsat:station_id = STATION_ID (mtl only)
-# - landsat:wrs_path = WRS_PATH (mtl only)
-# - landsat:wrs_row = WRS_ROW (mtl only)
-# - odc:dataset_version = autogen: COLLECTION_NUMBER + .0. + FILE_DATE(ymd)
-# - odc:file_format = OUTPUT_FORMAT - TODO: not critical but consider check against L2 file extension
-# - odc:processing_datetime = FILE_DATE (xml: level1_production_date)
-# - odc:producer = "usgs.gov"
-# - odc:product_family = Optional. Examples: 'level-1', 'level-2', 'ard', 'test'
-# - odc:region_code = Formatted row + path
-# accessories
-# - relative paths to source metadata files
-# lineage
-# - optional. Not used for most applications outside of DEA
-
+"""
+label = Optional. Use as a human-readable version of the dataset ID (unique)
+        Example: f"{p.product_name}-{p.properties['landsat:landsat_scene_id']}"
+product
+- name = Taken from product_yaml
+- href = Product reference URL
+geometry = Trust these are good
+grids = Trust these are good
+properties = Mostly optional additional information populated from source metadata
+   'eo' elements should be STAC compliant
+   'landsat' elements are sensor relevant (possibly validated deep in eodatasets3 = TBA)
+   'odc' elements are helpful addition categorisation information for the ODC
+   (uppercase = MTL field. xml = alternative XML field if present)
+- datetime = DATE_ACQUIRED + SCENE_CENTER_TIME (xml: acquisition_date + scene_center_time)
+- eo:cloud_cover = CLOUD_COVER (mtl only)
+- eo:gsd = min(GRID_CELL_SIZE_*) (mtl only)
+- eo:instrument = SENSOR_ID (xml: instrument)
+- eo:platform = SPACECRAFT_ID (xml: satellite) - munged somewhere
+- eo:sun_azimuth = SUN_AZIMUTH (xml: solar_angles:azimuth)
+- eo:sun_elevation = SUN_ELEVATION (xml: 90-solar_angles:zenith)
+- landsat:collection_category = COLLECTION_CATEGORY (mtl only, other than in filenames)
+- landsat:collection_number = COLLECTION_NUMBER (mtl only)
+- landsat:geometric_rmse_model_x = GEOMETRIC_RMSE_MODEL_X (mtl only)
+- landsat:geometric_rmse_model_y = GEOMETRIC_RMSE_MODEL_Y (mtl only)
+- landsat:ground_control_points_model = GROUND_CONTROL_POINTS_MODEL (mtl only)
+- landsat:ground_control_points_version = GROUND_CONTROL_POINTS_VERSION (mtl only)
+- landsat:landsat_product_id = LANDSAT_PRODUCT_ID (xml: product_id)
+- landsat:landsat_scene_id = LANDSAT_SCENE_ID (mtl only)
+- landsat:station_id = STATION_ID (mtl only)
+- landsat:wrs_path = WRS_PATH (mtl only)
+- landsat:wrs_row = WRS_ROW (mtl only)
+- odc:dataset_version = autogen: COLLECTION_NUMBER + .0. + FILE_DATE(ymd)
+- odc:file_format = OUTPUT_FORMAT - TODO: not critical but consider check against L2 file extension
+- odc:processing_datetime = FILE_DATE (xml: level1_production_date)
+- odc:producer = "usgs.gov"
+- odc:product_family = Optional. Examples: 'level-1', 'level-2', 'ard', 'test'
+- odc:region_code = Formatted row + path
+accessories
+- relative paths to source metadata files
+lineage
+- optional. Not used for most applications outside of DEA
+"""  # noqa
 
 # Source metadata elements copied into properties:landsat:<field>
 _COPYABLE_MTL_FIELDS = [
@@ -98,7 +95,7 @@ USGS_UUID_NAMESPACE = uuid.UUID("276af61d-99f8-4aa3-b2fb-d7df68c5e28f")
 MTL_PAIRS_RE = re.compile(r"(\w+)\s=\s(.*)")
 
 
-def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:
+def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:  # noqa: C901
     def _parse_value(s: str) -> Union[int, float, str]:
         s = s.strip('"')
         for parser in [int, float]:
@@ -137,11 +134,11 @@ def read_xml(xml: Path) -> dict:
     Extract specific elements from the xml and drop them into a dict
     """
     if not xml.exists():
-        warnings.warn(f'No Level-2 XML file found: {xml_path}')
+        warnings.warn(f'No Level-2 XML file found: {xml}')
         return None
     # pre-define for convenience
     d = {
-        #'filenames': [],  # Not used
+        # 'filenames': [],  # Not used
         'app_versions': {},  # key=xml band 'product', val=set(xml band 'app_version')
     }
     with xml.open('r') as fp:
@@ -178,7 +175,7 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
 # 1. Sanity check source metadata
 # 2. Populate EO3DatasetAssembler class from source metadata
 # 3. Call p.done() to validate and write the dataset YAML document
-def prepare_and_write(
+def prepare_and_write(  # noqa: C901
     ds_path: Path, product_yaml: Path, output_path: Optional[Path], overwrite: bool,
 ) -> uuid.UUID:
     """
@@ -201,7 +198,7 @@ def prepare_and_write(
     if xml_doc is None:
         xml_path = None
 
-    ## Additional product sanity-checks
+    # Additional product sanity-checks
     # Get and check USGS collection number
     usgs_collection_number = mtl_doc["metadata_file_info"].get("collection_number")
     if usgs_collection_number is None:
@@ -226,7 +223,7 @@ def prepare_and_write(
         raise NotImplementedError("reflective and thermal have different cell sizes")
     ground_sample_distance = projection_params["grid_cell_size_reflective"]
 
-    ## Assemble and output
+    # Assemble and output
     with EO3DatasetAssembler(
         dataset_path=ds_path,
         product_yaml=product_yaml,
@@ -234,7 +231,8 @@ def prepare_and_write(
         overwrite=overwrite,
     ) as p:
 
-        # Detministic ID based on USGS's product id (which changes when the scene is reprocessed by them)
+        # Detministic ID based on USGS's product id
+        # (which changes when the scene is reprocessed by them)
         p.dataset_id = uuid.uuid5(
             USGS_UUID_NAMESPACE,
             mtl_doc["metadata_file_info"]["landsat_product_id"] + "zarr",
@@ -270,7 +268,7 @@ def prepare_and_write(
         )
         p.dataset_version = f"{usgs_collection_number}.0.{p.processed:%Y%m%d}"
 
-        measurement_map = p.map_measurements_to_files('T\d_(\w+).zarr')
+        measurement_map = p.map_measurements_to_files(r'T\d_(\w+).zarr')
         for measurement_name, file_location in measurement_map.items():
             logging.debug(f'Measurement map: {measurement_name} > {file_location}')
             add_measurements(p, measurement_name, file_location)
@@ -278,7 +276,8 @@ def prepare_and_write(
         p.add_accessory_file("metadata:landsat_mtl", mtl_path.name)
 
         # Ignore stac property warnings (generated in eodatasets3:properties:263)
-        # eodatasets3 validates properties against a hardcoded list, which includes DEA stuff so no harm if we add our own
+        # eodatasets3 validates properties against a hardcoded list,
+        # which includes DEA stuff so no harm if we add our own
         warnings.filterwarnings(
             'ignore', message='.*Unknown stac property.+landsat:l2_software_version_'
         )

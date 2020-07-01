@@ -9,14 +9,16 @@ from typing import Dict, List, Optional, Tuple
 import rasterio
 import yaml
 from eodatasets3 import images, serialise, validate
-from eodatasets3.images import GridSpec, MeasurementRecord
+from eodatasets3.images import MeasurementRecord
 from eodatasets3.model import AccessoryDoc, DatasetDoc, ProductDoc, StacPropertyView
 from eodatasets3.properties import EoFields
 from eodatasets3.validate import Level
 from rasterio.crs import CRS
 
-# Adapted from
-# https://github.com/GeoscienceAustralia/eo-datasets/blob/eodatasets3/eodatasets3/assemble.py
+"""
+Adapted from
+https://github.com/GeoscienceAustralia/eo-datasets/blob/eodatasets3/eodatasets3/assemble.py
+"""
 
 METADATA_NAME = 'odc-metadata.yaml'
 
@@ -47,7 +49,7 @@ class EO3DatasetAssembler(EoFields):
 
         :param overwrite:
             Optional. Whether to overwrite an existing dataset YAML file. Default is False.
-        """
+        """  # noqa: E501
 
         self._dataset_location = dataset_path.resolve()  # absolute path
         self._product_yaml = product_yaml
@@ -165,7 +167,6 @@ class EO3DatasetAssembler(EoFields):
 
         with rasterio.open(file_path) as ds:
             # TODO: fix for multi-band files
-            ds: DatasetReader
             if ds.count != 1:
                 raise NotImplementedError(
                     "TODO: Only single-band files currently supported"
@@ -220,8 +221,10 @@ class EO3DatasetAssembler(EoFields):
         :param supplementary:
         Dict mapping any band IDs (from band_regex) to measurement names.
         Use where the unique band ID does not directly match a measurement name.
-        """
-        # Matching is done by interesection of sets, where a single common element indicates a successful match
+        """  # noqa: E501
+
+        # Matching is done by interesection of sets, where a single common element
+        # indicates a successful match
         measurement2file = {}
         supplementary_set = set()
         if supplementary:
@@ -258,7 +261,8 @@ class EO3DatasetAssembler(EoFields):
                 measurement2file[supplementary[c]] = band_ids[c]
                 continue
             raise RuntimeError(
-                f'No unique match for measurements {mtuple} in files: {self._dataset_location}'
+                f'No unique match for measurements {mtuple} in files: '
+                f'{self._dataset_location}'
             )
         return measurement2file
 
