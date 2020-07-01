@@ -23,7 +23,6 @@ datacube system check
 BASEDIR=/root/okteto
 DATACUBE_DIR=$BASEDIR/datacube-core
 DATACUBE_DRIVER_DIR=$BASEDIR/datacube-zarr
-EO3_ASSEMBLE_DIR=$BASEDIR/eo3-assemble
 DATA_PIPELINE_DIR=$BASEDIR/data-pipeline
 
 # Geotiff test data
@@ -34,7 +33,8 @@ LS8_SR_GTIF_PRODUCT=$DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/usgs_
 
 # Add/index the original LS5 GeoTiff product
 datacube product add $LS8_SR_GTIF_PRODUCT
-python $EO3_ASSEMBLE_DIR/eo3prepare_usgs_espa_ls8c1_l2.py -p $LS8_SR_GTIF_PRODUCT $LS8_SR_TEST_DATA_TMP
+python $DATACUBE_DRIVER_DIR/examples/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py \
+    -p $LS8_SR_GTIF_PRODUCT $LS8_SR_TEST_DATA_TMP
 datacube dataset add $LS8_SR_TEST_DATA_TMP/odc-metadata.yaml
 
 # Convert GeoTiff dataset to zarr
@@ -45,7 +45,7 @@ tree $LS8_SR_TEST_DATA_ZARR
 # Add/index the LS5 zarr product
 LS8_SR_ZARR_PRODUCT=$DATACUBE_DRIVER_DIR/docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml
 datacube product add $LS8_SR_ZARR_PRODUCT
-python $DATACUBE_DRIVER_DIR/examples/eo3prepare_usgs_espa_ls8c1_l2_zarr.py \
+python $DATACUBE_DRIVER_DIR/examples/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py \
     -p $LS8_SR_ZARR_PRODUCT $LS8_SR_TEST_DATA_ZARR
 cat $LS8_SR_TEST_DATA_ZARR/odc-metadata.yaml
 datacube dataset add $LS8_SR_TEST_DATA_ZARR/odc-metadata.yaml

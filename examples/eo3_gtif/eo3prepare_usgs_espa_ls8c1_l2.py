@@ -21,7 +21,7 @@ import click
 
 from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
-from eo3_assemble import EO3DatasetAssembler
+from examples.eo3_gtif.eo3_assemble import EO3DatasetAssembler
 
 # label = Optional. Use as a human-readable version of the dataset ID (unique)
 #         Example: f"{p.product_name}-{p.properties['landsat:landsat_scene_id']}"

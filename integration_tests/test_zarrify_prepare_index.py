@@ -7,7 +7,7 @@ from click.testing import CliRunner
 from datacube.api.core import Datacube
 from datacube.index.hl import Doc2Dataset
 
-from examples.eo3prepare_usgs_espa_ls8c1_l2_zarr import main as prepare_zarr_ls8
+from examples.eo3_zarr.eo3prepare_usgs_espa_ls8c1_l2_zarr import main as prepare_zarr_ls8
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from integration_tests.conftest import TEST_DATA_LS8
 from zarr_io.tools.zarrify import main as zarrify

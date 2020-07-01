@@ -25,7 +25,7 @@ from rasterio.crs import CRS
 from eodatasets3.images import GridSpec
 from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
-from .eo3_assemble import EO3DatasetAssembler
+from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
 
 from zarr_io import ZarrIO
 
