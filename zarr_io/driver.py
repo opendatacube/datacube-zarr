@@ -5,7 +5,8 @@ Should be able to handle hyperspectral data when ready.
 """
 import itertools
 from contextlib import contextmanager
-from typing import Dict, Generator, List, Optional, Tuple
+from json.decoder import JSONDecodeError
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -14,6 +15,7 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
+from .utils.retry import retry
 from .utils.uris import uri_join, uri_split
 from .zarr_io import ZarrIO
 
@@ -120,7 +122,13 @@ class ZarrDataSource(object):
             else:
                 xy_ix = tuple(slice(*w) for w in window)
 
-            data = self.da.values[t_ix + xy_ix]
+            # Fixes intermittent Zarr decompression errors when used with Dask
+            # e.g. RuntimeError: error during blosc decompression: 0
+            @retry(on_exceptions=(RuntimeError, JSONDecodeError))
+            def fn() -> Any:
+                return self.da.values[t_ix + xy_ix]
+
+            data = fn()
             return data
 
     def __init__(self, band: BandInfo):
@@ -147,10 +155,18 @@ class ZarrDataSource(object):
         This only loads metadata, in preperations for reads.
         """
         zio = ZarrIO()
-        ds = zio.open_dataset(uri=self.uri)
+
+        # Fixes intermittent Zarr decompression errors when used with Dask
+        # e.g. RuntimeError: error during blosc decompression: 0
+        @retry(on_exceptions=(RuntimeError, JSONDecodeError))
+        def fn() -> Any:
+            return zio.open_dataset(uri=self.uri)
+
+        dataset = fn()
+
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
-            dataset=ds,
+            dataset=dataset,
             var_name=var_name,
             time_idx=self._band_info.band,
             no_data=self._band_info.nodata,
