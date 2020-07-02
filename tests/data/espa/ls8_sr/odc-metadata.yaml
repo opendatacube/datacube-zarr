@@ -1,0 +1,83 @@
+---
+# Dataset
+$schema: https://schemas.opendatacube.org/dataset
+id: 80801305-3feb-5891-ae87-1bdf84fdcc23
+
+label: usgs_espa_ls8c1_sr-LC80910842019036LGN00
+product:
+  name: usgs_espa_ls8c1_sr
+  href: https://easi-eo.solutions/product/usgs_espa_ls8c1_sr
+
+crs: epsg:32655
+geometry:
+  type: Polygon
+  coordinates: [[[697271.4608179142, -3914055.0], [699765.0, -3903975.0], [688785.0,
+        -3903975.0], [688785.0, -3914055.0], [697271.4608179142, -3914055.0]]]
+grids:
+  default:
+    shape: [336, 400]
+    transform: [30.0, 0.0, 688785.0, 0.0, -30.0, -3903975.0, 0.0, 0.0, 1.0]
+
+properties:
+  datetime: 2019-02-05 23:56:14.511542Z
+  eo:cloud_cover: 2.38
+  eo:gsd: 30.0  # Ground sample distance (m)
+  eo:instrument: OLI_TIRS
+  eo:platform: landsat-8
+  eo:sun_azimuth: 68.99089245
+  eo:sun_elevation: 52.57874254
+  landsat:collection_category: T1
+  landsat:collection_number: 1
+  landsat:geometric_rmse_model_x: 3.79
+  landsat:geometric_rmse_model_y: 4.19
+  landsat:geometric_rmse_verify: 4.368
+  landsat:ground_control_points_model: 362
+  landsat:ground_control_points_verify: 128
+  landsat:ground_control_points_version: 4
+  landsat:l2_software_version_level2_qa: generate_pixel_qa_1.7.2
+  landsat:l2_software_version_spectral_indices: spectral_indices_2.9.0
+  landsat:l2_software_version_sr_refl: LaSRC_2.0.1
+  landsat:l2_software_version_toa_bt: LaSRC_2.0.1
+  landsat:l2_software_version_toa_refl: LaSRC_2.0.1
+  landsat:landsat_product_id: LC08_L1TP_091084_20190205_20190221_01_T1
+  landsat:landsat_scene_id: LC80910842019036LGN00
+  landsat:station_id: LGN
+  landsat:wrs_path: 91
+  landsat:wrs_row: 84
+  odc:dataset_version: 1.0.20190221
+  odc:file_format: GeoTIFF
+  odc:processing_datetime: 2019-02-21 17:17:17Z
+  odc:producer: usgs.gov
+  odc:product_family: level-2
+  odc:region_code: '091084'
+
+measurements:
+  blue:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band2.tif
+  coastal_aerosol:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band1.tif
+  green:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band3.tif
+  nir:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band5.tif
+  pixel_qa:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_pixel_qa.tif
+  radsat_qa:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_radsat_qa.tif
+  red:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band4.tif
+  sr_aerosol:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_aerosol.tif
+  swir1:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band6.tif
+  swir2:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_sr_band7.tif
+
+accessories:
+  metadata:landsat_mtl:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1_MTL.txt
+  metadata:landsat_xml:
+    path: LC08_L1TP_091084_20190205_20190221_01_T1.xml
+
+lineage: {}
+...

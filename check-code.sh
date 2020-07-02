@@ -15,7 +15,7 @@ fi
 flake8 .
 
 # static type checker
-mypy zarr_io tools
+mypy zarr_io
 
 # Check imports are sorted
 isort --check-only --recursive .

@@ -19,14 +19,14 @@ from moto import mock_s3
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 
+from tests.utils import copytree
 from zarr_io.utils.uris import uri_join
 from zarr_io.zarr_io import ZarrIO
-
-from .utils import copytree
 
 PROJECT_ROOT = Path(__file__).parents[1]
 
 TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
+TEST_DATA_LS8 = PROJECT_ROOT / 'tests' / 'data' / 'espa' / 'ls8_sr'
 
 CHUNKS = (
     {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
@@ -343,4 +343,16 @@ def ls5_dataset_path(request, s3, tmp_path):
         bucket, root = s3["root"].split("/", 1)
         dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
     copytree(TEST_DATA, dataset_path)
+    return dataset_path
+
+
+@pytest.fixture(params=["file"])
+def ls8_dataset_path(request, s3, tmp_path):
+    """LS8 test dataset on filesystem and s3."""
+    if request.param == "file":
+        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
+    else:
+        bucket, root = s3["root"].split("/", 1)
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA_LS8, dataset_path)
     return dataset_path
