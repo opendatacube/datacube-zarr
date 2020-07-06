@@ -1,4 +1,4 @@
-'''Unit tests for the zarr_io.zarr_io module.'''
+'''Unit tests for the datacube_zarr.zarr_io module.'''
 
 import pytest
 import numpy as np

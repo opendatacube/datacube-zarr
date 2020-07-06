@@ -1,4 +1,4 @@
-'''Unit tests for the zarr_io.driver module.'''
+'''Unit tests for the datacube_zarr.driver module.'''
 from random import random, sample
 
 import pytest
