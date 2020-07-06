@@ -1,13 +1,13 @@
 # ODC examples
 
 ## Convert to Zarr and Index (Recommended)
-   1. Convert to Zarr (`zarrify.py --help` for usage instructions)
+   1. Convert to Zarr (`zarrify --help` for usage instructions)
       ```
-      zarrify --outpath <zarr output dir> --chunk x:2000 --chunk y:2000 <path to ls5 scenes>
+      zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_ls5_scenes>
       ```
-   1. Generate `agdc_metadata` file
+   1. Generate `agdc_metadata` file (see [Zarr prepare scripts](zarr_prepare_scripts.md))
       ```
-      python examples/prepare_zarr_ls5.py <zarr output dir>
+      python examples/prepare_zarr_ls5.py <zarr_output_dir>
       ```
    1. Initialise ODC DB
       ```
@@ -20,18 +20,18 @@
    1. Index scenes
       1. Option 1: Index scenes on Disk
          ```
-         datacube dataset add <zarr output dir>
+         datacube dataset add <zarr_output_dir>
          ```
       1. Index scenes on S3 using [odc-tools](https://github.com/opendatacube/odc-tools)
          ```
-         s3-find --skip-check 's3://<bucket>/<path to scenes>/*/agdc-metadata.yaml' | s3-to-tar | dc-index-from-tar --ignore-lineage
+         s3-find --skip-check 's3://<bucket>/<path_to_scenes>/*/agdc-metadata.yaml' | s3-to-tar | dc-index-from-tar --ignore-lineage
          ```
 
 ## Index and Ingest
    1. Generate `agdc_metadata` file
       See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
       ```
-      python galsprepare.py <path to ls5 scenes>/*
+      python galsprepare.py <path_to_ls5_scenes>/*
       ```
    1. Initialise ODC DB
       ```
@@ -44,7 +44,7 @@
       ```
    1. Index scenes
       ```
-      datacube dataset add <path to ls5 scenes>/*
+      datacube dataset add <path_to_ls5_scenes>/*
       ```
    1. Ingest scenes to Zarr format
       ```
