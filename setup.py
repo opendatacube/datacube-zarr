@@ -6,7 +6,7 @@ tests_require = [
     'flask',
     'flake8-isort',
     'hypothesis',
-    'isort>=4.3.21',
+    'isort<5.0.0',
     'mypy',
     'mock',
     'moto',
