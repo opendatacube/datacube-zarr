@@ -11,7 +11,7 @@ from typing import Any, Iterator, List, Optional, Tuple
 import boto3
 from rasterio.crs import CRS
 
-from zarr_io.utils.raster import raster_to_zarr
+from datacube_zarr.utils.raster import raster_to_zarr
 
 _SUPPORTED_FORMATS = {
     "ENVI": (".img/.hdr", ".bip/.hdr", ".bil/.hdr", ".bip/.hdr",),

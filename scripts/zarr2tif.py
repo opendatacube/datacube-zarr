@@ -13,9 +13,9 @@ import zarr as z
 from rasterio.crs import CRS
 from zarr.hierarchy import Group
 
-from zarr_io import ZarrIO
-from zarr_io.utils.raster import _META_PREFIX, _RASTERIO_BAND_ATTRS
-from zarrify import FileOrS3Path
+from datacube_zarr import ZarrIO
+from datacube_zarr.tools.zarrify import FileOrS3Path
+from datacube_zarr.utils.raster import _META_PREFIX, _RASTERIO_BAND_ATTRS
 
 
 def get_dot_zarrs(path: Path) -> Iterator[Path]:

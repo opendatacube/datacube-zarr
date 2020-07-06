@@ -1,10 +1,10 @@
-'''Unit tests for the zarr_io.zarr_io module.'''
+'''Unit tests for the datacube_zarr.zarr_io module.'''
 
 import pytest
 import numpy as np
 import xarray as xr
 
-from zarr_io.zarr_io import ZarrIO
+from datacube_zarr.zarr_io import ZarrIO
 
 from ..utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
 

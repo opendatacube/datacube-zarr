@@ -21,8 +21,8 @@ from eodatasets3.images import GridSpec
 from eodatasets3.ui import PathPath
 from rasterio.crs import CRS
 
+from datacube_zarr import ZarrIO
 from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
-from zarr_io import ZarrIO
 
 """
 label = Optional. Use as a human-readable version of the dataset ID (unique)

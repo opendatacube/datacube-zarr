@@ -1,4 +1,4 @@
-'''Unit tests for the zarr_io.driver module.'''
+'''Unit tests for the datacube_zarr.driver module.'''
 from random import random, sample
 
 import pytest
@@ -7,7 +7,7 @@ from datacube.drivers import reader_drivers, writer_drivers
 from datacube.storage import BandInfo
 from mock import MagicMock
 
-from zarr_io.driver import (
+from datacube_zarr.driver import (
     ZarrDataSource,
     ZarrReaderDriver,
     ZarrWriterDriver,
@@ -43,14 +43,14 @@ def test_writer_drivers():
 def test_zarr_netcdf_driver_import():
     '''Check the zarr modules can be imported.'''
     try:
-        import zarr_io.driver
+        import datacube_zarr.driver
     except ImportError:
         assert False and 'Failed to load zarr driver'
 
-    assert zarr_io.driver.reader_driver_init is not None
+    assert datacube_zarr.driver.reader_driver_init is not None
 
 
-# zarr_io.driver Unit tests
+# datacube_zarr.driver Unit tests
 @pytest.mark.parametrize('dataset_fixture', ['odc_dataset', 'odc_dataset_2d'])
 def test_datasource(request, dataset, dataset_fixture):
     '''Test ZarrDataSource.

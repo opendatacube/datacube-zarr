@@ -22,7 +22,7 @@ from dateutil import parser
 from osgeo import osr
 from s3path import S3Path
 
-from zarr_io import ZarrIO
+from datacube_zarr import ZarrIO
 
 _STATIONS = {
     '023': 'TKSC',

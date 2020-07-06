@@ -12,8 +12,13 @@ import click
 from rasterio.crs import CRS
 from s3path import S3Path
 
-from zarr_io._version import version
-from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets, ignore_file
+from datacube_zarr._version import version
+from datacube_zarr.utils.convert import (
+    convert_dir,
+    convert_to_zarr,
+    get_datasets,
+    ignore_file,
+)
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
