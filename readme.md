@@ -18,6 +18,8 @@ For ODC documentation and repository, please see [ODC documentation](http://data
 - Zarr 2D driver
   - supports (s3, file) protocols
 
+See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storage specification and Python library.
+
 ## Requirements
 
 ### System:
