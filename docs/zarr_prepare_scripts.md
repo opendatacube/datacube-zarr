@@ -3,7 +3,7 @@
 General steps for editing an existing prepare script to work with a  zarr dataset:
 1. Change where the file format is set from `"GeoTiff"` to `"zarr"`.
 2. Update the extraction/setting of image properties: `crs`, `transform`, `shape`, `nodata`. These properties should be read from zarr files using `ZarrIO` instead of from geotiffs (using e.g. `rasterio`).
-3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with `zarrify` the zarr array will be named `"band1"`. E.g. for the LS8 EO3 example below, the metadata will change from:
+3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with `zarrify` the zarr array will be named `"band1"` (this is the convention used by `zarrify`). E.g. for the LS8 EO3 example below, the metadata will change from:
 
         measurements:
             blue:
@@ -45,26 +45,8 @@ diff --git a/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py b/eo3_zarr/eo3prepare_usg
 index 32cf8ca..a3ed689 100644
 --- a/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py
 +++ b/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py
-@@ -15,11 +15,14 @@ from pathlib import Path
- from typing import Dict, Iterable, List, Optional, Union
-
- import click
-+from affine import Affine
- from bs4 import BeautifulSoup
--from eodatasets3.model import FileFormat
-+from eodatasets3.images import GridSpec
- from eodatasets3.ui import PathPath
-+from rasterio.crs import CRS
-
--from examples.eo3_gtif.eo3_assemble import EO3DatasetAssembler
-+from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
-+from zarr_io import ZarrIO
-
- """
- label = Optional. Use as a human-readable version of the dataset ID (unique)
 @@ -151,6 +154,24 @@ def read_xml(xml: Path) -> dict:
      return d
-
 
 +def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path):
 +    """
@@ -127,23 +109,6 @@ diff --git a/eo3_gtif/eo3_assemble.py b/eo3_zarr/eo3_assemble.py
 index d0ac4ed..abd2350 100644
 --- a/eo3_gtif/eo3_assemble.py
 +++ b/eo3_zarr/eo3_assemble.py
-@@ -222,7 +222,6 @@ class EO3DatasetAssembler(EoFields):
-         Dict mapping any band IDs (from band_regex) to measurement names.
-         Use where the unique band ID does not directly match a measurement name.
-         """  # noqa: E501
--
-         # Matching is done by interesection of sets, where a single common element
-         # indicates a successful match
-         measurement2file = {}
-@@ -261,7 +260,7 @@ class EO3DatasetAssembler(EoFields):
-                 measurement2file[supplementary[c]] = band_ids[c]
-                 continue
-             raise RuntimeError(
--                f'No unique match for measurements {mtuple} in files: '
-+                f'No unique match for measurements {mtuple} in files:'
-                 f'{self._dataset_location}'
-             )
-         return measurement2file
 @@ -281,6 +280,11 @@ class EO3DatasetAssembler(EoFields):
          """
          crs, grid_docs, measurement_docs = self._measurements.as_geo_docs()
