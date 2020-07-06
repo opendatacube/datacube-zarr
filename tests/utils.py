@@ -5,7 +5,7 @@ from pathlib import Path
 
 import xarray as xr
 
-from zarr_io.zarr_io import ZarrIO
+from datacube_zarr import ZarrIO
 
 
 def copytree(p1: Path, p2: Path) -> None:

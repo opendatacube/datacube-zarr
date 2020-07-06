@@ -5,8 +5,8 @@ import rasterio
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from s3path import S3Path
 
-from zarr_io.utils.raster import get_rasterio_datasets, raster_to_zarr, zarr_exists
-from zarr_io.utils.uris import uri_split
+from datacube_zarr.utils.raster import get_rasterio_datasets, raster_to_zarr, zarr_exists
+from datacube_zarr.utils.uris import uri_split
 
 from .utils import raster_and_zarr_are_equal
 

@@ -12,8 +12,8 @@ import zarr
 from rasterio.crs import CRS
 from rasterio.warp import calculate_default_transform
 
-from zarr_io import ZarrIO
-from zarr_io.utils.uris import uri_join
+from datacube_zarr import ZarrIO
+from datacube_zarr.utils.uris import uri_join
 
 _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"

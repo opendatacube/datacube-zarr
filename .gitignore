@@ -77,4 +77,4 @@ docs/notebooks/
 .env
 
 # setuptools_scm generated version file
-zarr_io/_version.py
+datacube_zarr/_version.py

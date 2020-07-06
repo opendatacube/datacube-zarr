@@ -3,8 +3,8 @@ import boto3
 import botocore
 from s3path import S3Path
 
-from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
-from zarr_io.utils.uris import uri_split
+from datacube_zarr.utils.convert import convert_dir, convert_to_zarr, get_datasets
+from datacube_zarr.utils.uris import uri_split
 
 from .utils import _load_dataset, copytree, raster_and_zarr_are_equal
 
