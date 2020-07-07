@@ -1,10 +1,17 @@
-# ZarrIOC examples
+# ZarrIO examples
+
+## Import ZarrIO()
+    from datacube_zarr import ZarrIO
+    zio = ZarrIO()
 
 ## Saving a xarray.Dataset:
     data = xr.DataArray(np.random.randn(1300, 1300))
 
+    # Save to Disk
     uri = 'file:///root/mydata.zarr#dataset1'
-    # uri = 's3://my-bucket/mydata.zarr#dataset1'
+    # Save to S3
+    uri = 's3://my-bucket/mydata.zarr#dataset1'
+
     zio = ZarrIO()
     zio.save_dataset(
         uri=uri,
