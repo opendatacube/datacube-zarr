@@ -23,40 +23,42 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 ## Requirements
 
 ### System:
-- ODC 1.8+
+- [ODC 1.8+](https://github.com/opendatacube/datacube-core)
 - PostgreSQL 9.5+
 - Python 3.6+
+
+### Optional:
+- [EO Datasets](https://github.com/GeoscienceAustralia/eo-datasets)
+  - Used in prepare scripts for generating EO3 compliant metadata.
+- [odc-tools](https://github.com/opendatacube/odc-tools)
+  - Used for indexing datasets on S3
+- [index_from_s3_bucket](https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/scripts/index_from_s3_bucket.py)
+  - Used for indexing datasets on S3
+
 
 ## Developer setup
 
 1. Install ODC (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
-2. Clone:
-```
-git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-drivers
-```
-3. Activate the conda environment you created when installing ODC
-```
-conda activate odc
-```
-4. Install new drivers from this repository.
-```
-cd datacube-drivers
-pip install --upgrade -e .[test,tools]
-```
-5. Run unit tests + PyLint
-```
-./check-code.sh
-```
-6. **(or)** Run all tests, including integration tests.
-```
-./check-code.sh integration_tests
-```
-- Assumes a password-less Postgres database running on localhost called `agdcintegration`
-- Otherwise copy ``integration_tests/agdcintegration.conf`` to `~/.datacube_integration.conf` and edit to customise.
-
-Alternatively one can use ``opendatacube/datacube-tests`` docker image to run tests.
-This docker includes database server pre-configured for running integration tests.
-Add ``--with-docker`` command line option as a first argument to ``./check-code.sh`` script.
-```
-./check-code.sh --with-docker integration_tests
-```
+1. Clone:
+   ```
+   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-drivers
+   ```
+1. Activate the conda environment you created when installing ODC
+   ```
+   conda activate odc
+   ```
+1. Install new drivers from this repository.
+   ```
+   cd datacube-drivers
+   pip install --upgrade -e .[test,tools]
+   ```
+1. Run (flake8-isort, mypy, black) + unit tests
+   ```
+   ./check-code.sh
+   ```
+1. **(or)** Run all tests, including integration tests.
+   ```
+   ./check-code.sh integration_tests
+   ```
+   - Assumes a password-less Postgres database running on localhost called `agdcintegration`
+   - Otherwise copy ``integration_tests/agdcintegration.conf`` to `~/.datacube_integration.conf` and edit to customise.
