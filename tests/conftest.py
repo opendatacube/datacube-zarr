@@ -13,6 +13,7 @@ import numpy as np
 import pyproj
 import rasterio
 import xarray as xr
+from click.testing import CliRunner
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
@@ -20,6 +21,7 @@ from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 
 from datacube_zarr import ZarrIO
+from datacube_zarr.tools.zarrify import main as zarrify
 from datacube_zarr.utils.uris import uri_join
 from tests.utils import copytree
 
@@ -346,7 +348,7 @@ def ls5_dataset_path(request, s3, tmp_path):
     return dataset_path
 
 
-@pytest.fixture(params=["file"])
+@pytest.fixture(params=["file", "s3"])
 def ls8_dataset_path(request, s3, tmp_path):
     """LS8 test dataset on filesystem and s3."""
     if request.param == "file":
@@ -356,3 +358,15 @@ def ls8_dataset_path(request, s3, tmp_path):
         dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
     copytree(TEST_DATA_LS8, dataset_path)
     return dataset_path
+
+
+@pytest.fixture(scope="session")
+def zarrifycli():
+    """zarrify runner."""
+    runner = CliRunner()
+
+    def _run(args):
+        res = runner.invoke(zarrify, args)
+        return res
+
+    return _run
