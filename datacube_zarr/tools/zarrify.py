@@ -10,9 +10,16 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import click
 from rasterio.crs import CRS
+from rasterio.errors import CRSError
 from s3path import S3Path
 
-from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets, ignore_file
+from datacube_zarr._version import version
+from datacube_zarr.utils.convert import (
+    convert_dir,
+    convert_to_zarr,
+    get_datasets,
+    ignore_file,
+)
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
@@ -60,8 +67,8 @@ class FileOrS3Path(click.ParamType):
                 value = value[7:]
             path = Path(value).resolve()
 
-        if self.exists and not path.exists:
-            raise ValueError(f"{path.as_uri()} does not exist.")
+        if self.exists and not path.exists():
+            self.fail(f"{path.as_uri()} does not exist.")
 
         return path
 
@@ -82,9 +89,9 @@ class ClickCRS(click.ParamType):
         try:
             try:
                 p = CRS.from_epsg(int(value))
-            except ValueError:
+            except (ValueError, CRSError):
                 p = CRS.from_string(value)
-        except RuntimeError:
+        except CRSError:
             self.fail(f"{value} is not a valid CRS", param, ctx)
 
         return p
@@ -171,6 +178,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     is_eager=True,
     help="Enables verbose mode.",
 )
+@click.version_option(version=version)
 def main(
     dataset: Path,
     outpath: Optional[Path],
@@ -205,9 +213,6 @@ def main(
     ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
 
-    if not dataset.exists():
-        raise click.BadParameter(f"Dataset does not exist: {dataset}")
-
     # Recurse into directory an convert supported datasets
     if dataset.is_dir():
         outpath = outpath / dataset.parts[-1] if outpath else None
@@ -229,7 +234,7 @@ def main(
                 ds for ds in get_datasets(dataset.parent) if ds[1][0] == dataset
             )
             if ignore_file(files[0], ignore):
-                logger.warn(f"Ignoring dataset: {dataset}")
+                logger.warning(f"Ignoring dataset: {dataset}")
             else:
                 convert_to_zarr(
                     files=files,
@@ -244,4 +249,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pragma: no cover

@@ -1,4 +1,4 @@
-'''Unit tests for the zarr_io.driver module.'''
+'''Unit tests for the datacube_zarr.driver module.'''
 from random import random, sample
 
 import pytest
@@ -7,7 +7,7 @@ from datacube.drivers import reader_drivers, writer_drivers
 from datacube.storage import BandInfo
 from mock import MagicMock
 
-from zarr_io.driver import (
+from datacube_zarr.driver import (
     ZarrDataSource,
     ZarrReaderDriver,
     ZarrWriterDriver,
@@ -20,7 +20,7 @@ from .utils import _check_zarr_files, _load_dataset
 
 SPECTRAL_DEFINITION = {
     'wavelength': sorted(sample(range(380, 750), 150)),
-    'response': [random() for i in range(150)]
+    'response': [random() for i in range(150)],
 }
 '''Random spectral definition with 150 values.'''
 
@@ -43,14 +43,14 @@ def test_writer_drivers():
 def test_zarr_netcdf_driver_import():
     '''Check the zarr modules can be imported.'''
     try:
-        import zarr_io.driver
+        import datacube_zarr.driver
     except ImportError:
         assert False and 'Failed to load zarr driver'
 
-    assert zarr_io.driver.reader_driver_init is not None
+    assert datacube_zarr.driver.reader_driver_init is not None
 
 
-# zarr_io.driver Unit tests
+# datacube_zarr.driver Unit tests
 @pytest.mark.parametrize('dataset_fixture', ['odc_dataset', 'odc_dataset_2d'])
 def test_datasource(request, dataset, dataset_fixture):
     '''Test ZarrDataSource.
@@ -87,7 +87,9 @@ def test_datasource_no_timeslice(dataset):
     '''Test the ZarrDataSource.BandDataSource.'''
     group_name = list(dataset.keys())[0]
 
-    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
+    band_source = ZarrDataSource.BandDataSource(
+        dataset, group_name, None, dataset[group_name].nodata
+    )
     assert band_source.crs == dataset.crs
     assert band_source.transform == dataset[group_name].affine
     assert band_source.dtype == dataset[group_name].dtype
@@ -104,7 +106,9 @@ def test_datasource_bad_time_index(dataset):
     '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
     group_name = list(dataset.keys())[0]
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata)
+        ZarrDataSource.BandDataSource(
+            dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata
+        )
     assert str(excinfo.value) == 'time_idx exceeded 1'
 
 
@@ -113,7 +117,9 @@ def test_datasource_no_time_slice(dataset):
     group_name = list(dataset.keys())[0]
     dataset = dataset.drop_sel(time=dataset.time.values)
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, None, dataset[group_name].nodata)
+        ZarrDataSource.BandDataSource(
+            dataset, group_name, None, dataset[group_name].nodata
+        )
     assert str(excinfo.value) == 'Found 0 time slices in storage'
 
 
@@ -128,12 +134,15 @@ def test_datasource_no_nodata(dataset):
 
 uri_split_test_params = [
     ('protocol:///some/path/root.zarr', ('protocol', '/some/path/root.zarr', '')),
-    ('s3:///some/path/root.zarr#group/subgroup', ('s3', '/some/path/root.zarr', 'group/subgroup')),
-    ('file:///some/path/root.zarr#/', ('file', '/some/path/root.zarr', '/'))
+    (
+        's3:///some/path/root.zarr#group/subgroup',
+        ('s3', '/some/path/root.zarr', 'group/subgroup'),
+    ),
+    ('file:///some/path/root.zarr#/', ('file', '/some/path/root.zarr', '/')),
 ]
 
 
-@pytest.mark.parametrize("uri,split_uri",  uri_split_test_params)
+@pytest.mark.parametrize("uri,split_uri", uri_split_test_params)
 def test_uri_split(uri, split_uri):
     '''Check zarr uri splitting.'''
     assert uri_split(uri) == split_uri
@@ -144,7 +153,7 @@ def test_uri_split_no_scheme():
     with pytest.raises(ValueError) as excinfo:
         uri_split('/some/path/group.zarr')
 
-    assert str(excinfo.value) == f'uri scheme not found: /some/path/group.zarr'
+    assert str(excinfo.value) == 'uri scheme not found: /some/path/group.zarr'
 
 
 def test_zarr_reader_driver(dataset, odc_dataset):
@@ -198,7 +207,9 @@ def test_writer_driver_mk_uri():
     driver_alias = 'unknown alias'
     storage_config = {'driver': driver_alias}
     with pytest.raises(ValueError) as excinfo:
-        file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
+        file_uri = writer_driver.mk_uri(
+            file_path=file_path, storage_config=storage_config
+        )
     assert str(excinfo.value) == f'Unknown driver alias: {driver_alias}'
 
 
@@ -210,7 +221,7 @@ def test_zarr_file_writer_driver_save(uri, fixed_chunks, data, s3):
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),
         file_uri=uri,
-        storage_config={'chunking': fixed_chunks['input']}
+        storage_config={'chunking': fixed_chunks['input']},
     )
     _check_zarr_files(data, uri, name, fixed_chunks, s3)
 
@@ -233,7 +244,7 @@ def test_zarr_file_writer_driver_data_corrections(uri, fixed_chunks, data):
     writer.write_dataset_to_storage(
         dataset=ds_in.copy(),  # The copy should be corrected
         file_uri=uri,
-        storage_config={'chunking': fixed_chunks['input']}
+        storage_config={'chunking': fixed_chunks['input']},
     )
     # Load and check data has been corrected
     ds_out = _load_dataset(uri)

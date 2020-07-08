@@ -15,30 +15,22 @@ COMPLIANCE_CHECKER_NORMAL_LIMIT = 2
 
 @pytest.mark.timeout(20)
 @pytest.mark.parametrize('datacube_env_name', ('datacube',), indirect=True)
-@pytest.mark.usefixtures('default_metadata_type',
-                         'indexed_ls5_scene_products',
-                         's3')
-def test_full_ingestion(clirunner, index, tmpdir, example_ls5_dataset_paths,
-                        ingest_configs, s3_bucket_name):
-    config = INGESTER_CONFIGS/ingest_configs['ls5_nbar_albers']
+@pytest.mark.usefixtures('default_metadata_type', 'indexed_ls5_scene_products', 's3')
+def test_full_ingestion(
+    clirunner, index, tmpdir, example_ls5_dataset_paths, ingest_configs, s3_bucket_name
+):
+    config = INGESTER_CONFIGS / ingest_configs['ls5_nbar_albers']
     config_path, config = prepare_test_ingestion_configuration(
-        tmpdir, None, config, mode='fast_ingest', s3_bucket_name=s3_bucket_name)
+        tmpdir, None, config, mode='fast_ingest', s3_bucket_name=s3_bucket_name
+    )
     valid_uuids = []
     for uuid, example_ls5_dataset_path in example_ls5_dataset_paths.items():
         valid_uuids.append(uuid)
-        clirunner([
-            'dataset',
-            'add',
-            str(example_ls5_dataset_path)
-        ])
+        clirunner(['dataset', 'add', str(example_ls5_dataset_path)])
 
     ensure_datasets_are_indexed(index, valid_uuids)
 
-    clirunner([
-        'ingest',
-        '--config-file',
-        str(config_path)
-    ])
+    clirunner(['ingest', '--config-file', str(config_path)])
 
     datasets = index.datasets.search_eager(product='ls5_nbar_albers')
     assert len(datasets) > 0
@@ -50,11 +42,10 @@ def test_full_ingestion(clirunner, index, tmpdir, example_ls5_dataset_paths,
 
 @pytest.mark.timeout(20)
 @pytest.mark.parametrize('datacube_env_name', ('datacube',), indirect=True)
-@pytest.mark.usefixtures('default_metadata_type',
-                         'indexed_ls5_scene_products',
-                         's3')
-def test_process_all_ingest_jobs(clirunner, index, tmpdir, example_ls5_dataset_paths,
-                                 ingest_configs, s3_bucket_name):
+@pytest.mark.usefixtures('default_metadata_type', 'indexed_ls5_scene_products', 's3')
+def test_process_all_ingest_jobs(
+    clirunner, index, tmpdir, example_ls5_dataset_paths, ingest_configs, s3_bucket_name
+):
     """
     Test for the case where ingestor processes upto `--queue-size` number of tasks and
     not all the available scenes
@@ -62,7 +53,8 @@ def test_process_all_ingest_jobs(clirunner, index, tmpdir, example_ls5_dataset_p
     # Make a test ingestor configuration
     config = INGESTER_CONFIGS / ingest_configs['ls5_nbar_albers']
     config_path, config = prepare_test_ingestion_configuration(
-        tmpdir, None, config, mode='fast_ingest', s3_bucket_name=s3_bucket_name)
+        tmpdir, None, config, mode='fast_ingest', s3_bucket_name=s3_bucket_name
+    )
 
     def index_dataset(path):
         return clirunner(['dataset', 'add', str(path)])
@@ -79,14 +71,16 @@ def test_process_all_ingest_jobs(clirunner, index, tmpdir, example_ls5_dataset_p
     ensure_datasets_are_indexed(index, valid_uuids)
 
     # Ingest all scenes (Though the queue size is 2, all 3 tiles will be ingested)
-    clirunner([
-        'ingest',
-        '--config-file',
-        str(config_path),
-        '--queue-size',
-        queue_size,
-        '--allow-product-changes',
-    ])
+    clirunner(
+        [
+            'ingest',
+            '--config-file',
+            str(config_path),
+            '--queue-size',
+            queue_size,
+            '--allow-product-changes',
+        ]
+    )
 
     # Validate that the ingestion is working as expected
     datasets = index.datasets.search_eager(product='ls5_nbar_albers')
@@ -106,19 +100,29 @@ def ensure_datasets_are_indexed(index, valid_uuids):
 def check_open_with_api(index, time_slices):
     with rasterio.Env():
         from datacube import Datacube
+
         dc = Datacube(index=index)
 
         input_type_name = 'ls5_nbar_albers'
         input_type = dc.index.products.get_by_name(input_type_name)
-        geobox = geometry.GeoBox(200, 200, Affine(25, 0.0, 638000, 0.0, -25, 6276000), geometry.CRS('EPSG:28355'))
-        observations = dc.find_datasets(product='ls5_nbar_albers', geopolygon=geobox.extent)
+        geobox = geometry.GeoBox(
+            200,
+            200,
+            Affine(25, 0.0, 638000, 0.0, -25, 6276000),
+            geometry.CRS('EPSG:28355'),
+        )
+        observations = dc.find_datasets(
+            product='ls5_nbar_albers', geopolygon=geobox.extent
+        )
         group_by = query_group_by('time')
         sources = dc.group_datasets(observations, group_by)
         data = dc.load_data(sources, geobox, input_type.measurements.values())
         assert data.blue.shape == (time_slices, 200, 200)
 
         chunk_profile = {'time': 1, 'x': 100, 'y': 100}
-        lazy_data = dc.load_data(sources, geobox, input_type.measurements.values(), dask_chunks=chunk_profile)
+        lazy_data = dc.load_data(
+            sources, geobox, input_type.measurements.values(), dask_chunks=chunk_profile
+        )
         assert lazy_data.blue.shape == (time_slices, 200, 200)
         assert (lazy_data.blue.load() == data.blue).all()
 
@@ -130,6 +134,7 @@ def check_data_with_api(index, time_slices):
     corners.
     """
     from datacube import Datacube
+
     dc = Datacube(index=index)
 
     # TODO: this test needs to change, it tests that results are exactly the
@@ -150,9 +155,12 @@ def check_data_with_api(index, time_slices):
 
     input_type_name = 'ls5_nbar_albers'
     input_type = dc.index.products.get_by_name(input_type_name)
-    geobox = geometry.GeoBox(shape_x + 2, shape_y + 2,
-                             Affine(pixel_x, 0.0, GEOTIFF['ul']['x'], 0.0, pixel_y, GEOTIFF['ul']['y']),
-                             geometry.CRS(GEOTIFF['crs']))
+    geobox = geometry.GeoBox(
+        shape_x + 2,
+        shape_y + 2,
+        Affine(pixel_x, 0.0, GEOTIFF['ul']['x'], 0.0, pixel_y, GEOTIFF['ul']['y']),
+        geometry.CRS(GEOTIFF['crs']),
+    )
     observations = dc.find_datasets(product='ls5_nbar_albers', geopolygon=geobox.extent)
     group_by = query_group_by('time')
     sources = dc.group_datasets(observations, group_by)

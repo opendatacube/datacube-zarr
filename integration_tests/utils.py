@@ -29,20 +29,26 @@ PROJECTED_VARS = ('x', 'y')
 
 GEOTIFF = {
     'date': datetime(1990, 3, 2),
-    'shape': {
-        'x': 432,
-        'y': 321
-    },
-    'pixel_size': {
-        'x': 25.0,
-        'y': -25.0
-    },
+    'shape': {'x': 432, 'y': 321},
+    'pixel_size': {'x': 25.0, 'y': -25.0},
     'crs': 'EPSG:28355',  # 'EPSG:28355'
     'ul': {
         'x': 638000.0,  # Coords must match crs
-        'y': 6276000.0  # Coords must match crs
-    }
+        'y': 6276000.0,  # Coords must match crs
+    },
 }
+
+
+def copytree(p1: Path, p2: Path) -> None:
+    """Copytree for local/s3 paths."""
+    for o1 in p1.iterdir():
+        o2 = p2 / o1.name
+        if o1.is_dir():
+            copytree(o1, o2)
+        else:
+            if o2.as_uri().startswith("file") and not o2.parent.exists():
+                o2.parent.mkdir(parents=True)
+            o2.write_bytes(o1.read_bytes())
 
 
 @contextmanager
@@ -54,11 +60,7 @@ def alter_log_level(logger, level=logging.WARN):
 
 
 def assert_click_command(command, args):
-    result = CliRunner().invoke(
-        command,
-        args=args,
-        catch_exceptions=False
-    )
+    result = CliRunner().invoke(command, args=args, catch_exceptions=False)
     print(result.output)
     assert not result.exception
     assert result.exit_code == 0
@@ -73,11 +75,9 @@ def limit_num_measurements(dataset_type):
     return dataset_type
 
 
-def prepare_test_ingestion_configuration(tmpdir,
-                                         output_dir,
-                                         filename,
-                                         mode=None,
-                                         s3_bucket_name=None):
+def prepare_test_ingestion_configuration(
+    tmpdir, output_dir, filename, mode=None, s3_bucket_name=None
+):
     customizers = {
         'fast_ingest': edit_for_fast_ingest,
         'end2end': edit_for_end2end,
@@ -93,8 +93,11 @@ def prepare_test_ingestion_configuration(tmpdir,
             raise ValueError('Wrong mode: ' + mode)
         config = customizers[mode](config)
 
-    config['location'] = f'{s3_bucket_name}/mock-dir/mock-subdir' \
-        if 's3' in filename.stem else str(output_dir)
+    config['location'] = (
+        f'{s3_bucket_name}/mock-dir/mock-subdir'
+        if 's3' in filename.stem
+        else str(output_dir)
+    )
 
     # If ingesting with the s3test driver
     if 'bucket' in config['storage']:
@@ -140,27 +143,34 @@ def _make_geotiffs(tiffs_dir, day_offset, num_bands=NUM_BANDS):
     tiffs = {}
     width = GEOTIFF['shape']['x']
     height = GEOTIFF['shape']['y']
-    metadata = {'count': 1,
-                'crs': GEOTIFF['crs'],
-                'driver': 'GTiff',
-                'dtype': 'int16',
-                'width': width,
-                'height': height,
-                'nodata': -999.0,
-                'transform': [GEOTIFF['pixel_size']['x'],
-                              0.0,
-                              GEOTIFF['ul']['x'],
-                              0.0,
-                              GEOTIFF['pixel_size']['y'],
-                              GEOTIFF['ul']['y']]}
+    metadata = {
+        'count': 1,
+        'crs': GEOTIFF['crs'],
+        'driver': 'GTiff',
+        'dtype': 'int16',
+        'width': width,
+        'height': height,
+        'nodata': -999.0,
+        'transform': [
+            GEOTIFF['pixel_size']['x'],
+            0.0,
+            GEOTIFF['ul']['x'],
+            0.0,
+            GEOTIFF['pixel_size']['y'],
+            GEOTIFF['ul']['y'],
+        ],
+    }
 
     for band in range(num_bands):
         path = str(tiffs_dir.join('band%02d_time%02d.tif' % ((band + 1), day_offset)))
         with rasterio.open(path, 'w', **metadata) as dst:
             # Write data in "corners" (rounded down by 100, for a size of 100x100)
             data = np.zeros((height, width), dtype=np.int16)
-            data[:] = np.arange(height * width
-                                ).reshape((height, width)) + 10 * band + day_offset
+            data[:] = (
+                np.arange(height * width).reshape((height, width))
+                + 10 * band
+                + day_offset
+            )
             '''
             lr = (100 * int(GEOTIFF['shape']['y'] / 100.0),
                   100 * int(GEOTIFF['shape']['x'] / 100.0))
@@ -228,16 +238,19 @@ def shrink_storage_type(storage_type, variables, shrink_factors):
 
 def load_test_products(filename, metadata_type=None):
     dataset_types = load_yaml_file(filename)
-    return [alter_product_for_testing(dataset_type, metadata_type=metadata_type) for dataset_type in dataset_types]
+    return [
+        alter_product_for_testing(dataset_type, metadata_type=metadata_type)
+        for dataset_type in dataset_types
+    ]
 
 
 def alter_product_for_testing(product, metadata_type=None):
     limit_num_measurements(product)
     if 'storage' in product:
         spatial_variables = GEOGRAPHIC_VARS if is_geogaphic(product) else PROJECTED_VARS
-        product = shrink_storage_type(product,
-                                      spatial_variables,
-                                      TEST_STORAGE_SHRINK_FACTORS)
+        product = shrink_storage_type(
+            product, spatial_variables, TEST_STORAGE_SHRINK_FACTORS
+        )
     if metadata_type:
         product['metadata_type'] = metadata_type.name
     return product

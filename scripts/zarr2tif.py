@@ -4,7 +4,7 @@
 
 from functools import reduce
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any, Iterator, Optional
 
 import click
 import rasterio
@@ -13,12 +13,12 @@ import zarr as z
 from rasterio.crs import CRS
 from zarr.hierarchy import Group
 
-from zarr_io import ZarrIO
-from zarr_io.utils.raster import _META_PREFIX, _RASTERIO_BAND_ATTRS
-from zarrify import FileOrS3Path
+from datacube_zarr import ZarrIO
+from datacube_zarr.tools.zarrify import FileOrS3Path
+from datacube_zarr.utils.raster import _META_PREFIX, _RASTERIO_BAND_ATTRS
 
 
-def get_dot_zarrs(path: Path) -> Generator[Path, None, None]:
+def get_dot_zarrs(path: Path) -> Iterator[Path]:
     """Recursively find .zarr dirs."""
     if path.suffix == ".zarr":
         yield path
@@ -28,7 +28,7 @@ def get_dot_zarrs(path: Path) -> Generator[Path, None, None]:
             yield from get_dot_zarrs(p)
 
 
-def get_groups_with_arrays(group: Group) -> Generator[str, None, None]:
+def get_groups_with_arrays(group: Group) -> Iterator[str]:
     """Find any arrays within zarr heirarchy."""
     name = group.name
     if list(group.arrays()):

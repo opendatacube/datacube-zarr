@@ -4,7 +4,6 @@ Common methods for index integration tests.
 """
 import itertools
 import os
-import shutil
 import threading
 from copy import copy, deepcopy
 from datetime import timedelta
@@ -32,6 +31,7 @@ from integration_tests.utils import (
     GEOTIFF,
     _make_geotiffs,
     _make_ls5_scene_datasets,
+    copytree,
     load_test_products,
     load_yaml_file,
 )
@@ -53,16 +53,22 @@ TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 LBG_NBAR = 'LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323'
 LBG_PQ = 'LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323'
 
+TEST_DATA_LS8 = PROJECT_ROOT / 'tests' / 'data' / 'espa' / 'ls8_sr'
+
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs' / 'config_samples'
 
-CONFIG_FILE_PATHS = [str(INTEGRATION_TESTS_DIR / 'agdcintegration.conf'),
-                     os.path.expanduser('~/.datacube_integration.conf')]
+CONFIG_FILE_PATHS = [
+    str(INTEGRATION_TESTS_DIR / 'agdcintegration.conf'),
+    os.path.expanduser('~/.datacube_integration.conf'),
+]
 
 # Configure Hypothesis to allow slower tests, because we're testing datasets
 # and disk IO rather than scalar values in memory.  Ask @Zac-HD for details.
 settings.register_profile(
-    'opendatacube', deadline=5000, max_examples=10,
-    suppress_health_check=[HealthCheck.too_slow]
+    'opendatacube',
+    deadline=5000,
+    max_examples=10,
+    suppress_health_check=[HealthCheck.too_slow],
 )
 settings.load_profile('opendatacube')
 
@@ -85,6 +91,7 @@ def monkeypatch_session():
     note: private import _pytest).
     """
     from _pytest.monkeypatch import MonkeyPatch
+
     m = MonkeyPatch()
     yield m
     m.undo()
@@ -171,22 +178,24 @@ def ingest_configs(datacube_env_name, request):
     }
 
 
-@pytest.fixture(params=["US/Pacific", "UTC", ])
+@pytest.fixture(params=["US/Pacific", "UTC"])
 def uninitialised_postgres_db(local_config, request):
     """
     Return a connection to an empty PostgreSQL database
     """
     timezone = request.param
-    db = PostgresDb.from_config(local_config,
-                                application_name='test-run',
-                                validate_connection=False)
+    db = PostgresDb.from_config(
+        local_config, application_name='test-run', validate_connection=False
+    )
 
     # Drop tables so our tests have a clean db.
-    # with db.begin() as c:  # Creates a new PostgresDbAPI, by passing a new connection to it
     _core.drop_db(db._engine)
-    db._engine.execute('alter database %s set timezone = %r' % (local_config['db_database'], timezone))
+    db._engine.execute(
+        'alter database %s set timezone = %r' % (local_config['db_database'], timezone)
+    )
 
-    # We need to run this as well, I think because SQLAlchemy grabs them into it's MetaData,
+    # We need to run this as well
+    # I think because SQLAlchemy grabs them into it's MetaData,
     # and attempts to recreate them. WTF TODO FIX
     remove_dynamic_indexes()
 
@@ -197,8 +206,7 @@ def uninitialised_postgres_db(local_config, request):
 
 
 @pytest.fixture
-def index(local_config,
-          uninitialised_postgres_db: PostgresDb):
+def index(local_config, uninitialised_postgres_db: PostgresDb):
     index = index_connect(local_config, validate_connection=False)
     index.init_db()
     return index
@@ -226,7 +234,9 @@ def remove_dynamic_indexes():
     """
     # Our normal indexes start with "ix_", dynamic indexes with "dix_"
     for table in _core.METADATA.tables.values():
-        table.indexes.intersection_update([i for i in table.indexes if not i.name.startswith('dix_')])
+        table.indexes.intersection_update(
+            [i for i in table.indexes if not i.name.startswith('dix_')]
+        )
 
 
 @pytest.fixture
@@ -235,16 +245,12 @@ def ls5_telem_doc(ga_metadata_type):
         "name": "ls5_telem_test",
         "description": 'LS5 Test',
         "metadata": {
-            "platform": {
-                "code": "LANDSAT_5"
-            },
+            "platform": {"code": "LANDSAT_5"},
             "product_type": "satellite_telemetry_data",
             "ga_level": "P00",
-            "format": {
-                "name": "RCC"
-            }
+            "format": {"name": "RCC"},
         },
-        "metadata_type": ga_metadata_type.name
+        "metadata_type": ga_metadata_type.name,
     }
 
 
@@ -276,7 +282,8 @@ def geotiffs(tmpdir_factory):
             'day':..., # compact day string, e.g. `19900302`
             'uuid':..., # a unique UUID for this dataset (i.e. specific day)
             'path':..., # path to the yaml ingestion file
-            'tiffs':... # list of paths to the actual geotiffs in that dataset, one per band.
+            'tiffs':... # list of paths to the actual geotiffs in that dataset,
+                        # one per band.
         }
 
     """
@@ -292,19 +299,15 @@ def geotiffs(tmpdir_factory):
     }
     config['grid_spatial']['projection']['geo_ref_points'] = {
         'ul': ul,
-        'ur': {
-            'x': lr['x'],
-            'y': ul['y']
-        },
-        'll': {
-            'x': ul['x'],
-            'y': lr['y']
-        },
-        'lr': lr
+        'ur': {'x': lr['x'], 'y': ul['y']},
+        'll': {'x': ul['x'], 'y': lr['y']},
+        'lr': lr,
     }
     # Generate the custom geotiff yamls
-    return [_make_tiffs_and_yamls(tiffs_dir, config, day_offset)
-            for day_offset in range(NUM_TIME_SLICES)]
+    return [
+        _make_tiffs_and_yamls(tiffs_dir, config, day_offset)
+        for day_offset in range(NUM_TIME_SLICES)
+    ]
 
 
 def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
@@ -339,8 +342,11 @@ def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
         # Copy dict to avoid aliases in yaml output (for better legibility)
         bands[band]['shape'] = copy(GEOTIFF['shape'])
         bands[band]['cell_size'] = {
-            dim: abs(GEOTIFF['pixel_size'][dim]) for dim in ('x', 'y')}
-        bands[band]['path'] = bands[band]['path'].replace('product/', '').replace(day_orig, day)
+            dim: abs(GEOTIFF['pixel_size'][dim]) for dim in ('x', 'y')
+        }
+        bands[band]['path'] = (
+            bands[band]['path'].replace('product/', '').replace(day_orig, day)
+        )
 
     dest_path = str(tiffs_dir.join('agdc-metadata_%s.yaml' % day))
     with open(dest_path, 'w') as dest_yaml:
@@ -349,7 +355,7 @@ def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
         'day': day,
         'uuid': uuid,
         'path': dest_path,
-        'tiffs': _make_geotiffs(tiffs_dir, day_offset)  # make 1 geotiff per band
+        'tiffs': _make_geotiffs(tiffs_dir, day_offset),  # make 1 geotiff per band
     }
 
 
@@ -424,7 +430,7 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
     products = load_test_products(
         CONFIG_SAMPLES / 'dataset_types' / 'ls5_scenes.yaml',
         # Use our larger metadata type with a more diverse set of field types.
-        metadata_type=ga_metadata_type
+        metadata_type=ga_metadata_type,
     )
 
     types = []
@@ -438,19 +444,24 @@ def indexed_ls5_scene_products(index, ga_metadata_type):
 def ls5_dataset_path(request, s3, tmp_path):
     """LS5 test dataset on filesystem and s3."""
     if request.param == "file":
-        lbg_dir = tmp_path / "geotifs" / "lbg"
-        shutil.copytree(str(TEST_DATA), str(lbg_dir))
-        dataset = lbg_dir
+        dataset_path = tmp_path / "geotifs" / "lbg"
     else:
-        client = s3["client"]
         bucket, root = s3["root"].split("/", 1)
-        test_files = [f for f in TEST_DATA.rglob("*") if f.is_file()]
-        for f in test_files:
-            f_rel = f.relative_to(TEST_DATA.parent)
-            key = os.path.join(root, f_rel)
-            client.upload_file(str(f), bucket, key)
-        dataset = S3Path(f"/{bucket}/{root}/lbg")
-    return dataset
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA, dataset_path)
+    return dataset_path
+
+
+@pytest.fixture(params=["file"])
+def ls8_dataset_path(request, s3, tmp_path):
+    """LS8 test dataset on filesystem and s3."""
+    if request.param == "file":
+        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
+    else:
+        bucket, root = s3["root"].split("/", 1)
+        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    copytree(TEST_DATA_LS8, dataset_path)
+    return dataset_path
 
 
 @pytest.fixture
@@ -460,9 +471,13 @@ def example_ls5_nbar_metadata_doc():
 
 @pytest.fixture
 def clirunner(global_integration_cli_args, datacube_env_name):
-    def _run_cli(opts, catch_exceptions=False,
-                 expect_success=True, cli_method=datacube.scripts.cli_app.cli,
-                 verbose_flag='-v'):
+    def _run_cli(
+        opts,
+        catch_exceptions=False,
+        expect_success=True,
+        cli_method=datacube.scripts.cli_app.cli,
+        verbose_flag='-v',
+    ):
         exe_opts = list(itertools.chain(*(('--config', f) for f in CONFIG_FILE_PATHS)))
         exe_opts += ['--env', datacube_env_name]
         if verbose_flag:
@@ -470,13 +485,12 @@ def clirunner(global_integration_cli_args, datacube_env_name):
         exe_opts.extend(opts)
 
         runner = CliRunner()
-        result = runner.invoke(
-            cli_method,
-            exe_opts,
-            catch_exceptions=catch_exceptions
-        )
+        result = runner.invoke(cli_method, exe_opts, catch_exceptions=catch_exceptions)
         if expect_success:
-            assert 0 == result.exit_code, "Error for %r. output: %r" % (opts, result.output)
+            assert 0 == result.exit_code, "Error for %r. output: %r" % (
+                opts,
+                result.output,
+            )
         return result
 
     return _run_cli
@@ -484,24 +498,25 @@ def clirunner(global_integration_cli_args, datacube_env_name):
 
 @pytest.fixture
 def clirunner_raw():
-    def _run_cli(opts,
-                 catch_exceptions=False,
-                 expect_success=True,
-                 cli_method=datacube.scripts.cli_app.cli,
-                 verbose_flag='-v'):
+    def _run_cli(
+        opts,
+        catch_exceptions=False,
+        expect_success=True,
+        cli_method=datacube.scripts.cli_app.cli,
+        verbose_flag='-v',
+    ):
         exe_opts = []
         if verbose_flag:
             exe_opts.append(verbose_flag)
         exe_opts.extend(opts)
 
         runner = CliRunner()
-        result = runner.invoke(
-            cli_method,
-            exe_opts,
-            catch_exceptions=catch_exceptions
-        )
+        result = runner.invoke(cli_method, exe_opts, catch_exceptions=catch_exceptions)
         if expect_success:
-            assert 0 == result.exit_code, "Error for %r. output: %r" % (opts, result.output)
+            assert 0 == result.exit_code, "Error for %r. output: %r" % (
+                opts,
+                result.output,
+            )
         return result
 
     return _run_cli
@@ -510,7 +525,9 @@ def clirunner_raw():
 @pytest.fixture
 def dataset_add_configs():
     B = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
-    return SimpleNamespace(metadata=str(B / 'metadata.yml'),
-                           products=str(B / 'products.yml'),
-                           datasets_bad1=str(B / 'datasets_bad1.yml'),
-                           datasets=str(B / 'datasets.yml'))
+    return SimpleNamespace(
+        metadata=str(B / 'metadata.yml'),
+        products=str(B / 'products.yml'),
+        datasets_bad1=str(B / 'datasets_bad1.yml'),
+        datasets=str(B / 'datasets.yml'),
+    )

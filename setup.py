@@ -1,15 +1,15 @@
 from setuptools import find_packages, setup
 
 tests_require = [
+    'black',
     'click',
     'flask',
+    'flake8-isort',
     'hypothesis',
-    'isort>=4.3.21',
+    'isort<5.0.0',
     'mypy',
     'mock',
     'moto',
-    'pycodestyle',
-    'pylint',
     'pytest',
     'pytest-cov',
 ]
@@ -24,14 +24,10 @@ setup(
     long_description_content_type='text/markdown',
     python_requires='>=3.6.0',
     packages=find_packages(
-        exclude=(
-            'tests', 'tests.*',
-            'integration_tests', 'integration_tests.*'
-        )
+        exclude=('tests', 'tests.*', 'integration_tests', 'integration_tests.*')
     ),
-
     use_scm_version={
-        'write_to': 'zarr_io/_version.py',
+        'write_to': 'datacube_zarr/_version.py',
         'fallback_version': '0.0.0+no.scm',
     },
     setup_requires=['setuptools_scm'],
@@ -45,18 +41,11 @@ setup(
         'xarray>=0.14.1',
         'zarr>=2.3.2',
     ],
-    extras_require={
-        'test': tests_require,
-        'tools': ['click'],
-    },
+    extras_require={'test': tests_require, 'tools': ['click'],},
     tests_require=tests_require,
-
     entry_points={
-        'datacube.plugins.io.read': [
-            'zarr = zarr_io.driver:reader_driver_init',
-        ],
-        'datacube.plugins.io.write': [
-            'zarr = zarr_io.driver:writer_driver_init',
-        ]
-    }
+        'console_scripts': ['zarrify = datacube_zarr.tools.zarrify:main'],
+        'datacube.plugins.io.read': ['zarr = datacube_zarr.driver:reader_driver_init',],
+        'datacube.plugins.io.write': ['zarr = datacube_zarr.driver:writer_driver_init',],
+    },
 )

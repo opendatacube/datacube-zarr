@@ -1,4 +1,4 @@
-"""Converting and reprojecting rasters to zarr format."""
+"""Functions for converting and reprojecting rasters to zarr format."""
 
 import logging
 import re
@@ -12,8 +12,8 @@ import zarr
 from rasterio.crs import CRS
 from rasterio.warp import calculate_default_transform
 
-from zarr_io import ZarrIO
-from zarr_io.utils.uris import uri_join
+from datacube_zarr import ZarrIO
+from datacube_zarr.utils.uris import uri_join
 
 _DEFAULT_ARRAY = "array"
 _META_PREFIX = "zmeta"
@@ -24,21 +24,33 @@ logger = logging.getLogger(__name__)
 
 
 def make_zarr_uri(root: Path, group: Optional[str] = None) -> str:
-    """Compose zarr uri from path: <protocol>://<root>[#<group>]."""
+    """
+    Compose zarr uri from (S3 or file) path: <protocol>://<root>[#<group>].
+
+    :param root: path (S3 or file) to zarr root
+    :param group: name of zarr group
+    :return zarr uri
+    """
     protocol, root_ = root.as_uri().split("://", 1)
     uri = uri_join(protocol, root_, group)
     return uri
 
 
 def zarr_exists(root: Path, group: Optional[str] = None) -> bool:
-    """Return True if root (and optionally group) exists."""
+    """
+    Test if a zarr root (and group) exists.
+
+    :param root: path (S3 or file) to zarr root
+    :param group: name of zarr group
+    :return: True if root (and optionally group) exists.
+    """
     store = ZarrIO().get_root(root.as_uri())
     exists: bool = zarr.storage.contains_group(store, group)
     return exists
 
 
 @contextmanager
-def warped_vrt(
+def _warped_vrt(
     src: rasterio.io.DatasetReader,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
@@ -68,27 +80,38 @@ def warped_vrt(
 def rasterio_src(
     uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None,
 ) -> rasterio.io.DatasetReaderBase:
-    """Open a rasterio source and virtually warp if required."""
+    """Open a rasterio source and virtually reproject if required.
+
+    :param uri: rasterio dataset URI
+    :param crs: coordinate system to reproject into to
+    :param resolution: resolution to resample to
+    :return: a rasterio dataset source
+    """
     with rasterio.open(uri) as src:
         if crs is not None or resolution is not None:
-            with warped_vrt(src, crs=crs, resolution=resolution) as vrt:
+            with _warped_vrt(src, crs=crs, resolution=resolution) as vrt:
                 yield vrt
         else:
             yield src
 
 
-def get_rasterio_datasets(path: Path) -> List[str]:
-    """Return full names of rasterio dataset/subdatasets present in a source file."""
-    with rasterio.open(path.as_uri(), "r") as src:
+def get_rasterio_datasets(raster_file: Path) -> List[str]:
+    """
+    Return full names of rasterio dataset/subdatasets present in a source file.
+
+    :param raster_file: raster file or S3 path
+    :return: list of dataset URIs
+    """
+    with rasterio.open(raster_file.as_uri(), "r") as src:
         names = [src.name] if src.count > 0 else (src.subdatasets or [])
 
     if not names:
-        raise ValueError(f"No datasets found in {path}.")
+        raise ValueError(f"No datasets found in {raster_file}.")
 
     return names
 
 
-def raster_to_zarr(
+def raster_to_zarr(  # noqa: C901
     raster: Path,
     out_dir: Path,
     zarr_name: Optional[str] = None,
@@ -96,7 +119,17 @@ def raster_to_zarr(
     resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
 ) -> List[str]:
-    """Convert a raster image file to Zarr via rasterio."""
+    """
+    Convert a raster image file to Zarr via rasterio.
+
+    :param raster: a path to a raster file (local filesystem or S3)
+    :param out_dir: output directory (local filesystem or S3)
+    :param zarr_name: name to give the created `.zarr` dataset
+    :param crs: output coordinate system to reproject to
+    :param resolution: output resolution
+    :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
+    :return: list of generated zarr URIs
+    """
     output_uris = []
     for dataset in get_rasterio_datasets(raster):
 

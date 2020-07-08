@@ -30,18 +30,24 @@ def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
     shutil.copytree(str(TEST_DATA), str(tmpdir / 'lbg'))
 
     for file in ingest_configs.values():
-        prepare_test_ingestion_configuration(tmpdir, tmpdir, INGESTER_CONFIGS / file,
-                                             mode='end2end',
-                                             s3_bucket_name=s3_bucket_name)
+        prepare_test_ingestion_configuration(
+            tmpdir,
+            tmpdir,
+            INGESTER_CONFIGS / file,
+            mode='end2end',
+            s3_bucket_name=s3_bucket_name,
+        )
 
     return tmpdir
 
 
-ignore_me = pytest.mark.xfail(True, reason="get_data/get_description still to be fixed in Unification")
+ignore_me = pytest.mark.xfail(
+    True, reason="get_data/get_description still to be fixed in Unification"
+)
 
 
 @pytest.mark.usefixtures('default_metadata_type', 's3')
-@pytest.mark.parametrize('datacube_env_name', ('datacube', ))
+@pytest.mark.parametrize('datacube_env_name', ('datacube',))
 def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env_name):
     """
     Loads two dataset configurations, then ingests a sample Landsat 5 scene
@@ -63,29 +69,43 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
 
     # Index the Datasets
     #  - do test run first to increase test coverage
-    clirunner(['-v', 'dataset', 'add', '--dry-run',
-               str(lbg_nbar), str(lbg_pq)])
+    clirunner(['-v', 'dataset', 'add', '--dry-run', str(lbg_nbar), str(lbg_pq)])
 
     #  - do actual indexing
-    clirunner(['-v', 'dataset', 'add',
-               str(lbg_nbar), str(lbg_pq)])
+    clirunner(['-v', 'dataset', 'add', str(lbg_nbar), str(lbg_pq)])
 
     #  - this will be no-op but with ignore lineage
-    clirunner(['-v', 'dataset', 'add',
-               '--confirm-ignore-lineage',
-               str(lbg_nbar), str(lbg_pq)])
+    clirunner(
+        ['-v', 'dataset', 'add', '--confirm-ignore-lineage', str(lbg_nbar), str(lbg_pq)]
+    )
 
     # Test no-op update
     for policy in ['archive', 'forget', 'keep']:
-        clirunner(['-v', 'dataset', 'update',
-                   '--dry-run',
-                   '--location-policy', policy,
-                   str(lbg_nbar), str(lbg_pq)])
+        clirunner(
+            [
+                '-v',
+                'dataset',
+                'update',
+                '--dry-run',
+                '--location-policy',
+                policy,
+                str(lbg_nbar),
+                str(lbg_pq),
+            ]
+        )
 
         # Test no changes needed update
-        clirunner(['-v', 'dataset', 'update',
-                   '--location-policy', policy,
-                   str(lbg_nbar), str(lbg_pq)])
+        clirunner(
+            [
+                '-v',
+                'dataset',
+                'update',
+                '--location-policy',
+                policy,
+                str(lbg_nbar),
+                str(lbg_pq),
+            ]
+        )
 
     # TODO: test location update
     # 1. Make a copy of a file
@@ -113,64 +133,102 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
 def check_open_with_dc(index):
     dc = Datacube(index=index)
 
-    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue']).to_array(dim='variable')
+    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue']).to_array(
+        dim='variable'
+    )
     assert data_array.shape
     assert (data_array != -999).any()
 
-    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue'], time='1992-03-23T23:14:25.500000')
+    data_array = dc.load(
+        product='ls5_nbar_albers',
+        measurements=['blue'],
+        time='1992-03-23T23:14:25.500000',
+    )
     assert data_array['blue'].shape[0] == 1
     assert (data_array.blue != -999).any()
 
-    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue'], latitude=-35.3, longitude=149.1)
+    data_array = dc.load(
+        product='ls5_nbar_albers', measurements=['blue'], latitude=-35.3, longitude=149.1
+    )
     assert data_array['blue'].shape[1:] == (1, 1)
     assert (data_array.blue != -999).any()
 
-    data_array = dc.load(product='ls5_nbar_albers', latitude=(-35, -36), longitude=(149, 150)).to_array(dim='variable')
+    data_array = dc.load(
+        product='ls5_nbar_albers', latitude=(-35, -36), longitude=(149, 150)
+    ).to_array(dim='variable')
 
     assert data_array.ndim == 4
     assert 'variable' in data_array.dims
     assert (data_array != -999).any()
 
     with rasterio.Env():
-        lazy_data_array = dc.load(product='ls5_nbar_albers', latitude=(-35, -36), longitude=(149, 150),
-                                  dask_chunks={'time': 1, 'x': 1000, 'y': 1000}).to_array(dim='variable')
+        lazy_data_array = dc.load(
+            product='ls5_nbar_albers',
+            latitude=(-35, -36),
+            longitude=(149, 150),
+            dask_chunks={'time': 1, 'x': 1000, 'y': 1000},
+        ).to_array(dim='variable')
         assert lazy_data_array.data.dask
         assert lazy_data_array.ndim == data_array.ndim
         assert 'variable' in lazy_data_array.dims
-        assert lazy_data_array[1, :2, 950:1050, 950:1050].equals(data_array[1, :2, 950:1050, 950:1050])
+        assert lazy_data_array[1, :2, 950:1050, 950:1050].equals(
+            data_array[1, :2, 950:1050, 950:1050]
+        )
 
-    dataset = dc.load(product='ls5_nbar_albers', measurements=['blue'],
-                      fuse_func=custom_dumb_fuser)
+    dataset = dc.load(
+        product='ls5_nbar_albers', measurements=['blue'], fuse_func=custom_dumb_fuser
+    )
     assert dataset['blue'].size
 
-    dataset = dc.load(product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2))
+    dataset = dc.load(
+        product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2)
+    )
     assert dataset['blue'].size
 
     with rasterio.Env():
-        lazy_dataset = dc.load(product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2),
-                               dask_chunks={'time': 1})
+        lazy_dataset = dc.load(
+            product='ls5_nbar_albers',
+            latitude=(-35.2, -35.3),
+            longitude=(149.1, 149.2),
+            dask_chunks={'time': 1},
+        )
         assert lazy_dataset['blue'].data.dask
         assert lazy_dataset.blue[:2, :100, :100].equals(dataset.blue[:2, :100, :100])
-        assert lazy_dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)).equals(
-            dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
+        assert lazy_dataset.isel(
+            time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)
+        ).equals(dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
 
         # again but with larger time chunks
-        lazy_dataset = dc.load(product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2),
-                               dask_chunks={'time': 2})
+        lazy_dataset = dc.load(
+            product='ls5_nbar_albers',
+            latitude=(-35.2, -35.3),
+            longitude=(149.1, 149.2),
+            dask_chunks={'time': 2},
+        )
         assert lazy_dataset['blue'].data.dask
         assert lazy_dataset.blue[:2, :100, :100].equals(dataset.blue[:2, :100, :100])
-        assert lazy_dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)).equals(
-            dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
+        assert lazy_dataset.isel(
+            time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)
+        ).equals(dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
 
     dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
     assert (dataset.blue == dataset_like.blue).all()
 
-    solar_day_dataset = dc.load(product='ls5_nbar_albers',
-                                latitude=(-35, -36), longitude=(149, 150),
-                                measurements=['blue'], group_by='solar_day')
+    solar_day_dataset = dc.load(
+        product='ls5_nbar_albers',
+        latitude=(-35, -36),
+        longitude=(149, 150),
+        measurements=['blue'],
+        group_by='solar_day',
+    )
     assert 0 < solar_day_dataset.time.size <= dataset.time.size
 
-    dataset = dc.load(product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2), align=(5, 20))
+    dataset = dc.load(
+        product='ls5_nbar_albers',
+        latitude=(-35.2, -35.3),
+        longitude=(149.1, 149.2),
+        align=(5, 20),
+    )
     assert dataset.geobox.affine.f % abs(dataset.geobox.affine.e) == 5
     assert dataset.geobox.affine.c % abs(dataset.geobox.affine.a) == 20
     dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
@@ -198,22 +256,30 @@ def check_open_with_dc(index):
         return a + b
 
     for resamp_meth in resamp:
-        dataset = dc.load(product='ls5_nbar_albers', measurements=['blue'],
-                          latitude=(-35.28, -35.285), longitude=(149.15, 149.155),
-                          output_crs='EPSG:4326', resolution=(-0.0000125, 0.0000125), resampling=resamp_meth)
+        dataset = dc.load(
+            product='ls5_nbar_albers',
+            measurements=['blue'],
+            latitude=(-35.28, -35.285),
+            longitude=(149.15, 149.155),
+            output_crs='EPSG:4326',
+            resolution=(-0.0000125, 0.0000125),
+            resampling=resamp_meth,
+        )
         results[resamp_meth] = calc_max_change(dataset.blue.isel(time=0))
 
     assert results['cubic_spline'] < results['nearest']
     assert results['lanczos'] < results['average']
 
     # check empty result
-    dataset = dc.load(product='ls5_nbar_albers',
-                      time=('1918', '1919'),
-                      measurements=['blue'],
-                      latitude=(-35.28, -35.285),
-                      longitude=(149.15, 149.155),
-                      output_crs='EPSG:4326',
-                      resolution=(-0.0000125, 0.0000125))
+    dataset = dc.load(
+        product='ls5_nbar_albers',
+        time=('1918', '1919'),
+        measurements=['blue'],
+        latitude=(-35.28, -35.285),
+        longitude=(149.15, 149.155),
+        output_crs='EPSG:4326',
+        resolution=(-0.0000125, 0.0000125),
+    )
     assert len(dataset.data_vars) == 0
 
 
@@ -222,6 +288,7 @@ def check_open_with_grid_workflow(index):
     dt = index.products.get_by_name(type_name)
 
     from datacube.api.grid_workflow import GridWorkflow
+
     gw = GridWorkflow(index, dt.grid_spec)
 
     cells = gw.list_cells(product=type_name, cell_index=LBG_CELL)
@@ -244,7 +311,9 @@ def check_open_with_grid_workflow(index):
         assert tile_slice.shape == (1, 4000, 4000)
 
     dataset_cell = gw.load(tile)
-    assert all(m in dataset_cell for m in ['blue', 'green', 'red', 'nir', 'swir1', 'swir2'])
+    assert all(
+        m in dataset_cell for m in ['blue', 'green', 'red', 'nir', 'swir1', 'swir2']
+    )
 
     ts = numpy.datetime64('1992-03-23T23:14:25.500000000')
     tile_key = LBG_CELL + (ts,)
@@ -257,7 +326,9 @@ def check_open_with_grid_workflow(index):
     assert dataset_cell['blue'].size
 
     dataset_cell = gw.load(tile)
-    assert all(m in dataset_cell for m in ['blue', 'green', 'red', 'nir', 'swir1', 'swir2'])
+    assert all(
+        m in dataset_cell for m in ['blue', 'green', 'red', 'nir', 'swir1', 'swir2']
+    )
 
 
 def check_load_via_dss(index):

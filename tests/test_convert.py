@@ -3,10 +3,10 @@ import boto3
 import botocore
 from s3path import S3Path
 
-from zarr_io.utils.convert import convert_dir, convert_to_zarr, get_datasets
-from zarr_io.utils.uris import uri_split
+from datacube_zarr.utils.convert import convert_dir, convert_to_zarr, get_datasets
+from datacube_zarr.utils.uris import uri_split
 
-from .utils import copytree, raster_and_zarr_are_equal
+from .utils import _load_dataset, copytree, raster_and_zarr_are_equal
 
 
 def test_mock_s3_path(s3):
@@ -83,6 +83,15 @@ def test_convert_dir_geotif(
     converted_dir = outdir or data_dir
     for o in others_rel:
         assert (converted_dir / o).exists()
+
+
+def test_convert_ls8(ls8_dataset_path, tmp_path):
+    """Test converting ls8 dataset."""
+    out_dir = tmp_path / "out_dir"
+    zarrs = convert_dir(ls8_dataset_path, out_dir)
+    for z in zarrs:
+        ds = _load_dataset(z)
+        assert ds["band1"].size > 0
 
 
 def test_convert_unsupported(tmp_path):
