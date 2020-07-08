@@ -267,7 +267,6 @@ def tmp_storage_path(request, tmp_path, s3):
     if protocol == "s3":
         return S3Path(f"/{s3['root']}/{prefix}/")
     else:
-
         return tmp_path / prefix
 
 
