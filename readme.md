@@ -1,10 +1,11 @@
-# Open Data Cube Drivers
+# Open Data Cube Zarr Driver
 
 ## Overview
 
-This provides additional drivers for the Open Data Cube (ODC) project.
+This provides a Zarr [Plug-in driver](https://datacube-core.readthedocs.io/en/latest/architecture/driver.html)
+for the [Open Data Cube (ODC) project](https://github.com/opendatacube/datacube-core/).
 
-For ODC documentation and repository, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/) and [ODC repository](https://github.com/opendatacube/datacube-core/)
+For ODC documentation, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/)
 
 ## User Guides
 - Index and Ingestion
@@ -30,10 +31,12 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 ### Optional:
 - [EO Datasets](https://github.com/GeoscienceAustralia/eo-datasets)
   - Used in prepare scripts for generating EO3 compliant metadata.
+    ([Documentation](https://github.com/GeoscienceAustralia/eo-datasets/blob/eodatasets3/docs/index.rst))
 - [odc-tools](https://github.com/opendatacube/odc-tools)
   - Used for indexing datasets on S3
 - [index_from_s3_bucket](https://raw.githubusercontent.com/opendatacube/datacube-dataset-config/master/scripts/index_from_s3_bucket.py)
-  - Used for indexing datasets on S3
+  - Used for indexing datasets on S3.
+    ([Documentation](https://datacube-core.readthedocs.io/en/latest/ops/indexing.html#download-indexing-scripts))
 
 
 ## Developer setup
