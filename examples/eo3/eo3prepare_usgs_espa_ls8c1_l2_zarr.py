@@ -173,6 +173,7 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
         name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
     )
 
+
 # 1. Sanity check source metadata
 # 2. Populate EO3DatasetAssembler class from source metadata
 # 3. Call p.done() to validate and write the dataset YAML document
