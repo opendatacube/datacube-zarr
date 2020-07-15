@@ -12,7 +12,7 @@
          ```
       1. Option 2: EO3 LS8 example (Recommended)
          ```
-         python examples/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py -p docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml <zarr_output_dir>
+         python examples/eo3/eo3prepare_usgs_espa_ls8c1_l2_zarr.py -p docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml <zarr_output_dir>
          ```
    1. Initialise ODC DB
       ```

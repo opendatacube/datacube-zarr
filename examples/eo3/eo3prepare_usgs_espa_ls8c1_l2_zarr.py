@@ -22,7 +22,7 @@ from eodatasets3.ui import PathPath
 from rasterio.crs import CRS
 
 from datacube_zarr import ZarrIO
-from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
+from examples.eo3.eo3_assemble import EO3DatasetAssembler
 
 """
 label = Optional. Use as a human-readable version of the dataset ID (unique)

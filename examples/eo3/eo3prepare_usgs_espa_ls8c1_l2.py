@@ -16,10 +16,10 @@ from typing import Dict, Iterable, List, Optional, Union
 
 import click
 from bs4 import BeautifulSoup
+
 from eodatasets3.model import FileFormat
 from eodatasets3.ui import PathPath
-
-from examples.eo3_gtif.eo3_assemble import EO3DatasetAssembler
+from examples.eo3.eo3_assemble import EO3DatasetAssembler
 
 """
 label = Optional. Use as a human-readable version of the dataset ID (unique)
