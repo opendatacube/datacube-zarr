@@ -198,6 +198,62 @@ def main(
 
     Paths can be either local files/directories or 's3://' URIs.
 
+    For `--inplace` conversion, original datafiles are deleted and metadata
+    files left inplace. Where `--outpath` is specified metadata files are
+    copied to the new directory structure unless explicitly `--ignore`-ed.
+
+    Zarr format:
+
+    By default each raster dataset is converted to a zarr dataset with root
+    directory `<raster_name>.zarr`.
+
+    E.g., for raster(s) with 2 bands and shape (200, 300), and ommiting
+    the `--outpath` option for simplicity:
+
+    $ zarrify raster.tif
+
+        results in `raster.zarr` with the following structure, where each
+        band is a separate dataset named "band#" under the root group "/":
+
+        \b
+            /
+            ├── band1 (200, 300) float32
+            ├── band2 (200, 300) float32
+            ├── x (300,) float64
+            └── y (200,) float64
+
+    $ zarrify --multi-dim raster.tif
+
+        results in `raster.zarr` with bands collected into a single dataset
+        called "array" and "band" number is an additional dimension:
+
+        \b
+            /
+            ├── array (2, 200, 300) float32
+            ├── band (2,) int64
+            ├── x (300,) float64
+            └── y (200,) float64
+
+    $ zarrify --merge-datasets-per-dir path/to/rasters/
+
+        for a directory containing N rasters (e.g raster1.tif,...) results in
+        `raster.zarr` with a group per image:
+
+        \b
+            /
+            ├── raster0
+            │   ├── band1 (200, 300) float32
+            │   ├── band2 (200, 300) float32
+            │   ├── x (300,) float64
+            │   └── y (200,) float64
+            ...
+            └── rasterN
+                ├── band1 (200, 300) float32
+                ├── band2 (200, 300) float32
+                ├── x (300,) float64
+                └── y (200,) float64
+
+
     Output projection can be specified via `--crs` and/or `--resolution`.
 
     Chunking options should be set such that the resulting zarr chunks
