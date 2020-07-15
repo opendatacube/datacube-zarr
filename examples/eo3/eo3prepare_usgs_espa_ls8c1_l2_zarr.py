@@ -169,8 +169,9 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
     path = str(file_path.relative_to(assmebler._metadata_path.parent))
     img = da.values
     nodata = ds.nodatavals[0]
-    assmebler._measurements.record_image(name, grid, path, img, nodata)
-
+    assmebler._measurements.record_image(
+        name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
+    )
 
 # 1. Sanity check source metadata
 # 2. Populate EO3DatasetAssembler class from source metadata
