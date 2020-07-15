@@ -2,7 +2,6 @@ from setuptools import find_packages, setup
 
 tests_require = [
     'black',
-    'click',
     'flask',
     'flake8-isort',
     'hypothesis',
@@ -36,6 +35,7 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=[
         'boto3>=1.9.0',
+        'click>=5.0',
         'datacube>1.8.0',
         'numcodecs>=0.6.2',
         'rasterio>=1.0.4',
@@ -44,7 +44,7 @@ setup(
         'xarray>=0.14.1',
         'zarr>=2.3.2',
     ],
-    extras_require={'test': tests_require, 'tools': ['click'],},
+    extras_require={'test': tests_require},
     tests_require=tests_require,
     entry_points={
         'console_scripts': ['zarrify = datacube_zarr.tools.zarrify:main'],
