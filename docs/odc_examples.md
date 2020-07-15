@@ -1,7 +1,7 @@
 # ODC examples
 
 ## Convert to Zarr and Index (Recommended)
-   1. Convert to Zarr (see [`zarrify`](zarrify.md) for usage instructions)
+   1. Convert to Zarr (see [zarrify](zarrify.md) for usage instructions)
       ```
       zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_ls5_scenes>
       ```

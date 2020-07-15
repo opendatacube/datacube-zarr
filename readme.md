@@ -12,6 +12,7 @@ For ODC documentation, please see [ODC documentation](http://datacube-core.readt
   - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
   - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)
 - [ZarrIO usage](/docs/zarr_io.md)
+- [zarrify command line tool](/docs/zarrify.md)
 
 
 ## Drivers provided

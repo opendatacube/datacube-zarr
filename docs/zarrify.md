@@ -1,5 +1,5 @@
 # zarrify command line tool
-The `zarrify` tool converts existing raster datasets to Zarr format. It is installed as a command line tool with `datacube-zarr`.
+The `zarrify` tool converts existing raster datasets to [Zarr format](https://zarr.readthedocs.io/en/stable/spec/v2.html). It is installed as a command line tool with `datacube-zarr`.
 
 See usage below for details.
 ## Usage

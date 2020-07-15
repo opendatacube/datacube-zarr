@@ -3,7 +3,7 @@
 General steps for editing an existing prepare script to work with a  zarr dataset:
 1. Change where the file format is set from `"GeoTiff"` to `"zarr"`.
 2. Update the extraction/setting of image properties: `crs`, `transform`, `shape`, `nodata`. These properties should be read from zarr files using `ZarrIO` instead of from geotiffs (using e.g. `rasterio`).
-3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with [`zarrify`](zarrify.md) the zarr array will be named `"band1"` (this is the convention used by `zarrify`). E.g. for the LS8 EO3 example below, the metadata will change from:
+3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with [zarrify](zarrify.md) the zarr array will be named `"band1"` (this is the convention used by `zarrify`). E.g. for the LS8 EO3 example below, the metadata will change from:
 
         measurements:
             blue:

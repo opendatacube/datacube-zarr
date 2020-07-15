@@ -16,7 +16,8 @@ def generate_zarrify_doc():
     readme_file = DOC_DIRECTORY / "zarrify.md"
 
     intro = (
-        "The `zarrify` tool converts existing raster datasets to Zarr format. "
+        "The `zarrify` tool converts existing raster datasets to "
+        "[Zarr format](https://zarr.readthedocs.io/en/stable/spec/v2.html). "
         "It is installed as a command line tool with `datacube-zarr`.\n\n"
         "See usage below for details."
     )
