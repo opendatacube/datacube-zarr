@@ -67,6 +67,9 @@ See usage below for details.
                       ├── x (300,) float64
                       └── y (200,) float64
 
+          Note: converting existing heirarchical datasets (e.g. NetCDF) will
+          result in a similar grouped zarr structure.
+
       Output projection can be specified via `--crs` and/or `--resolution`.
 
       Chunking options should be set such that the resulting zarr chunks are
