@@ -8,6 +8,7 @@ for the [Open Data Cube (ODC) project](https://github.com/opendatacube/datacube-
 For ODC documentation, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/)
 
 ## User Guides
+- [zarrify command line tool](/docs/zarrify.md)
 - Index and Ingestion
   - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
   - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)

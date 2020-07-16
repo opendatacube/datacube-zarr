@@ -3,7 +3,7 @@
 General steps for editing an existing prepare script to work with a  zarr dataset:
 1. Change where the file format is set from `"GeoTiff"` to `"zarr"`.
 2. Update the extraction/setting of image properties: `crs`, `transform`, `shape`, `nodata`. These properties should be read from zarr files using `ZarrIO` instead of from geotiffs (using e.g. `rasterio`).
-3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with `zarrify` the zarr array will be named `"band1"` (this is the convention used by `zarrify`). E.g. for the LS8 EO3 example below, the metadata will change from:
+3. Change how measurement paths are set. A measurement referencing a zarr dataset must also include the `"layer"` property which references the zarr array name. In the typical case of a single-banded geotiff converted with [zarrify](zarrify.md) the zarr array will be named `"band1"` (this is the convention used by `zarrify`). E.g. for the LS8 EO3 example below, the metadata will change from:
 
         measurements:
             blue:
@@ -33,20 +33,21 @@ This script was created by editing GA's [galsprepare.py](https://github.com/open
 
 A small test dataset for LS8 surface reflectance data and corresponding EO3 metadata file is located in `tests/data/espa/ls8_sr/`.
 
-An EO3 metadata prepare script for the orginal geotiff data is provided here: [eo3prepare_usgs_espa_ls8c1_l2.py](/examples/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py). This was created based on GA's [eodatasets3](https://github.com/GeoscienceAustralia/eo-datasets) library.
+An EO3 metadata prepare script for the orginal geotiff data is provided here: [eo3prepare_usgs_espa_ls8c1_l2.py](/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2.py). This was created based on GA's [eodatasets3](https://github.com/GeoscienceAustralia/eo-datasets) library.
 
-An edited version for working with zarr datasets is provided here: [eo3prepare_usgs_espa_ls8c1_l2_zarr.py](/examples/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2.py).
+An edited version for working with zarr datasets is provided here: [eo3prepare_usgs_espa_ls8c1_l2_zarr.py](/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2.py).
 
 
-The diffs below show the changes described in the steps listed above:
+The diff below show the changes described in the steps listed above:
 
 ```diff
-diff --git a/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py b/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py
-index 32cf8ca..a3ed689 100644
---- a/eo3_gtif/eo3prepare_usgs_espa_ls8c1_l2.py
-+++ b/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py
-@@ -151,6 +154,24 @@ def read_xml(xml: Path) -> dict:
+diff --git a/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2.py b/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2_zarr.py
+index ad039fe..d61987e 100644
+--- a/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2.py
++++ b/examples/eo3/eo3prepare_usgs_espa_ls8c1_l2_zarr.py
+@@ -151,6 +154,26 @@ def read_xml(xml: Path) -> dict:
      return d
+
 
 +def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path):
 +    """
@@ -63,13 +64,15 @@ index 32cf8ca..a3ed689 100644
 +    path = str(file_path.relative_to(assmebler._metadata_path.parent))
 +    img = da.values
 +    nodata = ds.nodatavals[0]
-+    assmebler._measurements.record_image(name, grid, path, img, nodata)
++    assmebler._measurements.record_image(
++        name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
++    )
 +
 +
  # 1. Sanity check source metadata
  # 2. Populate EO3DatasetAssembler class from source metadata
  # 3. Call p.done() to validate and write the dataset YAML document
-@@ -188,7 +209,7 @@ def prepare_and_write(  # noqa: C901
+@@ -188,7 +211,7 @@ def prepare_and_write(  # noqa: C901
      data_format = mtl_doc["product_metadata"]["output_format"]
      if data_format.upper() != "GEOTIFF":
          raise NotImplementedError(f"Only GeoTIFF currently supported: {data_format}")
@@ -78,7 +81,7 @@ index 32cf8ca..a3ed689 100644
      # Get and grid cell size
      projection_params = mtl_doc["projection_parameters"]
      if (
-@@ -213,7 +234,8 @@ def prepare_and_write(  # noqa: C901
+@@ -213,7 +236,8 @@ def prepare_and_write(  # noqa: C901
          # Detministic ID based on USGS's product id
          # (which changes when the scene is reprocessed by them)
          p.dataset_id = uuid.uuid5(
@@ -88,7 +91,7 @@ index 32cf8ca..a3ed689 100644
          )
          p.product_uri = f"https://easi-eo.solutions/product/{p.product_name}"
          p.label = f"{p.product_name}-{mtl_doc['metadata_file_info']['landsat_scene_id']}"
-@@ -246,12 +268,10 @@ def prepare_and_write(  # noqa: C901
+@@ -246,12 +270,10 @@ def prepare_and_write(  # noqa: C901
          )
          p.dataset_version = f"{usgs_collection_number}.0.{p.processed:%Y%m%d}"
 
@@ -102,22 +105,4 @@ index 32cf8ca..a3ed689 100644
 +            add_measurements(p, measurement_name, file_location)
 
          p.add_accessory_file("metadata:landsat_mtl", mtl_path.name)
-
-```
-```diff
-diff --git a/eo3_gtif/eo3_assemble.py b/eo3_zarr/eo3_assemble.py
-index d0ac4ed..abd2350 100644
---- a/eo3_gtif/eo3_assemble.py
-+++ b/eo3_zarr/eo3_assemble.py
-@@ -281,6 +280,11 @@ class EO3DatasetAssembler(EoFields):
-         """
-         crs, grid_docs, measurement_docs = self._measurements.as_geo_docs()
-
-+        # Add layer to specify zarr variable to load
-+        # This should be added to `MeasurementRecord.record_image()`
-+        for md in measurement_docs.values():
-+            md.layer = "band1"
-+
-         if measurement_docs and sort_measurements:
-             measurement_docs = dict(sorted(measurement_docs.items()))
 ```

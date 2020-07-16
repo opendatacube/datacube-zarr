@@ -396,8 +396,8 @@ def telemetry_metadata_type_doc():
 
 @pytest.fixture
 def ga_metadata_type_doc():
-    _FULL_EO_METADATA = Path(__file__).parent.joinpath('extensive-eo-metadata.yaml')
-    [(path, eo_md_type)] = datacube.utils.read_documents(_FULL_EO_METADATA)
+    _full_eo_metadata = Path(__file__).parent.joinpath('extensive-eo-metadata.yaml')
+    [(path, eo_md_type)] = datacube.utils.read_documents(_full_eo_metadata)
     return eo_md_type
 
 
@@ -524,10 +524,10 @@ def clirunner_raw():
 
 @pytest.fixture
 def dataset_add_configs():
-    B = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
+    base = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
     return SimpleNamespace(
-        metadata=str(B / 'metadata.yml'),
-        products=str(B / 'products.yml'),
-        datasets_bad1=str(B / 'datasets_bad1.yml'),
-        datasets=str(B / 'datasets.yml'),
+        metadata=str(base / 'metadata.yml'),
+        products=str(base / 'products.yml'),
+        datasets_bad1=str(base / 'datasets_bad1.yml'),
+        datasets=str(base / 'datasets.yml'),
     )

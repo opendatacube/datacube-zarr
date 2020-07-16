@@ -4,6 +4,10 @@
 set -eu
 set -x
 
+# temporary hack to install latest `eodatasets3`
+pip install --upgrade git+https://github.com/GeoscienceAustralia/eo-datasets.git@eodatasets3#egg=eodatasets3
+
+
 flake8 .
 
 # static type checker

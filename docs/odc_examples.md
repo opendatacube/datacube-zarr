@@ -1,7 +1,7 @@
 # ODC examples
 
 ## Convert to Zarr and Index (Recommended)
-   1. Convert to Zarr (`zarrify --help` for usage instructions)
+   1. Convert to Zarr (see [zarrify](zarrify.md) for usage instructions)
       ```
       zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_ls5_scenes>
       ```
@@ -12,7 +12,7 @@
          ```
       1. Option 2: EO3 LS8 example (Recommended)
          ```
-         python examples/eo3_zarr/eo3prepare_usgs_espa_ls8c1_l2_zarr.py -p docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml <zarr_output_dir>
+         python examples/eo3/eo3prepare_usgs_espa_ls8c1_l2_zarr.py -p docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml <zarr_output_dir>
          ```
    1. Initialise ODC DB
       ```

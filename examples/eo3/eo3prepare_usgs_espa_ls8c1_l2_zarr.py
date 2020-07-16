@@ -22,7 +22,7 @@ from eodatasets3.ui import PathPath
 from rasterio.crs import CRS
 
 from datacube_zarr import ZarrIO
-from examples.eo3_zarr.eo3_assemble import EO3DatasetAssembler
+from examples.eo3.eo3_assemble import EO3DatasetAssembler
 
 """
 label = Optional. Use as a human-readable version of the dataset ID (unique)
@@ -169,7 +169,9 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
     path = str(file_path.relative_to(assmebler._metadata_path.parent))
     img = da.values
     nodata = ds.nodatavals[0]
-    assmebler._measurements.record_image(name, grid, path, img, nodata)
+    assmebler._measurements.record_image(
+        name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
+    )
 
 
 # 1. Sanity check source metadata
