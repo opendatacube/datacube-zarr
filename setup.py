@@ -11,6 +11,10 @@ tests_require = [
     'moto',
     'pytest',
     'pytest-cov',
+    'eodatasets3',
+    'GDAL',
+    'lxml',
+    'beautifulsoup4',
 ]
 
 
@@ -41,9 +45,6 @@ setup(
         's3fs>=0.2.0',
         'xarray>=0.14.1',
         'zarr>=2.3.2',
-        'GDAL>=3.0.4',
-        'lxml>=4.5.1',
-        'beautifulsoup4>=4.9.1',
     ],
     extras_require={'test': tests_require},
     tests_require=tests_require,
