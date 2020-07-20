@@ -11,8 +11,10 @@ tests_require = [
     'moto',
     'pytest',
     'pytest-cov',
-    # --- integration tests ---
-    'eodatasets3 @ git+https://github.com/GeoscienceAustralia/eo-datasets.git@eodatasets3#egg=eodatasets3',
+    'eodatasets3',
+    'GDAL',
+    'lxml',
+    'beautifulsoup4',
 ]
 
 
