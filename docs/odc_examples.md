@@ -3,14 +3,14 @@
 ## Convert to Zarr and Index (Recommended)
    1. Convert to Zarr (see [zarrify](zarrify.md) for usage instructions)
       ```
-      zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_ls5_scenes>
+      zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_dataset>
       ```
    1. Generate `agdc_metadata` file (see [Zarr prepare scripts](zarr_prepare_scripts.md))
-      1. Option 1: EO LS5 example
+      1. EO example with LS5 dataset
          ```
-         python examples/prepare_zarr_ls5.py <zarr_output_dir>
+         python examples/prepare_zarr_ls5.py <zarr_output_dir_nbar>
          ```
-      1. Option 2: EO3 LS8 example (Recommended)
+      1. EO3 example (Recommended) with LS8 dataset
          ```
          python examples/eo3/eo3prepare_usgs_espa_ls8c1_l2_zarr.py -p docs/config_samples/dataset_types/usgs_espa_ls8c1_sr_zarr.yaml <zarr_output_dir>
          ```
@@ -36,7 +36,7 @@
          python index_from_s3_bucket.py <bucket> -p <prefix> --suffix="agdc-metadata.yaml"
          ```
 
-## Index and Ingest
+## Index then Ingest to Zarr
    1. Generate `agdc_metadata` file
       See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
       ```
@@ -56,10 +56,13 @@
       datacube dataset add <path_to_ls5_scenes>/*
       ```
    1. Ingest scenes to Zarr format
+
+      Example ingest definitions in [docs/config_samples/ingester/]().
+
       ```
-      datacube -v ingest -c ls5_nbar_albers_zarr.yaml
+      datacube -v ingest -c ls5_nbar_albers_zarr_file.yaml
       ```
       You can specify `--executor multiproc <num_processes>` to enable multi-processing.
       ```
-      datacube -v ingest -c ls5_nbar_albers.yaml --executor multiproc <num_processes>
+      datacube -v ingest -c ls5_nbar_albers_zarr_file.yaml --executor multiproc <num_processes>
       ```

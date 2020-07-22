@@ -7,6 +7,8 @@ for the [Open Data Cube (ODC) project](https://github.com/opendatacube/datacube-
 
 For ODC documentation, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/)
 
+See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storage specification and Python library.
+
 ## User Guides
 - [zarrify command line tool](/docs/zarrify.md)
 - Index and Ingestion
@@ -19,8 +21,6 @@ For ODC documentation, please see [ODC documentation](http://datacube-core.readt
 
 - Zarr 2D driver
   - supports (s3, file) protocols
-
-See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storage specification and Python library.
 
 ## Requirements
 
@@ -45,7 +45,7 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 1. Install ODC (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
 1. Clone:
    ```
-   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-drivers
+   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-zarr
    ```
 1. Activate the conda environment you created when installing ODC
    ```
@@ -54,9 +54,9 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 1. Install new drivers from this repository.
    ```
    cd datacube-drivers
-   pip install --upgrade -e .[test,tools]
+   pip install --upgrade -e  ".[test]"
    ```
-1. Run (flake8-isort, mypy, black) + unit tests
+1. Run (flake8, isort, mypy, black) + unit tests
    ```
    ./check-code.sh
    ```
