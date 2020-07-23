@@ -66,7 +66,7 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
    ```
    - Assumes a password-less Postgres database running on localhost called `agdcintegration`
    - Otherwise copy `integration_tests/agdcintegration.conf` to `~/.datacube_integration.conf` and edit to customise.
- 1. **(or)** Run all tests with the `csiroeasi/datacube-drivers-test` docker image.
+ 1. **(or)** Run all tests, including integration tests with docker
     ```
     docker build -t datacube-zarr-test -f docker/Dockerfile .
     docker run --rm datacube-zarr-test ./check-code.sh integration_tests/
