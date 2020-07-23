@@ -80,7 +80,7 @@ def test_datasource_wrong_protocol(dataset):
     band_info.uri = 'foo://bar/baz'
     with pytest.raises(ValueError) as excinfo:
         ZarrDataSource(band_info)
-    assert str(excinfo.value) == 'Expected file:// or zarr:// url'
+    assert str(excinfo.value) == 'Expected file:// or s3:// url'
 
 
 def test_datasource_no_timeslice(dataset):
@@ -158,7 +158,7 @@ def test_uri_split_no_scheme():
 
 def test_zarr_reader_driver(dataset, odc_dataset):
     '''Check supported protocols and formats.'''
-    protocols = ['file', 's3', 'zarr']
+    protocols = ['file', 's3']
     formats = ['zarr']
     reader = reader_driver_init()
     assert isinstance(reader, ZarrReaderDriver)

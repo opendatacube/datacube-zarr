@@ -143,8 +143,8 @@ class ZarrDataSource(object):
 
         # convert band.uri -> protocol, root and group
         protocol, _, _ = uri_split(band.uri)
-        if protocol not in PROTOCOL + ['zarr']:
-            raise ValueError('Expected file:// or zarr:// url')
+        if protocol not in PROTOCOL:
+            raise ValueError('Expected file:// or s3:// url')
 
         self.uri = band.uri
 
@@ -176,7 +176,7 @@ class ZarrDataSource(object):
 class ZarrReaderDriver(object):
     def __init__(self) -> None:
         self.name = 'ZarrReader'
-        self.protocols = PROTOCOL + ['zarr']
+        self.protocols = PROTOCOL
         self.formats = [FORMAT]
 
     def supports(self, protocol: str, fmt: str) -> bool:
