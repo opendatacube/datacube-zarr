@@ -18,6 +18,7 @@ import click
 from affine import Affine
 from bs4 import BeautifulSoup
 from eodatasets3.images import GridSpec
+from eodatasets3.properties import FileFormat
 from eodatasets3.ui import PathPath
 from rasterio.crs import CRS
 
@@ -211,7 +212,7 @@ def prepare_and_write(  # noqa: C901
     data_format = mtl_doc["product_metadata"]["output_format"]
     if data_format.upper() != "GEOTIFF":
         raise NotImplementedError(f"Only GeoTIFF currently supported: {data_format}")
-    file_format = "Zarr"
+    file_format = FileFormat.Zarr
     # Get and grid cell size
     projection_params = mtl_doc["projection_parameters"]
     if (
