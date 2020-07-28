@@ -77,7 +77,7 @@ index ad039fe..d61987e 100644
      if data_format.upper() != "GEOTIFF":
          raise NotImplementedError(f"Only GeoTIFF currently supported: {data_format}")
 -    file_format = FileFormat.GeoTIFF
-+    file_format = "Zarr"
++    file_format = FileFormat.Zarr
      # Get and grid cell size
      projection_params = mtl_doc["projection_parameters"]
      if (
