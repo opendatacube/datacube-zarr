@@ -10,7 +10,11 @@ import zarr
 from datacube.utils.aws import auto_find_region
 from numcodecs import Zstd
 
+from datacube_zarr.utils.chunk import auto_chunk_dataset
+
 from .utils.uris import uri_split
+
+_APPROX_ZSTD_COMPRESSION_RATIO = 3.0
 
 
 class ZarrBase:
@@ -150,17 +154,23 @@ class ZarrIO(ZarrBase):
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
         compressor = Zstd(level=9)
+
         if chunks:
             dataset = dataset.chunk(chunks)
+        else:
+            dataset = auto_chunk_dataset(
+                ds=dataset,
+                target_mb=20,
+                compressor=compressor,
+                default_compression_ratio=_APPROX_ZSTD_COMPRESSION_RATIO,
+            )
+
+        encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
         _, _, group = uri_split(uri)
         store = self.get_root(uri)
         dataset.to_zarr(
-            store=store,
-            group=group,
-            mode=mode,
-            consolidated=True,
-            encoding={var: {'compressor': compressor} for var in dataset.data_vars},
+            store=store, group=group, mode=mode, consolidated=True, encoding=encoding,
         )
 
     def open_dataset(self, uri: str) -> xr.Dataset:

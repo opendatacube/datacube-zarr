@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
@@ -183,8 +184,13 @@ def raster_to_zarr(  # noqa: C901
                         arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
         uri = make_zarr_uri(root, group)
+
+        start = time.time()
         ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
-        logger.info(f"Created zarr: {uri}")
+        stop = time.time() - start
+        logger.info(
+            f"Created zarr: {uri[7:] if uri.startswith('file') else uri} ({stop:.1f} sec)"
+        )
         output_uris.append(uri)
 
     return output_uris
