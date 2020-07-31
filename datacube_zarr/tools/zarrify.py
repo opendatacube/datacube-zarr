@@ -170,6 +170,9 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
 )
 @click.option(
+    "--preload-data", is_flag=True, help="Load dataset into memory before conversion."
+)
+@click.option(
     "-v",
     "--verbose",
     is_flag=True,
@@ -189,6 +192,7 @@ def main(
     ignore: List[str],
     merge_datasets_per_dir: bool,
     multi_dim: bool,
+    preload_data: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -283,6 +287,7 @@ def main(
             chunks=chunks,
             merge_datasets_per_dir=merge_datasets_per_dir,
             multi_dim=multi_dim,
+            preload_data=preload_data,
         )
 
     # Convert this single supported dataset
@@ -301,6 +306,7 @@ def main(
                     resolution=resolution,
                     chunks=chunks,
                     multi_dim=multi_dim,
+                    preload_data=preload_data,
                 )
         except StopIteration:
             raise click.BadParameter(f"Unsupported dataset: {dataset}")

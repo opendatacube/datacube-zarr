@@ -118,6 +118,8 @@ def raster_to_zarr(  # noqa: C901
     zarr_name: Optional[str] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
+    multi_dim: bool = False,
+    preload_data: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
     """
@@ -151,9 +153,12 @@ def raster_to_zarr(  # noqa: C901
 
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
             da = xr.open_rasterio(src)
+            if preload_data:
+                logger.info(f"Preloading {src} into memory.")
+                da.load()
+
             nbands = da.shape[0]
 
-            multi_dim = zarrgs.pop("multi_dim", False)
             dim = None if multi_dim else "band"
             name = _DEFAULT_ARRAY if multi_dim else None
             ds = da.to_dataset(dim=dim, name=name)
