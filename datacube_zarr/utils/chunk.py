@@ -98,7 +98,7 @@ def determine_dataarray_chunks(
     # if data array total size is less than target then don't chunk
     if da.nbytes / (target_mb * (1024 ** 2)) < default_compression_ratio:
         chunks = dict(da.sizes)
-        logger.info(f"No chunking required for '{da.name}', {chunks}.")
+        logger.debug(f"No chunking required for '{da.name}', {chunks}.")
         return chunks
 
     # default to chunking on the last 2 dimensions only
@@ -112,7 +112,7 @@ def determine_dataarray_chunks(
     r = r_est or default_compression_ratio
 
     chunks = calculate_chunk_sizes(da.sizes, chunk_dims, da.dtype, target_mb * r)
-    logger.info(
+    logger.debug(
         f"Chunking '{da.name}' with {chunks} using {'evaluated' if r_est else 'default'} "
         f"compression ratio {r:.2f}."
     )

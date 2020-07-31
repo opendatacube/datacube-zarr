@@ -154,7 +154,7 @@ def raster_to_zarr(  # noqa: C901
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
             da = xr.open_rasterio(src)
             if preload_data:
-                logger.info(f"Preloading {src} into memory.")
+                logger.debug(f"Preloading {src.name} into memory.")
                 da.load()
 
             nbands = da.shape[0]
