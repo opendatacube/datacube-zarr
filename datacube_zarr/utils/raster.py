@@ -172,7 +172,9 @@ def raster_to_zarr(  # noqa: C901
                     ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
             else:
                 # Rename variable keys to strings required by zarr
-                ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
+                ds = ds.rename_vars(
+                    {k: f"band{k:0{len(str(nbands))}d}" for k in ds.data_vars.keys()}
+                )
 
                 # Copy DataSet attrs to each DataArray
                 for i, arr in enumerate(ds.data_vars.values()):
