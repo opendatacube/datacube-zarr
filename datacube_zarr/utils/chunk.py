@@ -69,9 +69,9 @@ def estimate_compression_ratio(
     # Try to estimate compression ratio for "normal" data (i.e. for chunks
     # that are not all the same value)
     generate_test_ratios = (_eval_compression_ratio(w) for w in chunk_windows)
-    max_tests = 10
-    n_normal_req = 3
-    r_normal_threshold = 4.0
+    max_tests = 15
+    n_normal_req = 5
+    r_normal_threshold = 10.0
     rs_normal = []
     rs_other = []
     for r in islice(generate_test_ratios, max_tests):
