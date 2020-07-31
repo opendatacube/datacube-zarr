@@ -31,10 +31,10 @@ TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 TEST_DATA_LS8 = PROJECT_ROOT / 'tests' / 'data' / 'espa' / 'ls8_sr'
 
 CHUNKS = (
-    {  # When no chunk set, xarray and zarr decide. For a 1300x1300 data, it is:
+    {  # When no chunk set, auto chunk for target 20MB. For a 1300x1300 data, it is:
         'input': None,
-        'chunks_per_side': 4,
-        'output': [325, 325],
+        'chunks_per_side': 1,
+        'output': [1300, 1300],
     },
     {  # User specified chunks, input and output should match
         'input': {'dim_0': 1000, 'dim_1': 1100},
