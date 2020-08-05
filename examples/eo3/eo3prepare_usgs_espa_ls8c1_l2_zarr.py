@@ -14,16 +14,16 @@ import warnings
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
-from eodatasets3.images import GridSpec
-from eodatasets3.properties import FileFormat
-from eodatasets3.ui import PathPath
-
 import click
 from affine import Affine
 from bs4 import BeautifulSoup
+from eodatasets3.images import GridSpec
+from eodatasets3.properties import FileFormat
+from eodatasets3.ui import PathPath
+from rasterio.crs import CRS
+
 from datacube_zarr import ZarrIO
 from examples.eo3.eo3_assemble import EO3DatasetAssembler
-from rasterio.crs import CRS
 
 """
 label = Optional. Use as a human-readable version of the dataset ID (unique)
