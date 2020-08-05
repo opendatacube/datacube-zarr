@@ -14,11 +14,11 @@ import warnings
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
-import click
-from bs4 import BeautifulSoup
 from eodatasets3.properties import FileFormat
 from eodatasets3.ui import PathPath
 
+import click
+from bs4 import BeautifulSoup
 from examples.eo3.eo3_assemble import EO3DatasetAssembler
 
 """
@@ -210,8 +210,9 @@ def prepare_and_write(  # noqa: C901
         overwrite=overwrite,
     ) as p:
 
-        p.label = mtl_doc['metadata_file_info']['landsat_product_id'] + \
-            f'-{p.product_name}'
+        p.label = (
+            mtl_doc['metadata_file_info']['landsat_product_id'] + f'-{p.product_name}'
+        )
         # Detministic ID based on USGS's product id
         # (which changes when the scene is reprocessed by them)
         p.dataset_id = uuid.uuid5(USGS_UUID_NAMESPACE, p.label)
