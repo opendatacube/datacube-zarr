@@ -120,6 +120,7 @@ def raster_to_zarr(  # noqa: C901
     resolution: Optional[Tuple[float, float]] = None,
     multi_dim: bool = False,
     preload_data: bool = False,
+    auto_chunk: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
     """
@@ -162,6 +163,10 @@ def raster_to_zarr(  # noqa: C901
             dim = None if multi_dim else "band"
             name = _DEFAULT_ARRAY if multi_dim else None
             ds = da.to_dataset(dim=dim, name=name)
+
+            if auto_chunk:
+                zarrgs["chunks"] = {d: "auto" for d in list(ds.dims)[-2:]}
+                logger.debug(f"Auto setting chunk options to {zarrgs['chunks']}")
 
             if multi_dim:
                 # DataSet attrs already passed to DataArray. Set nodata and tags.
