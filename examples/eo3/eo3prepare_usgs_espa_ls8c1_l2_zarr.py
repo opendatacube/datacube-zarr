@@ -234,14 +234,13 @@ def prepare_and_write(  # noqa: C901
         overwrite=overwrite,
     ) as p:
 
+        p.label = (
+            mtl_doc['metadata_file_info']['landsat_product_id'] + f'-{p.product_name}'
+        )
         # Detministic ID based on USGS's product id
         # (which changes when the scene is reprocessed by them)
-        p.dataset_id = uuid.uuid5(
-            USGS_UUID_NAMESPACE,
-            mtl_doc["metadata_file_info"]["landsat_product_id"] + "zarr",
-        )
-        p.product_uri = f"https://easi-eo.solutions/product/{p.product_name}"
-        p.label = f"{p.product_name}-{mtl_doc['metadata_file_info']['landsat_scene_id']}"
+        p.dataset_id = uuid.uuid5(USGS_UUID_NAMESPACE, p.label + "zarr")
+        p.product_uri = f"https://products.easi-eo.solutions/{p.product_name}"
 
         p.platform = mtl_doc["product_metadata"]["spacecraft_id"]
         p.instrument = mtl_doc["product_metadata"]["sensor_id"]
