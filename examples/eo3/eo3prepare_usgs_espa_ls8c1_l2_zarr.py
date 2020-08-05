@@ -235,7 +235,7 @@ def prepare_and_write(  # noqa: C901
     ) as p:
 
         p.label = mtl_doc['metadata_file_info']['landsat_product_id'] + \
-                    f'-{p.product_name}'
+            f'-{p.product_name}'
         # Detministic ID based on USGS's product id
         # (which changes when the scene is reprocessed by them)
         p.dataset_id = uuid.uuid5(USGS_UUID_NAMESPACE, p.label + "zarr")
