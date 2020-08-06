@@ -131,7 +131,7 @@ def _check_chunk_options(
     if auto_chunk:
         if chunks:
             raise ValueError("Cannot use both `--auto-chunk` and `--chunk` options.")
-    elif (chunks is None or "auto" not in chunks) and (
+    elif (chunks is None or "auto" not in chunks.values()) and (
         chunk_target_mb is not None or approx_compression_ratio is not None
     ):
         logger.warning(

@@ -96,20 +96,21 @@ def test_zarrify_bad_chunk_options(zarrifycli, tmp_path, chunks):
 
 
 chunk_params = [
-    ([], [200, 300]),
-    (["--chunk", "x:50", "--chunk", "y:30"], [30, 50]),
-    (["--auto-chunk", "--chunk-target-mb", "0.01"], [81, 81]),
-    (["--chunk", "x:100", "--chunk", "y:auto", "--chunk-target-mb", "0.01"], [66, 100]),
-    (["--chunk", "x:-1", "--chunk", "y:auto", "--chunk-target-mb", "0.01"], [22, 300]),
-    (["--chunk", "y:auto"], [200, 300]),
-    (["--chunk-target-mb", "0.0001", "--chunk", "y:auto"], [1, 300]),
+    ("", [200, 300]),
+    ("--chunk x:50 --chunk y:30", [30, 50]),
+    ("--auto-chunk --chunk-target-mb 0.01", [81, 81]),
+    ("--chunk x:100 --chunk y:auto --chunk-target-mb 0.01", [66, 100]),
+    ("--chunk x:-1 --chunk y:auto --chunk-target-mb 0.01", [22, 300]),
+    ("--chunk y:auto --chunk-target-mb 0.01 --approx-compression-ratio 5", [44, 300]),
+    ("--chunk y:auto", [200, 300]),
+    ("--chunk-target-mb 0.0001 --chunk y:auto", [1, 300]),
 ]
 
 
 @pytest.mark.parametrize("chunks_opts,chunks", chunk_params)
 def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
     """Test zarrify cli."""
-    res = zarrifycli(["--inplace", "-v", tmp_raster.as_uri()] + chunks_opts)
+    res = zarrifycli(["--inplace", "-v", tmp_raster.as_uri()] + chunks_opts.split())
     assert res.exit_code == 0, res.stdout
     assert not tmp_raster.exists()
     zarr_path = tmp_raster.parent / f"{tmp_raster.stem}.zarr"
