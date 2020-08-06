@@ -232,7 +232,7 @@ def shrink_storage_type(storage_type, variables, shrink_factors):
     storage = storage_type['storage']
     for var in variables:
         storage['resolution'][var] = storage['resolution'][var] * shrink_factors[0]
-        storage['chunking'][var] = storage['chunking'][var] / shrink_factors[1]
+        storage['chunking'][var] = int(storage['chunking'][var] / shrink_factors[1])
     return storage_type
 
 

@@ -2,16 +2,13 @@ import random
 import string
 import threading
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from time import sleep
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 import boto3
 import numpy as np
 import pyproj
-import rasterio
 import xarray as xr
 from click.testing import CliRunner
 from datacube import Datacube
@@ -23,7 +20,7 @@ from s3path import S3Path, _s3_accessor
 from datacube_zarr import ZarrIO
 from datacube_zarr.tools.zarrify import main as zarrify
 from datacube_zarr.utils.uris import uri_join
-from tests.utils import copytree
+from tests.utils import copytree, create_random_raster
 
 PROJECT_ROOT = Path(__file__).parents[1]
 
@@ -213,50 +210,6 @@ def odc_dataset_2d(dataset, tmpdir):
     root = Path(tmpdir) / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)
-
-
-def create_random_raster_local(
-    outdir: Path,
-    label: str = "raster",
-    height: int = 200,
-    width: int = 300,
-    nbands: int = 1,
-) -> Path:
-    """Create a raster with random data."""
-    outdir.mkdir(parents=True, exist_ok=True)
-    dtype = np.float32
-    data = np.random.randn(nbands, height, width).astype(dtype)
-    file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
-
-    bbox = [149, 35, 150, 36]
-    transform = rasterio.transform.from_bounds(*bbox, width, height)
-    meta = {
-        "driver": "GTiff",
-        "count": nbands,
-        "width": width,
-        "height": height,
-        "crs": rasterio.crs.CRS.from_epsg("4326"),
-        "nodata": None,
-        "dtype": dtype,
-        "transform": transform,
-    }
-
-    with rasterio.open(file_path.as_uri(), "w", **meta) as dst:
-        dst.write(data)
-
-    return file_path
-
-
-def create_random_raster(outdir: Path, **kwargs: Any) -> Path:
-    """Create random raster on s3 or locally."""
-    if outdir.as_uri().startswith("file://"):
-        raster_file = create_random_raster_local(outdir, **kwargs)
-    else:
-        with TemporaryDirectory() as savedir:
-            tmp_file = create_random_raster_local(Path(savedir), **kwargs)
-            raster_file = outdir / tmp_file.relative_to(Path(savedir))
-            raster_file.write_bytes(tmp_file.read_bytes())
-    return raster_file
 
 
 @pytest.fixture(params=('file', 's3'))

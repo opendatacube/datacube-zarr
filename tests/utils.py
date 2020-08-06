@@ -2,10 +2,58 @@
 import re
 from json import load, loads
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any
 
+import numpy as np
+import rasterio
 import xarray as xr
 
 from datacube_zarr import ZarrIO
+
+
+def create_random_raster_local(
+    outdir: Path,
+    label: str = "raster",
+    height: int = 200,
+    width: int = 300,
+    nbands: int = 1,
+) -> Path:
+    """Create a raster with random data."""
+    outdir.mkdir(parents=True, exist_ok=True)
+    dtype = np.float32
+    data = np.random.randn(nbands, height, width).astype(dtype)
+    file_path = outdir / f"{label}_{nbands}x{height}x{width}.tif"
+
+    bbox = [149, 35, 150, 36]
+    transform = rasterio.transform.from_bounds(*bbox, width, height)
+    meta = {
+        "driver": "GTiff",
+        "count": nbands,
+        "width": width,
+        "height": height,
+        "crs": rasterio.crs.CRS.from_epsg("4326"),
+        "nodata": None,
+        "dtype": dtype,
+        "transform": transform,
+    }
+
+    with rasterio.open(file_path.as_uri(), "w", **meta) as dst:
+        dst.write(data)
+
+    return file_path
+
+
+def create_random_raster(outdir: Path, **kwargs: Any) -> Path:
+    """Create random raster on s3 or locally."""
+    if outdir.as_uri().startswith("file://"):
+        raster_file = create_random_raster_local(outdir, **kwargs)
+    else:
+        with TemporaryDirectory() as savedir:
+            tmp_file = create_random_raster_local(Path(savedir), **kwargs)
+            raster_file = outdir / tmp_file.relative_to(Path(savedir))
+            raster_file.write_bytes(tmp_file.read_bytes())
+    return raster_file
 
 
 def copytree(p1: Path, p2: Path) -> None:
