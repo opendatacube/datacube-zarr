@@ -75,10 +75,11 @@ See usage below for details.
       Default behaviour is to for no chunking of the zarr dataset. Chunk sizes
       for each dimension may be set with `--chunk <dim>:<size>`.
 
-      The chunk `<size>` may be specified as any one of:     - The integer -1,
-      for no chunking (i.e. dim length) [default],     - An integer N, for a
-      fixed chunk size,     - The string 'auto', for automatically determined
-      chunksize.
+      The chunk `<size>` may be specified as any one of:
+
+          - The integer -1, for no chunking (i.e. dim length) [default],
+          - An integer N, for a fixed chunk size,
+          - The string 'auto', for automatically determined chunksize.
 
       Automatically determined chunk sizes are based on `--chunk-target-mb`, the
       dtype of the data and `--approx-compression-ratio`. The flag `--auto-

@@ -316,6 +316,8 @@ def main(
     sizes for each dimension may be set with `--chunk <dim>:<size>`.
 
     The chunk `<size>` may be specified as any one of:
+
+    \b
         - The integer -1, for no chunking (i.e. dim length) [default],
         - An integer N, for a fixed chunk size,
         - The string 'auto', for automatically determined chunksize.
