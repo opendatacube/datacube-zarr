@@ -9,6 +9,7 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 
+# Defaults for calculating chunk sizes
 ZARR_TARGET_CHUNK_SIZE_MB = 20.0
 DEFAULT_COMPRESSION_RATIO = 2.5
 
@@ -18,12 +19,20 @@ def calculate_auto_chunk_sizes(
     chunks: Mapping[Hashable, Union[str, int]],
     chunk_total: int,
 ) -> Dict[Hashable, int]:
-    """Determine 'auto' chunk lengths for a target chunk size."""
+    """Determine 'auto' chunk lengths for a target chunk size.
+
+    :param sizes: Mapping from dimension identifier to size of dimension
+    :param chunks: Mapping from dimension identifier to chunk size (e.g. 'auto', -1, or N)
+    :param chunk_total: Total size of chunk (i.e. number of elements)
+    :return: Calculated chunk sizes of each dimension
+    """
     assert set(sizes).issubset(set(chunks))
 
     auto_dims = [d for d in sizes.keys() if chunks[d] == "auto"]
     fixed_dims = [d for d in sizes.keys() if d not in auto_dims]
-    fixed_size = np.prod([sizes[d] if chunks[d] == -1 else chunks[d] for d in fixed_dims])
+    fixed_size = np.prod(
+        [sizes[d] if chunks[d] == -1 else min(chunks[d], sizes[d]) for d in fixed_dims]
+    )
 
     if fixed_size >= chunk_total:
         auto_chunks = {d: 1 for d in auto_dims}
@@ -43,7 +52,9 @@ def calculate_auto_chunk_sizes(
             chunk_rem /= auto_chunks[d]
         logger.debug(f"Auto chunking dims: {auto_chunks}.")
 
-    chunks_updated = {d: auto_chunks.get(d) or int(chunks[d]) for d in sizes}
+    chunks_updated = {
+        d: auto_chunks.get(d) or int(min(chunks[d], sizes[d])) for d in sizes
+    }
     return chunks_updated
 
 
@@ -87,7 +98,7 @@ def validate_chunks(
 
 def chunk_dataset(
     ds: xr.Dataset,
-    chunks: Optional[Dict[Hashable, Union[str, int]]] = None,
+    chunks: Optional[Mapping[Hashable, Union[str, int]]] = None,
     target_mb: float = ZARR_TARGET_CHUNK_SIZE_MB,
     compression_ratio: float = DEFAULT_COMPRESSION_RATIO,
 ) -> xr.Dataset:

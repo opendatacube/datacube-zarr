@@ -6,7 +6,7 @@ Command line tool for converting dataset to Zarr format.
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Mapping, Optional, Tuple, Union
 
 import click
 from rasterio.crs import CRS
@@ -122,7 +122,7 @@ def _check_path_options(outpath: Optional[Path], inplace: bool) -> None:
 
 
 def _check_chunk_options(
-    chunks: Optional[Dict[str, Union[str, int]]],
+    chunks: Optional[Mapping[str, Union[str, int]]],
     auto_chunk: bool,
     chunk_target_mb: Optional[float],
     approx_compression_ratio: Optional[float],
@@ -337,8 +337,13 @@ def main(
     chunks = dict(chunk) if chunk else None
     _check_chunk_options(chunks, auto_chunk, chunk_target_mb, approx_compression_ratio)
 
-    # kwargs to pass to zarr_io
+    # kwargs to pass to conversion function and zarr_io save_dataset
     zarrgs = {
+        "crs": crs,
+        "resolution": resolution,
+        "multi_dim": multi_dim,
+        "preload_data": preload_data,
+        "auto_chunk": auto_chunk,
         "chunks": chunks,
         "target_mb": chunk_target_mb,
         "compression_ratio": approx_compression_ratio,
@@ -352,12 +357,7 @@ def main(
             in_dir=dataset,
             out_dir=outpath,
             ignore=ignore,
-            crs=crs,
-            resolution=resolution,
             merge_datasets_per_dir=merge_datasets_per_dir,
-            multi_dim=multi_dim,
-            preload_data=preload_data,
-            auto_chunk=auto_chunk,
             **zarrgs,
         )
 
@@ -371,14 +371,7 @@ def main(
                 logger.warning(f"Ignoring dataset: {dataset}")
             else:
                 convert_to_zarr(
-                    files=files,
-                    out_dir=outpath,
-                    crs=crs,
-                    resolution=resolution,
-                    multi_dim=multi_dim,
-                    preload_data=preload_data,
-                    auto_chunk=auto_chunk,
-                    **zarrgs,
+                    files=files, out_dir=outpath, zarr_name=None, **zarrgs,
                 )
         except StopIteration:
             raise click.BadParameter(f"Unsupported dataset: {dataset}")

@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Hashable, Optional, Union
+from typing import Any, Dict, Hashable, Mapping, Optional, Union
 
 import fsspec
 import s3fs
@@ -138,7 +138,7 @@ class ZarrIO(ZarrBase):
         self,
         uri: str,
         dataset: xr.Dataset,
-        chunks: Optional[Dict[Hashable, Union[str, int]]] = None,
+        chunks: Optional[Mapping[Hashable, Union[str, int]]] = None,
         mode: str = 'w-',
         target_mb: float = ZARR_TARGET_CHUNK_SIZE_MB,
         compression_ratio: float = DEFAULT_COMPRESSION_RATIO,
