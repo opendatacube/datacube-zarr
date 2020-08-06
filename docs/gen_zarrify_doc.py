@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 """Generate basic readme doc for zarrify click application."""
 
 from pathlib import Path

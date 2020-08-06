@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Hashable, Mapping, Optional, Union
 
 import fsspec
 import s3fs
@@ -9,6 +9,12 @@ import xarray as xr
 import zarr
 from datacube.utils.aws import auto_find_region
 from numcodecs import Zstd
+
+from datacube_zarr.utils.chunk import (
+    DEFAULT_COMPRESSION_RATIO,
+    ZARR_TARGET_CHUNK_SIZE_MB,
+    chunk_dataset,
+)
 
 from .utils.uris import uri_split
 
@@ -132,8 +138,10 @@ class ZarrIO(ZarrBase):
         self,
         uri: str,
         dataset: xr.Dataset,
-        chunks: Optional[dict] = None,
+        chunks: Optional[Mapping[Hashable, Union[str, int]]] = None,
         mode: str = 'w-',
+        target_mb: float = ZARR_TARGET_CHUNK_SIZE_MB,
+        compression_ratio: float = DEFAULT_COMPRESSION_RATIO,
     ) -> None:
         """
         Saves a xarray.Dataset
@@ -150,17 +158,13 @@ class ZarrIO(ZarrBase):
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
         compressor = Zstd(level=9)
-        if chunks:
-            dataset = dataset.chunk(chunks)
+        dataset = chunk_dataset(dataset, chunks, target_mb, compression_ratio)
+        encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
         _, _, group = uri_split(uri)
         store = self.get_root(uri)
         dataset.to_zarr(
-            store=store,
-            group=group,
-            mode=mode,
-            consolidated=True,
-            encoding={var: {'compressor': compressor} for var in dataset.data_vars},
+            store=store, group=group, mode=mode, consolidated=True, encoding=encoding,
         )
 
     def open_dataset(self, uri: str) -> xr.Dataset:

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Iterator, List, Optional, Tuple
 
 import boto3
-from rasterio.crs import CRS
 
 from datacube_zarr.utils.raster import raster_to_zarr
 
@@ -70,8 +69,6 @@ def convert_dir(
     in_dir: Path,
     out_dir: Optional[Path] = None,
     ignore: Optional[List[str]] = None,
-    crs: Optional[CRS] = None,
-    resolution: Optional[Tuple[float, float]] = None,
     merge_datasets_per_dir: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
@@ -86,10 +83,8 @@ def convert_dir(
     :param in_dir: directory (or S3 path) under-which to convert rasters to zarr
     :param out_dir: directory (or S3 path) to save converted datasets
     :param ignore: list of glob patterns specifying files to ignore
-    :param crs: output coordinate system to reproject to
-    :param resolution: output resolution
     :param merge_datasets_per_dir: option to merge all tifs found at a directory level
-    :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
+    :param zarrgs: keyword arguments to pass to conversion function and zarr_io
     """
     assert in_dir.is_dir()
     output_zarrs = []
@@ -103,7 +98,7 @@ def convert_dir(
             zarr_name = commonprefix([f[0].stem for f in datasets]) or in_dir.name
 
         for files in datasets:
-            zarrs = convert_to_zarr(files, out_dir, zarr_name, crs, resolution, **zarrgs)
+            zarrs = convert_to_zarr(files, out_dir, zarr_name, **zarrgs)
             output_zarrs.extend(zarrs)
             converted_files.extend(files)
 
@@ -114,9 +109,7 @@ def convert_dir(
         if p.relative_to(in_dir).name and not ignore_file(p, ignore_patterns):
             out_p = out_dir / p.name if out_dir else None
             if p.is_dir():
-                zarrs = convert_dir(
-                    p, out_p, ignore, crs, resolution, merge_datasets_per_dir, **zarrgs
-                )
+                zarrs = convert_dir(p, out_p, ignore, merge_datasets_per_dir, **zarrgs)
                 output_zarrs.extend(zarrs)
             elif out_p is not None:
                 if out_p.as_uri().startswith("file://") and not out_p.parent.exists():
@@ -130,8 +123,6 @@ def convert_to_zarr(
     files: List[Path],
     out_dir: Optional[Path] = None,
     zarr_name: Optional[str] = None,
-    crs: Optional[CRS] = None,
-    resolution: Optional[Tuple[float, float]] = None,
     **zarrgs: Any,
 ) -> List[str]:
     """
@@ -140,9 +131,7 @@ def convert_to_zarr(
     :param files: list of file making up the dataset (local filesystem or S3)
     :param out_dir: output directory (local filesystem or S3)
     :param zarr_name: name to give the created `.zarr` dataset
-    :param crs: output coordinate system to reproject to
-    :param resolution: output resolution
-    :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
+    :param zarrgs: keyword arguments to pass to conversion function and zarr_io
     :return: list of generated zarr URIs
     """
     data_file = files[0]
@@ -151,7 +140,7 @@ def convert_to_zarr(
         out_dir = data_file.parent
 
     if data_file.suffix in _RASTERIO_FILES:
-        zarrs = raster_to_zarr(data_file, out_dir, zarr_name, crs, resolution, **zarrgs)
+        zarrs = raster_to_zarr(data_file, out_dir, zarr_name, **zarrgs)
     else:
         raise ValueError(f"Unsupported data file format: {data_file.suffix}")
 

@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
@@ -117,6 +118,9 @@ def raster_to_zarr(  # noqa: C901
     zarr_name: Optional[str] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
+    multi_dim: bool = False,
+    preload_data: bool = False,
+    auto_chunk: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
     """
@@ -150,12 +154,19 @@ def raster_to_zarr(  # noqa: C901
 
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
             da = xr.open_rasterio(src)
+            if preload_data:
+                logger.debug(f"Preloading {src.name} into memory.")
+                da.load()
+
             nbands = da.shape[0]
 
-            multi_dim = zarrgs.pop("multi_dim", False)
             dim = None if multi_dim else "band"
             name = _DEFAULT_ARRAY if multi_dim else None
             ds = da.to_dataset(dim=dim, name=name)
+
+            if auto_chunk:
+                zarrgs["chunks"] = {d: "auto" for d in list(ds.dims)[-2:]}
+                logger.debug(f"Auto setting chunk options to {zarrgs['chunks']}")
 
             if multi_dim:
                 # DataSet attrs already passed to DataArray. Set nodata and tags.
@@ -166,7 +177,9 @@ def raster_to_zarr(  # noqa: C901
                     ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
             else:
                 # Rename variable keys to strings required by zarr
-                ds = ds.rename_vars({k: f"band{k}" for k in ds.data_vars.keys()})
+                ds = ds.rename_vars(
+                    {k: f"band{k:0{len(str(nbands))}d}" for k in ds.data_vars.keys()}
+                )
 
                 # Copy DataSet attrs to each DataArray
                 for i, arr in enumerate(ds.data_vars.values()):
@@ -183,8 +196,13 @@ def raster_to_zarr(  # noqa: C901
                         arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
 
         uri = make_zarr_uri(root, group)
+
+        start = time.time()
         ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
-        logger.info(f"Created zarr: {uri}")
+        stop = time.time() - start
+        logger.info(
+            f"Created zarr: {uri[7:] if uri.startswith('file') else uri} ({stop:.1f} sec)"
+        )
         output_uris.append(uri)
 
     return output_uris

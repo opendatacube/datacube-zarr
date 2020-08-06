@@ -6,7 +6,7 @@ Command line tool for converting dataset to Zarr format.
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Mapping, Optional, Tuple, Union
 
 import click
 from rasterio.crs import CRS
@@ -21,7 +21,7 @@ from datacube_zarr.utils.convert import (
     ignore_file,
 )
 
-logger = logging.getLogger()
+logger = logging.getLogger("zarrify")
 handler = logging.StreamHandler()
 
 
@@ -46,6 +46,21 @@ class KeyValue(click.ParamType):
         """Convert key:valueto tuple."""
         k, v = value.split(self.sep, 1)
         return self.key_fn(k), self.value_fn(v)
+
+
+def _chunk_size_value(value: str) -> Union[int, str]:
+    """Validate/cast chunk size."""
+    if value == "auto":
+        return value
+    else:
+        try:
+            size = int(value)
+            if size > 0 or size == -1:
+                return size
+        except ValueError:
+            pass
+
+    raise ValueError(f"Invalid chunk size: {value}")
 
 
 class FileOrS3Path(click.ParamType):
@@ -97,13 +112,32 @@ class ClickCRS(click.ParamType):
         return p
 
 
-def check_options(outpath: Optional[Path], inplace: bool) -> None:
+def _check_path_options(outpath: Optional[Path], inplace: bool) -> None:
     """Some checks on command inputs."""
     if not outpath and not inplace:
         raise click.UsageError("--inplace flag is required if --outpath is not set.")
 
     if outpath and inplace:
         raise click.UsageError("Can not set both --outpath and --inplace options.")
+
+
+def _check_chunk_options(
+    chunks: Optional[Mapping[str, Union[str, int]]],
+    auto_chunk: bool,
+    chunk_target_mb: Optional[float],
+    approx_compression_ratio: Optional[float],
+) -> None:
+    """Some checks on chunk options."""
+    if auto_chunk:
+        if chunks:
+            raise ValueError("Cannot use both `--auto-chunk` and `--chunk` options.")
+    elif (chunks is None or "auto" not in chunks.values()) and (
+        chunk_target_mb is not None or approx_compression_ratio is not None
+    ):
+        logger.warning(
+            "No 'auto' chunk sizes specified. Options `--chunk_target_mb` and "
+            "`--approx_compression_ratio` will be ignored."
+        )
 
 
 def absolute_ignores(ignore: List[str], abs_path: Path) -> List[str]:
@@ -126,7 +160,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     logger.addHandler(handler)
     logger.setLevel(log_level)
 
-    for logger_name in ("boto3", "botocore", "urllib3", "rasterio"):
+    for logger_name in ("boto3", "botocore", "fsspec", "rasterio", "s3fs", "urllib3"):
         logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
@@ -157,9 +191,22 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
 )
 @click.option(
     "--chunk",
-    type=KeyValue(value=int),
+    type=KeyValue(value=_chunk_size_value),
     multiple=True,
     help="Zarr chunk option '<dim>:<size>'.",
+)
+@click.option(
+    "--chunk-target-mb",
+    type=click.FloatRange(min=0),
+    help="Target chunk size (MB) used for 'auto' chunking.",
+)
+@click.option(
+    "--approx-compression-ratio",
+    type=click.FloatRange(min=0),
+    help="Compression ratio used for 'auto' chunking.",
+)
+@click.option(
+    "--auto-chunk", is_flag=True, help="Chunk on last two dimensions only.",
 )
 @click.option(
     "--merge-datasets-per-dir",
@@ -168,6 +215,9 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
 )
 @click.option(
     "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
+)
+@click.option(
+    "--preload-data", is_flag=True, help="Load dataset into memory before conversion."
 )
 @click.option(
     "-v",
@@ -186,9 +236,13 @@ def main(
     crs: Optional[CRS],
     resolution: Optional[Tuple[float, float]],
     chunk: Optional[List[Tuple[str, int]]],
+    chunk_target_mb: Optional[float],
+    approx_compression_ratio: Optional[float],
+    auto_chunk: bool,
     ignore: List[str],
     merge_datasets_per_dir: bool,
     multi_dim: bool,
+    preload_data: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -236,8 +290,8 @@ def main(
 
     $ zarrify --merge-datasets-per-dir path/to/rasters/
 
-        for a directory containing N rasters (e.g raster1.tif,...) results in
-        `raster.zarr` with a group per image:
+        for a directory containing N rasters (e.g raster1.tif,...) results
+        in `raster.zarr` with a group per image:
 
         \b
             /
@@ -256,20 +310,50 @@ def main(
         Note: converting existing heirarchical datasets (e.g. NetCDF) will
         result in a similar grouped zarr structure.
 
-    Output projection can be specified via `--crs` and/or `--resolution`.
+    Chunking:
 
-    Chunking options should be set such that the resulting zarr chunks
-    are approx 10-20 MB. For 2D arrays, a chunk size of ~2000 is a good
-    starting point.
+    Default behaviour is to not chunk the zarr dataset. Chunk sizes for
+    each dimension may be set with `--chunk <dim>:<size>`. The chunk
+    `<size>` may be specified as any one of:
 
-    Supported datasets: ENVI, GeoTiff, HDF, JPEG2000.
+    \b
+        - the integer -1, for no chunking (i.e. <dim> length) [default]
+        - an integer N, for a fixed chunk size
+        - the string 'auto', for automatically determined chunksize
+
+    Automatically determined chunk sizes are based on `--chunk-target-mb`,
+    the dtype of the data, and `--approx-compression-ratio`. The flag
+    `--auto-chunk` can be used as shorthand for setting chunk size to
+    'auto' on the last two dimensions and -1 on all other dimensions.
+
+    Reprojection:
+
+    The output projection can be specified via `--crs` and/or `--resolution`.
+
+    Supported datasets:
+
+    ENVI, GeoTiff, HDF, JPEG2000.
 
     Note: Only gridded HDF datasets are supported. s3:// paths are not
     supported for HDF4 datasets.
     """
-    check_options(outpath, inplace)
+    _check_path_options(outpath, inplace)
     ignore = absolute_ignores(ignore, dataset)
     chunks = dict(chunk) if chunk else None
+    _check_chunk_options(chunks, auto_chunk, chunk_target_mb, approx_compression_ratio)
+
+    # kwargs to pass to conversion function and zarr_io save_dataset
+    zarrgs = {
+        "crs": crs,
+        "resolution": resolution,
+        "multi_dim": multi_dim,
+        "preload_data": preload_data,
+        "auto_chunk": auto_chunk,
+        "chunks": chunks,
+        "target_mb": chunk_target_mb,
+        "compression_ratio": approx_compression_ratio,
+    }
+    zarrgs = {k: v for k, v in zarrgs.items() if v is not None}
 
     # Recurse into directory an convert supported datasets
     if dataset.is_dir():
@@ -278,11 +362,8 @@ def main(
             in_dir=dataset,
             out_dir=outpath,
             ignore=ignore,
-            crs=crs,
-            resolution=resolution,
-            chunks=chunks,
             merge_datasets_per_dir=merge_datasets_per_dir,
-            multi_dim=multi_dim,
+            **zarrgs,
         )
 
     # Convert this single supported dataset
@@ -295,12 +376,7 @@ def main(
                 logger.warning(f"Ignoring dataset: {dataset}")
             else:
                 convert_to_zarr(
-                    files=files,
-                    out_dir=outpath,
-                    crs=crs,
-                    resolution=resolution,
-                    chunks=chunks,
-                    multi_dim=multi_dim,
+                    files=files, out_dir=outpath, zarr_name=None, **zarrgs,
                 )
         except StopIteration:
             raise click.BadParameter(f"Unsupported dataset: {dataset}")

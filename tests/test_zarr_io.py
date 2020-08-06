@@ -6,7 +6,7 @@ import xarray as xr
 
 from datacube_zarr.zarr_io import ZarrIO
 
-from ..utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
+from .utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
 
 
 def test_save_dataarray(uri, s3, chunks, data):
