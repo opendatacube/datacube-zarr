@@ -72,23 +72,26 @@ See usage below for details.
 
       Chunking:
 
-      Default behaviour is to for no chunking of the zarr dataset. Chunk sizes
-      for each dimension may be set with `--chunk <dim>:<size>`.
+      Default behaviour is to not chunk the zarr dataset. Chunk sizes for each
+      dimension may be set with `--chunk <dim>:<size>`. The chunk `<size>` may
+      be specified as any one of:
 
-      The chunk `<size>` may be specified as any one of:
-
-          - The integer -1, for no chunking (i.e. dim length) [default],
-          - An integer N, for a fixed chunk size,
-          - The string 'auto', for automatically determined chunksize.
+          - the integer -1, for no chunking (i.e. <dim> length) [default]
+          - an integer N, for a fixed chunk size
+          - the string 'auto', for automatically determined chunksize
 
       Automatically determined chunk sizes are based on `--chunk-target-mb`, the
-      dtype of the data and `--approx-compression-ratio`. The flag `--auto-
+      dtype of the data, and `--approx-compression-ratio`. The flag `--auto-
       chunk` can be used as shorthand for setting chunk size to 'auto' on the
       last two dimensions and -1 on all other dimensions.
 
-      Output projection can be specified via `--crs` and/or `--resolution`.
+      Reprojection:
 
-      Supported datasets: ENVI, GeoTiff, HDF, JPEG2000.
+      The output projection can be specified via `--crs` and/or `--resolution`.
+
+      Supported datasets:
+
+      ENVI, GeoTiff, HDF, JPEG2000.
 
       Note: Only gridded HDF datasets are supported. s3:// paths are not
       supported for HDF4 datasets.
