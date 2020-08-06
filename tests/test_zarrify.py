@@ -109,7 +109,7 @@ chunk_params = [
 @pytest.mark.parametrize("chunks_opts,chunks", chunk_params)
 def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
     """Test zarrify cli."""
-    res = zarrifycli(["--inplace", tmp_raster.as_uri()] + chunks_opts)
+    res = zarrifycli(["--inplace", "-v", tmp_raster.as_uri()] + chunks_opts)
     assert res.exit_code == 0, res.stdout
     assert not tmp_raster.exists()
     zarr_path = tmp_raster.parent / f"{tmp_raster.stem}.zarr"
@@ -119,7 +119,7 @@ def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
 
 def test_zarrify_no_dataset(zarrifycli, tmp_path):
     """Test no dataset."""
-    res = zarrifycli(["--inplace", str(tmp_path / "dataset")])
+    res = zarrifycli(["--inplace", "-v", str(tmp_path / "dataset")])
     assert res.exit_code != 0, res.stdout
 
 
@@ -127,7 +127,7 @@ def test_zarrify_unsuppported_dataset(zarrifycli, tmp_path):
     """Test no dataset."""
     ds = tmp_path / "dataset.xyz"
     ds.touch()
-    res = zarrifycli(["--inplace", str(ds)])
+    res = zarrifycli(["--inplace", "-v", str(ds)])
     assert res.exit_code != 0, res.stdout
 
 
