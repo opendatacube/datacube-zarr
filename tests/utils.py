@@ -191,3 +191,16 @@ def _check_zarr_bucket(data, root, group_name, name, chunks, s3):
         ]
     )
     assert chunk_files == expected_chunk_files, 'Unexpected chunk files'
+
+
+def message_is_logged(log_record, text, logger=None, level=None):
+    """Check if `text` is present in log record."""
+
+    def _match(msg_logger, msg_level, msg_text):
+        return (
+            (logger is None or logger == msg_logger)
+            and (level is None or level == msg_level)
+            and re.match(text, msg_text)
+        )
+
+    return any(_match(*rec) for rec in log_record.record_tuples)

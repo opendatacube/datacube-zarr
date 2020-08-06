@@ -1,6 +1,7 @@
 """Test zarrify cli tool."""
 
 import json
+import logging
 
 import pytest
 import click
@@ -8,7 +9,7 @@ from rasterio.crs import CRS
 
 from datacube_zarr.tools.zarrify import ClickCRS, FileOrS3Path, KeyValue
 
-from .utils import create_random_raster
+from .utils import create_random_raster, message_is_logged
 
 keyvalue_params = [
     ("a:b", {}, ("a", "b")),
@@ -118,6 +119,20 @@ def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
     assert_expected_chunking(zarr_path, chunks)
 
 
+@pytest.mark.parametrize(
+    "chunks_opts", ["--chunk-target-mb 0.01", "--approx-compression-ratio 5"]
+)
+def test_chunk_options_warn(zarrifycli, caplog, tmp_path, chunks_opts):
+    ds = tmp_path / "dataset.tif"
+    ds.touch()
+    zarrifycli(["--inplace", "-v", str(ds)] + chunks_opts.split())
+    text = (
+        "No 'auto' chunk sizes specified. Options `--chunk_target_mb` and "
+        "`--approx_compression_ratio` will be ignored."
+    )
+    assert message_is_logged(caplog, text, level=logging.WARNING)
+
+
 def test_zarrify_no_dataset(zarrifycli, tmp_path):
     """Test no dataset."""
     res = zarrifycli(["--inplace", "-v", str(tmp_path / "dataset")])
@@ -132,9 +147,10 @@ def test_zarrify_unsuppported_dataset(zarrifycli, tmp_path):
     assert res.exit_code != 0, res.stdout
 
 
-def test_zarrify_ignore_dataset(zarrifycli, tmp_raster):
+def test_zarrify_ignore_dataset(zarrifycli, tmp_raster, caplog):
     """Test no dataset."""
     res = zarrifycli(["--inplace", "--ignore", "*.tif", tmp_raster.as_uri()])
     assert res.exit_code == 0, res.stdout
     assert tmp_raster.exists()
     assert not (tmp_raster.parent / f"{tmp_raster.stem}.zarr").exists()
+    assert message_is_logged(caplog, "Ignoring dataset", level=logging.WARNING)
