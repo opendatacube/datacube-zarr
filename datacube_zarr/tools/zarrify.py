@@ -22,7 +22,6 @@ from datacube_zarr.utils.convert import (
 )
 
 logger = logging.getLogger("zarrify")
-handler = logging.StreamHandler()
 
 
 class KeyValue(click.ParamType):
@@ -156,9 +155,11 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
         formatter = logging.Formatter("%(levelname)-8s %(message)s")
         log_level = logging.INFO
 
+    handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(log_level)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(log_level)
 
     for logger_name in ("boto3", "botocore", "fsspec", "rasterio", "s3fs", "urllib3"):
         logging.getLogger(logger_name).setLevel(logging.ERROR)
