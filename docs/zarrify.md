@@ -122,6 +122,7 @@ See usage below for details.
                                       arrays.
 
       --preload-data                  Load dataset into memory before conversion.
+      --progress                      Display progress bar for zarr creation.
       -v, --verbose                   Enables verbose mode.
       --version                       Show the version and exit.
       --help                          Show this message and exit.

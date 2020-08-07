@@ -2,14 +2,15 @@
 
 import logging
 import re
-import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from time import perf_counter
+from typing import Any, Iterator, List, Optional, Tuple, Union
 
 import rasterio
 import xarray as xr
 import zarr
+from dask.diagnostics import ProgressBar
 from rasterio.crs import CRS
 from rasterio.warp import calculate_default_transform
 
@@ -22,6 +23,19 @@ _META_PREFIX = "zmeta"
 _RASTERIO_BAND_ATTRS = ("scales", "offsets", "units", "descriptions")
 
 logger = logging.getLogger(__name__)
+
+
+class _SimpleTimer:
+    last_duration: Optional[float] = None
+
+
+@contextmanager
+def _simple_timer() -> Iterator[_SimpleTimer]:
+    """Simple timer context with `last_duration` to match dask `ProgressBar`."""
+    start = perf_counter()
+    t = _SimpleTimer()
+    yield t
+    t.last_duration = perf_counter() - start
 
 
 def make_zarr_uri(root: Path, group: Optional[str] = None) -> str:
@@ -121,6 +135,7 @@ def raster_to_zarr(  # noqa: C901
     multi_dim: bool = False,
     preload_data: bool = False,
     auto_chunk: bool = False,
+    progress: bool = False,
     **zarrgs: Any,
 ) -> List[str]:
     """
@@ -197,12 +212,15 @@ def raster_to_zarr(  # noqa: C901
 
         uri = make_zarr_uri(root, group)
 
-        start = time.time()
-        ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
-        stop = time.time() - start
+        progress_ctx = ProgressBar if progress else _simple_timer
+        with progress_ctx() as p:
+            ZarrIO().save_dataset(uri=uri, dataset=ds, **zarrgs)
+
         logger.info(
-            f"Created zarr: {uri[7:] if uri.startswith('file') else uri} ({stop:.1f} sec)"
+            f"Created zarr: {uri[7:] if uri.startswith('file') else uri} "
+            f"({p.last_duration:.1f} sec)"
         )
+
         output_uris.append(uri)
 
     return output_uris

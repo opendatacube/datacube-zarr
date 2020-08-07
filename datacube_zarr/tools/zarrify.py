@@ -220,6 +220,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
 @click.option(
     "--preload-data", is_flag=True, help="Load dataset into memory before conversion."
 )
+@click.option("--progress", is_flag=True, help="Display progress bar for zarr creation.")
 @click.option(
     "-v",
     "--verbose",
@@ -244,6 +245,7 @@ def main(
     merge_datasets_per_dir: bool,
     multi_dim: bool,
     preload_data: bool,
+    progress: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -350,6 +352,7 @@ def main(
         "multi_dim": multi_dim,
         "preload_data": preload_data,
         "auto_chunk": auto_chunk,
+        "progress": progress,
         "chunks": chunks,
         "target_mb": chunk_target_mb,
         "compression_ratio": approx_compression_ratio,
