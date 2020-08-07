@@ -14,6 +14,7 @@ from datacube_zarr.utils.raster import raster_to_zarr
 
 _SUPPORTED_FORMATS = {
     "ENVI": (".img/.hdr", ".bip/.hdr", ".bil/.hdr", ".bip/.hdr",),
+    "ERS": (".ers/.ers.aux.xml/",),
     "GeoTiff": (".tif", ".tiff", ".gtif"),
     "HDF": (".hdf", ".h5",),
     "JPEG2000": (".jp2",),
@@ -22,6 +23,7 @@ _SUPPORTED_FORMATS = {
 
 _RASTERIO_FORMATS = (
     "ENVI",
+    "ERS",
     "GeoTiff",
     "HDF",
     "JPEG2000",

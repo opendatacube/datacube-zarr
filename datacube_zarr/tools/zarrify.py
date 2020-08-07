@@ -332,7 +332,7 @@ def main(
 
     Supported datasets:
 
-    ENVI, GeoTiff, HDF, JPEG2000.
+    ENVI, ERS, GeoTiff, HDF, JPEG2000.
 
     Note: Only gridded HDF datasets are supported. s3:// paths are not
     supported for HDF4 datasets.
