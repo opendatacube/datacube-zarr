@@ -22,7 +22,6 @@ from datacube_zarr.utils.convert import (
 )
 
 logger = logging.getLogger("zarrify")
-handler = logging.StreamHandler()
 
 
 class KeyValue(click.ParamType):
@@ -156,9 +155,11 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
         formatter = logging.Formatter("%(levelname)-8s %(message)s")
         log_level = logging.INFO
 
+    handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(log_level)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(log_level)
 
     for logger_name in ("boto3", "botocore", "fsspec", "rasterio", "s3fs", "urllib3"):
         logging.getLogger(logger_name).setLevel(logging.ERROR)
@@ -219,6 +220,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
 @click.option(
     "--preload-data", is_flag=True, help="Load dataset into memory before conversion."
 )
+@click.option("--progress", is_flag=True, help="Display progress bar for zarr creation.")
 @click.option(
     "-v",
     "--verbose",
@@ -243,6 +245,7 @@ def main(
     merge_datasets_per_dir: bool,
     multi_dim: bool,
     preload_data: bool,
+    progress: bool,
 ) -> None:
     """Convert datasets to Zarr format.
 
@@ -332,7 +335,7 @@ def main(
 
     Supported datasets:
 
-    ENVI, GeoTiff, HDF, JPEG2000.
+    ENVI, ERS, GeoTiff, HDF, JPEG2000.
 
     Note: Only gridded HDF datasets are supported. s3:// paths are not
     supported for HDF4 datasets.
@@ -349,6 +352,7 @@ def main(
         "multi_dim": multi_dim,
         "preload_data": preload_data,
         "auto_chunk": auto_chunk,
+        "progress": progress,
         "chunks": chunks,
         "target_mb": chunk_target_mb,
         "compression_ratio": approx_compression_ratio,

@@ -51,7 +51,7 @@ def test_zarrify_prepare_index_ls5(
 
     # zarrify geotiffs
     runner = CliRunner()
-    zarrify_args = ["--chunk", "x:500", "--chunk", "y:500"]
+    zarrify_args = ["--chunk", "x:500", "--chunk", "y:500", "--progress"]
     if convert_inplace:
         zarrify_args.append("--inplace")
         zarr_dir = ls5_dataset_path.parent
