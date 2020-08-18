@@ -13,5 +13,5 @@ Please select if appropriate :
  - [ ] Ready to be reviewed and merged
  - [ ] This is a Breaking Change
  - [ ] Tests added / passed
- - [ ] Documented, including `docs/` if required
+ - [ ] Documented, including `docs/` and `docs/about/whats_new.md` if required
  - [ ] Branch can be deleted
