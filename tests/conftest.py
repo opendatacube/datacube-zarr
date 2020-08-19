@@ -47,6 +47,9 @@ s3_count = 0
 runs.'''
 
 
+_MOCK_S3_REGION = "mock-region"
+
+
 @pytest.fixture
 def s3_bucket_name():
     global s3_count
@@ -72,7 +75,7 @@ def mock_aws_aws_credentials(monkeypatch_session):
     '''Mocked AWS Credentials for moto.'''
     monkeypatch_session.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
     monkeypatch_session.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
-    monkeypatch_session.setenv('AWS_DEFAULT_REGION', 'mock-region')
+    monkeypatch_session.setenv('AWS_DEFAULT_REGION', _MOCK_S3_REGION)
 
 
 @pytest.fixture(scope="session")
@@ -97,15 +100,18 @@ def moto_s3_server(monkeypatch_session):
 def s3_client(moto_s3_server, mock_aws_aws_credentials):
     '''Mock s3 client.'''
     with mock_s3():
-        client = boto3.client('s3', region_name='mock-region')
-        _s3_accessor.s3 = boto3.resource('s3', region_name='mock-region')
+        client = boto3.client('s3', region_name=_MOCK_S3_REGION)
+        _s3_accessor.s3 = boto3.resource('s3', region_name=_MOCK_S3_REGION)
         yield client
 
 
 @pytest.fixture
 def s3(s3_client, s3_bucket_name):
     '''Mock s3 client and root url.'''
-    s3_client.create_bucket(Bucket=s3_bucket_name)
+    s3_client.create_bucket(
+        Bucket=s3_bucket_name,
+        CreateBucketConfiguration={'LocationConstraint': _MOCK_S3_REGION},
+    )
     root = f'{s3_bucket_name}/mock-dir/mock-subdir'
     yield {'client': s3_client, 'root': root}
 
