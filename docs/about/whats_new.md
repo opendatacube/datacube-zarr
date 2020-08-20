@@ -5,7 +5,8 @@
 ## v0.1.1 (xx August 2020)
 --------------------------
 
-- 
+- Workaround for pytest fails with moto and s3fs.
+- Support for latest version of moto before it is released.
 - Support ERS datasets / fix logging / optional progress bar.
 - Zarrify: option to preload data and to determine ideal chunk size.
 - Update prepare scripts for eo-datasets PR #88
