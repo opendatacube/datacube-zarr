@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Hashable, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Hashable, Mapping, Optional, Union
 
 import fsspec
 import s3fs
@@ -9,13 +9,14 @@ import xarray as xr
 import zarr
 from datacube.utils.aws import auto_find_region
 from numcodecs import Zstd
+from xarray.backends.common import ArrayWriter
+from xarray.backends.zarr import DIMENSION_KEY, ZarrStore
 
-from datacube_zarr.utils.chunk import (
+from .utils.chunk import (
     DEFAULT_COMPRESSION_RATIO,
     ZARR_TARGET_CHUNK_SIZE_MB,
     chunk_dataset,
 )
-
 from .utils.context_manager import dask_threadsafe_config
 from .utils.uris import uri_split
 
@@ -226,3 +227,77 @@ class ZarrIO(ZarrBase):
         metadata: Dict[str, Any] = {}
         self.save_dataset(uri=uri, dataset=dataset, chunks=chunks)
         return metadata
+
+
+def _xarray_dim_rename_visitor(
+    old: str, new: str
+) -> Callable[[Union[zarr.Array, zarr.Group]], None]:
+    """Change xarray attributes specifying dataset dims."""
+
+    def update_xr_dimension_key(zval: Union[zarr.Array, zarr.Group]) -> None:
+        """Replace xarray dimension name for each array."""
+        try:
+            zval.attrs[DIMENSION_KEY] = [
+                new if k == old else k for k in zval.attrs[DIMENSION_KEY]
+            ]
+        except KeyError:
+            raise KeyError(f"xarray datasets must contain '{DIMENSION_KEY}' attr.")
+
+    return update_xr_dimension_key
+
+
+def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -> None:
+    """Replace a dataset dimension with a new name or entire coordinates.
+
+    :param uri: The dataset URI
+    :param dim: Name of the dimension to replace
+    :param new: The new dimension name or named 1D coordinate data
+    """
+    root = ZarrIO().get_root(uri)
+    _, _, group = uri_split(uri)
+    is_consolidated = ".zmetadata" in root
+    zstore = ZarrStore.open_group(
+        root, mode="r+", group=group, consolidate_on_close=is_consolidated
+    )
+
+    new_name = new if isinstance(new, str) else new.name
+
+    if dim not in zstore.get_dimensions():
+        raise KeyError(f"Dimension '{dim}' does not exist.")
+
+    if new_name in zstore.get_variables():
+        raise KeyError(f"Dataset already contains variable named '{new_name}'.")
+
+    dim_has_coords = dim in zstore.get_variables()
+
+    if isinstance(new, str):
+        if dim_has_coords:
+            zstore.ds.move(dim, new_name)
+    else:
+        if not dim_has_coords:
+            raise ValueError(f"Dimension '{dim}' has no coordinates.")
+
+        zarray = zstore.ds[dim]
+
+        if not len(zarray) == len(new):
+            raise ValueError(
+                f"Data has incompatible length ({len(new)}) with "
+                f"dimension '{dim}' ({len(zarray)})."
+            )
+
+        if zarray.dtype == new.dtype:
+            # If coord data is same dtype, move and assign data in place with zarr
+            zstore.ds.move(dim, new.name)
+            zarray[:] = new.data
+        else:
+            # If coord data is a new dtype, delete and add new variable using xarray
+            del zstore.ds[dim]
+            writer = ArrayWriter()
+            zstore.set_variables(
+                variables={new.name: new}, check_encoding_set=[], writer=writer,
+            )
+            writer.sync()
+
+    # Update references to the old dimension in xarray attributes
+    zstore.ds.visitvalues(_xarray_dim_rename_visitor(dim, new_name))
+    zstore.close()

@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import xarray as xr
 
-from datacube_zarr.zarr_io import ZarrIO
+from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 
 from .utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
 
@@ -232,3 +232,15 @@ def test_save_datasets_nested_zarr(uri, data):
         if group:
             ds = xr.open_zarr(store=store, group=group, consolidated=False)
             assert np.array_equal(dataset, ds[name].values)
+
+
+def test_rename_dataset_dim(uri, data, s3):
+    """Test rename dim in zarr dataset with no coords."""
+    _save_dataset(data, uri, "data")
+    ds_a = ZarrIO().load_dataset(uri)
+    rename_dict = {"dim_0": "x", "dim_1": "y"}
+    for old, new in rename_dict.items():
+        replace_dataset_dim(uri, old, new)
+
+    ds_b = ZarrIO().load_dataset(uri)
+    assert ds_a.rename_dims(rename_dict).equals(ds_b)
