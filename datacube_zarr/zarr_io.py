@@ -236,12 +236,9 @@ def _xarray_dim_rename_visitor(
 
     def update_xr_dimension_key(zval: Union[zarr.Array, zarr.Group]) -> None:
         """Replace xarray dimension name for each array."""
-        try:
-            zval.attrs[DIMENSION_KEY] = [
-                new if k == old else k for k in zval.attrs[DIMENSION_KEY]
-            ]
-        except KeyError:
-            raise KeyError(f"xarray datasets must contain '{DIMENSION_KEY}' attr.")
+        zval.attrs[DIMENSION_KEY] = [
+            new if k == old else k for k in zval.attrs[DIMENSION_KEY]
+        ]
 
     return update_xr_dimension_key
 
@@ -250,7 +247,7 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
     """Replace a dataset dimension with a new name or entire coordinates.
 
     :param uri: The dataset URI
-    :param dim: Name of the dimension to replace
+    :param dim: Name of the dimension to rename/replace
     :param new: The new dimension name or named 1D coordinate data
     """
     root = ZarrIO().get_root(uri)
@@ -287,8 +284,8 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
 
         if zarray.dtype == new.dtype:
             # If coord data is same dtype, move and assign data in place with zarr
-            zstore.ds.move(dim, new.name)
             zarray[:] = new.data
+            zstore.ds.move(dim, new.name)
         else:
             # If coord data is a new dtype, delete and add new variable using xarray
             del zstore.ds[dim]

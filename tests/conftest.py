@@ -19,6 +19,7 @@ from s3path import S3Path, _s3_accessor
 
 from datacube_zarr import ZarrIO
 from datacube_zarr.tools.zarrify import main as zarrify
+from datacube_zarr.utils.raster import raster_to_zarr
 from datacube_zarr.utils.uris import uri_join
 from tests.utils import copytree, create_random_raster
 
@@ -246,6 +247,17 @@ def tmp_raster_multiband(tmp_raster_storage_path):
     outdir = tmp_raster_storage_path / "geotif_multi"
     raster = create_random_raster(outdir, nbands=5)
     yield raster
+
+
+@pytest.fixture
+def tmp_3d_zarr(tmp_raster_multiband):
+    out_dir = tmp_raster_multiband.parent
+    chunks = {"x": 100, "y": 100, "band": -1}
+    uris = raster_to_zarr(
+        tmp_raster_multiband, out_dir=out_dir, multi_dim=True, chunks=chunks
+    )
+    assert len(uris) == 1
+    yield uris[0]
 
 
 @pytest.fixture()
