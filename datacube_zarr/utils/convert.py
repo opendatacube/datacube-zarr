@@ -13,10 +13,10 @@ import boto3
 from datacube_zarr.utils.raster import raster_to_zarr
 
 _SUPPORTED_FORMATS = {
-    "ENVI": (".img/.hdr", ".bip/.hdr", ".bil/.hdr", ".bip/.hdr",),
+    "ENVI": (".img/.hdr", ".bip/.hdr", ".bil/.hdr", ".bip/.hdr"),
     "ERS": (".ers/.ers.aux.xml/",),
     "GeoTiff": (".tif", ".tiff", ".gtif"),
-    "HDF": (".hdf", ".h5",),
+    "HDF": (".hdf", ".h5"),
     "JPEG2000": (".jp2",),
     "NetCDF": (".nc",),
 }

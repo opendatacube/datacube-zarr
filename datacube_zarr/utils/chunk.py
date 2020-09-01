@@ -59,7 +59,7 @@ def calculate_auto_chunk_sizes(
 
 
 def validate_chunks(
-    dims: Sequence[Hashable], chunks: Optional[Mapping[Hashable, Union[str, int]]] = None,
+    dims: Sequence[Hashable], chunks: Optional[Mapping[Hashable, Union[str, int]]] = None
 ) -> Dict[Hashable, Union[str, int]]:
     """Validate chunk dict and set default chunk size to -1 (no chunking).
 

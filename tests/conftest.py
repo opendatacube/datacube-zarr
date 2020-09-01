@@ -150,7 +150,7 @@ def dataset(tmpdir):
     Based on datacube-core/tests/test_load_data.py'''
     tmpdir = Path(str(tmpdir))
 
-    spatial = dict(resolution=(15, -15), offset=(11230, 1381110),)
+    spatial = dict(resolution=(15, -15), offset=(11230, 1381110))
 
     nodata = -999
     array = mk_test_image(96, 64, 'int16', nodata=nodata)

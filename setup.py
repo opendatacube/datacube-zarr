@@ -49,8 +49,14 @@ setup(
     extras_require={'test': tests_require},
     tests_require=tests_require,
     entry_points={
-        'console_scripts': ['zarrify = datacube_zarr.tools.zarrify:main'],
-        'datacube.plugins.io.read': ['zarr = datacube_zarr.driver:reader_driver_init',],
-        'datacube.plugins.io.write': ['zarr = datacube_zarr.driver:writer_driver_init',],
+        'console_scripts': [
+            'zarrify = datacube_zarr.tools.zarrify:main',
+        ],
+        'datacube.plugins.io.read': [
+            'zarr = datacube_zarr.driver:reader_driver_init',
+        ],
+        'datacube.plugins.io.write': [
+            'zarr = datacube_zarr.driver:writer_driver_init',
+        ],
     },
 )

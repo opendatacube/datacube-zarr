@@ -167,7 +167,7 @@ class ZarrIO(ZarrBase):
 
         with dask_threadsafe_config(protocol):
             dataset.to_zarr(
-                store=store, group=group, mode=mode, consolidated=True, encoding=encoding,
+                store=store, group=group, mode=mode, consolidated=True, encoding=encoding
             )
 
     def open_dataset(self, uri: str) -> xr.Dataset:

@@ -79,7 +79,7 @@ def _reproject_tif(tif, out_dir, crs=None, resolution=None):
     with rasterio.open(tif.as_uri()) as src:
         dst_crs = crs or src.crs
         transform, width, height = calculate_default_transform(
-            src.crs, dst_crs, src.width, src.height, *src.bounds, resolution=resolution,
+            src.crs, dst_crs, src.width, src.height, *src.bounds, resolution=resolution
         )
         meta = src.meta.copy()
         meta.update(
@@ -121,7 +121,7 @@ def test_reproject(ls5_dataset_path, tmp_path, proj_params):
     out_dir = tmp_path / "tif"
     out_dir.mkdir()
 
-    tif_reproj = _reproject_tif(ls5_tif, out_dir=out_dir, **proj_params,)
+    tif_reproj = _reproject_tif(ls5_tif, out_dir=out_dir, **proj_params)
 
     uris = raster_to_zarr(ls5_tif, tmp_path / "zarr", **proj_params)
     assert len(uris) == 1

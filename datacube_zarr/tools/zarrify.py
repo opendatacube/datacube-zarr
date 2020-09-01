@@ -206,9 +206,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     type=click.FloatRange(min=0),
     help="Compression ratio used for 'auto' chunking.",
 )
-@click.option(
-    "--auto-chunk", is_flag=True, help="Chunk on last two dimensions only.",
-)
+@click.option("--auto-chunk", is_flag=True, help="Chunk on last two dimensions only.")
 @click.option(
     "--merge-datasets-per-dir",
     is_flag=True,
@@ -379,9 +377,7 @@ def main(
             if ignore_file(files[0], ignore):
                 logger.warning(f"Ignoring dataset: {dataset}")
             else:
-                convert_to_zarr(
-                    files=files, out_dir=outpath, zarr_name=None, **zarrgs,
-                )
+                convert_to_zarr(files=files, out_dir=outpath, zarr_name=None, **zarrgs)
         except StopIteration:
             raise click.BadParameter(f"Unsupported dataset: {dataset}")
 

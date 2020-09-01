@@ -181,9 +181,7 @@ def test_overwrite_dataset(uri, fixed_chunks, data):
     for i in range(2):
         name = f'array{i}'
         dataset = (data.copy() + i).to_dataset(name=name)
-        zio.save_dataset(
-            uri=uri, dataset=dataset, chunks=fixed_chunks['input'], mode='w',
-        )
+        zio.save_dataset(uri=uri, dataset=dataset, chunks=fixed_chunks['input'], mode='w')
     ds = zio.load_dataset(uri=uri)
     np.array_equal(dataset[name], ds[name].values)
 

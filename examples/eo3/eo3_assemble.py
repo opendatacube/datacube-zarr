@@ -203,7 +203,7 @@ class EO3DatasetAssembler(EoFields):
         return measurements
 
     def map_measurements_to_files(
-        self, band_regex: str, supplementary: dict = None,
+        self, band_regex: str, supplementary: dict = None
     ) -> dict:
         """
         Return dict of {measurement names: filenames} for matching files in dataset_location.
