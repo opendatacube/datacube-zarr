@@ -1,0 +1,3 @@
+Contents removed - cropped version not supported
+Created by: `data-pipeline/tests/scripts/create_mock_data.py`
+Created time: 2020-07-01T11:30:32.402690

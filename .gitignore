@@ -45,6 +45,7 @@ coverage.xml
 .hypothesis
 .pytest_cache
 .mypy_cache
+coverage/
 
 # Translations
 *.mo
@@ -74,3 +75,6 @@ docs/notebooks/
 #Local Visual Studio Code configurations
 .vscode/
 .env
+
+# setuptools_scm generated version file
+datacube_zarr/_version.py
