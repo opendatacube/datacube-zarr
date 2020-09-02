@@ -291,7 +291,7 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
             del zstore.ds[dim]
             writer = ArrayWriter()
             zstore.set_variables(
-                variables={new.name: new}, check_encoding_set=[], writer=writer,
+                variables={new.name: new}, check_encoding_set=[], writer=writer
             )
             writer.sync()
 
