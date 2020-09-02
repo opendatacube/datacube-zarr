@@ -1,10 +1,14 @@
 # What's New
 ------------
 
+## v0.1.2 (xx Month 2020)
+-------------------------
 
-## v0.1.1 (xx August 2020)
---------------------------
 
+## v0.1.1 (02 September 2020)
+-----------------------------
+
+- Function to rename/replace a zarr dataset dimension.
 - Workaround for pytest fails with moto and s3fs.
 - Support for latest version of moto before it is released.
 - Support ERS datasets / fix logging / optional progress bar.
