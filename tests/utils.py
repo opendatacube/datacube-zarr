@@ -76,7 +76,8 @@ def raster_and_zarr_are_equal(raster_uri, zarr_uri, multi_dim=False):
     if multi_dim is True:
         da_zarr = ds_zarr["array"]
     else:
-        da_zarr = xr.concat(ds_zarr.data_vars.values(), dim="band").assign_coords(
+        sorted_vars = sorted(ds_zarr.data_vars.values(), key=lambda v: int(v.name[4:]))
+        da_zarr = xr.concat(sorted_vars, dim="band").assign_coords(
             {"band": list(range(1, len(ds_zarr) + 1))}
         )
     data_coords_dims_equal = da_raster.equals(da_zarr)
