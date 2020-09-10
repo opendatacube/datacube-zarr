@@ -1,12 +1,12 @@
 #! /usr/bin/env python
 
 import json
-import sys
 
 import click
 import numpy as np
 import xarray as xr
 import yaml
+
 from datacube_zarr.tools.zarrify import FileOrS3Path
 from datacube_zarr.zarr_io import replace_dataset_dim
 
@@ -27,7 +27,7 @@ def cli(zarr, product):
 
     if n != len(dim):
         raise ValueError(
-            f"Inconsistent dimension lengths: band {n}, {name} {len(dim)}."
+            f"Inconsistent dimension lengths: band {n}, {ed['name']} {len(dim)}."
         )
 
     replace_dataset_dim(zarr.as_uri(), "band", dim)
