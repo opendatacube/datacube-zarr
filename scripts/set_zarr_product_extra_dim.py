@@ -18,7 +18,7 @@ def cli(zarr, product):
     """Replace zarr "band" dimension with product specific extra dimension."""
 
     pd = yaml.load(product.read_text(), Loader=yaml.SafeLoader)
-    ed = pd["metadata"]["extra_dimension"]
+    ed = pd["extra_dimension"]
     dim = xr.IndexVariable(ed["name"], np.array(ed["values"], dtype=ed["dtype"]))
 
     # Get number of bands / length of z dim
