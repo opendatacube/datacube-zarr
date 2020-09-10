@@ -200,8 +200,9 @@ def raster_to_zarr(  # noqa: C901
                 for i, arr in enumerate(ds.data_vars.values()):
                     arr.attrs["nodata"] = da.nodatavals[i]
                     arr.attrs["crs"] = ds.crs
+                    arr.attrs["transform"] = ds.transform
                     for k, v in da.attrs.items():
-                        if k not in ("nodatavals", "crs"):
+                        if k not in ("nodatavals", "crs", "transform"):
                             if k in _RASTERIO_BAND_ATTRS:
                                 v = [v[i]]
                             arr.attrs[f"{_META_PREFIX}_{k}"] = v
