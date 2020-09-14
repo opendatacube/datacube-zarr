@@ -15,6 +15,7 @@ from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
 from moto import mock_s3
 from moto.server import main as moto_server_main
+from rasterio.crs import CRS
 from s3path import S3Path, _s3_accessor
 
 from datacube_zarr import ZarrIO
@@ -267,9 +268,10 @@ def tmp_hdf4_dataset(tmp_path):
     outdir.mkdir()
     raster = create_random_raster(outdir, nbands=5)
     da = xr.open_rasterio(raster.as_uri())
+    crs = CRS.from_string(da.crs).to_string()
 
     # make dataset and add spatial ref
-    grid_map_attrs = pyproj.CRS.from_string(da.crs).to_cf()
+    grid_map_attrs = pyproj.CRS.from_string(crs).to_cf()
     da.coords["spatial_ref"] = xr.Variable((), 0)
     da.coords["spatial_ref"].attrs.update(grid_map_attrs)
     da.attrs["grid_mapping"] = "spatial_ref"

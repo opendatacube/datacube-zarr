@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import rasterio
 import xarray as xr
+from rasterio.crs import CRS
 
 from datacube_zarr import ZarrIO
 
@@ -32,7 +33,7 @@ def create_random_raster_local(
         "count": nbands,
         "width": width,
         "height": height,
-        "crs": rasterio.crs.CRS.from_epsg("4326"),
+        "crs": CRS.from_epsg("4326"),
         "nodata": None,
         "dtype": dtype,
         "transform": transform,
@@ -81,7 +82,7 @@ def raster_and_zarr_are_equal(raster_uri, zarr_uri, multi_dim=False):
             {"band": list(range(1, len(ds_zarr) + 1))}
         )
     data_coords_dims_equal = da_raster.equals(da_zarr)
-    crs_equal = da_raster.crs == da_zarr.crs
+    crs_equal = CRS.from_string(da_raster.crs) == CRS.from_string(da_zarr.crs)
     return data_coords_dims_equal and crs_equal
 
 

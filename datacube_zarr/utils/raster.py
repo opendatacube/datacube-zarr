@@ -169,6 +169,10 @@ def raster_to_zarr(  # noqa: C901
 
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
             da = xr.open_rasterio(src)
+
+            # Reset PROJ string to remove "+init" from "<auth>:<auth_code>" defs
+            da.attrs["crs"] = CRS.from_string(da.crs).to_string()
+
             if preload_data:
                 logger.debug(f"Preloading {src.name} into memory.")
                 da.load()
