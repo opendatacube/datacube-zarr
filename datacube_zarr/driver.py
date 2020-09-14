@@ -52,19 +52,19 @@ class ZarrDataSource(object):
             self._is_2d = len(self.da.dims) == 2
             self._nbands = 1 if self._is_2d else self.da[self.da.dims[0]].size
             if self._nbands == 0:
-                raise ValueError('Found 0 time slices in storage')
+                raise ValueError('Dataset has 0 bands.')
 
             # Adjust band for 0-indexing
-            self.time_idx = (band or 1) - 1
-            if self.time_idx >= self._nbands:
+            self.band_idx = (band or 1) - 1
+            if self.band_idx >= self._nbands:
                 raise IndexError(
-                    f'time_idx {self.time_idx} out of range (nbands={self._nbands})'
+                    f'band_idx {self.band_idx} out of range (nbands={self._nbands})'
                 )
 
             # Set nodata value
             if 'nodata' in self.da.attrs and self.da.nodata:
                 if isinstance(self.da.nodata, list):
-                    self._nodata = self.da.nodata[self.time_idx]
+                    self._nodata = self.da.nodata[self.band_idx]
                 else:
                     self._nodata = self.da.nodata
             else:
@@ -109,7 +109,7 @@ class ZarrDataSource(object):
             """
 
             # Check if zarr dataset is a 2D array
-            t_ix: Tuple = tuple() if self._is_2d else (self.time_idx,)
+            t_ix: Tuple = tuple() if self._is_2d else (self.band_idx,)
 
             if window is None:
                 xy_ix: Tuple = (...,)

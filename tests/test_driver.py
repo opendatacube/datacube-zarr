@@ -109,7 +109,7 @@ def test_datasource_bad_time_index(dataset):
         ZarrDataSource.BandDataSource(
             dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata
         )
-    assert str(excinfo.value) == 'time_idx 1 out of range (nbands=1)'
+    assert str(excinfo.value) == 'band_idx 1 out of range (nbands=1)'
 
 
 def test_datasource_no_time_slice(dataset):
@@ -120,7 +120,7 @@ def test_datasource_no_time_slice(dataset):
         ZarrDataSource.BandDataSource(
             dataset, group_name, None, dataset[group_name].nodata
         )
-    assert str(excinfo.value) == 'Found 0 time slices in storage'
+    assert str(excinfo.value) == 'Dataset has 0 bands.'
 
 
 def test_datasource_no_nodata(dataset):
