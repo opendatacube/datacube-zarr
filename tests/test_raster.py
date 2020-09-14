@@ -44,6 +44,7 @@ def test_raster_to_zarr_multi_band(
     )
 
 
+@pytest.mark.filterwarnings("ignore:Dataset has no geotransform set.")
 def test_hdf4_to_zarr(tmp_hdf4_dataset, tmp_storage_path):
     """Convert raster to zarr."""
     uris = raster_to_zarr(tmp_hdf4_dataset, tmp_storage_path)
@@ -69,6 +70,7 @@ def test_zarr_already_exists(tmp_raster, tmp_storage_path):
     assert zarr_exists(r, group) is True
 
 
+@pytest.mark.filterwarnings("ignore:Dataset has no geotransform set.")
 def test_raster_with_no_dataset(tmp_empty_dataset):
     with pytest.raises(ValueError):
         get_rasterio_datasets(tmp_empty_dataset)
