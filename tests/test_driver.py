@@ -142,6 +142,14 @@ uri_split_test_params = [
 ]
 
 
+def test_datasource_stacked_nodata(dataset):
+    '''Test the ZarrDataSource.BandDataSource with nodata as a list.'''
+    group_name = list(dataset.keys())[0]
+    dataset.aa.attrs['nodata'] = [-9999]
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, None)
+    assert band_source._nodata == -9999
+
+
 @pytest.mark.parametrize("uri,split_uri", uri_split_test_params)
 def test_uri_split(uri, split_uri):
     '''Check zarr uri splitting.'''
