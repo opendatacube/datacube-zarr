@@ -105,11 +105,11 @@ def test_datasource_no_timeslice(dataset):
 def test_datasource_bad_time_index(dataset):
     '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
     group_name = list(dataset.keys())[0]
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(IndexError) as excinfo:
         ZarrDataSource.BandDataSource(
             dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata
         )
-    assert str(excinfo.value) == 'time_idx exceeded 1'
+    assert str(excinfo.value) == 'band_idx 1 out of range (nbands=1)'
 
 
 def test_datasource_no_time_slice(dataset):
@@ -120,7 +120,7 @@ def test_datasource_no_time_slice(dataset):
         ZarrDataSource.BandDataSource(
             dataset, group_name, None, dataset[group_name].nodata
         )
-    assert str(excinfo.value) == 'Found 0 time slices in storage'
+    assert str(excinfo.value) == 'Dataset has 0 bands.'
 
 
 def test_datasource_no_nodata(dataset):
@@ -140,6 +140,14 @@ uri_split_test_params = [
     ),
     ('file:///some/path/root.zarr#/', ('file', '/some/path/root.zarr', '/')),
 ]
+
+
+def test_datasource_stacked_nodata(dataset):
+    '''Test the ZarrDataSource.BandDataSource with nodata as a list.'''
+    group_name = list(dataset.keys())[0]
+    dataset.aa.attrs['nodata'] = [-9999]
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, None)
+    assert band_source._nodata == -9999
 
 
 @pytest.mark.parametrize("uri,split_uri", uri_split_test_params)

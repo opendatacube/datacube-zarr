@@ -32,7 +32,7 @@ class ZarrDataSource(object):
             self,
             dataset: xr.Dataset,
             var_name: str,
-            time_idx: Optional[int],
+            band: Optional[int],
             no_data: Optional[float],
         ):
             """
@@ -42,22 +42,38 @@ class ZarrDataSource(object):
 
             :param xr.Dataset dataset: The xr.Dataset
             :param str var_name: The variable name of the xr.DataArray
-            :param int time_idx: The time index override if known
+            :param int band: The band index into the dataset for the source
             :param float no_data: The no data value if known
             """
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
-            self._nodata = (
-                self.da.nodata
-                if 'nodata' in self.da.attrs and self.da.nodata
-                else no_data
-            )
+
+            self._is_2d = len(self.da.dims) == 2
+            self._nbands = 1 if self._is_2d else self.da[self.da.dims[0]].size
+            if self._nbands == 0:
+                raise ValueError('Dataset has 0 bands.')
+
+            # Adjust band for 0-indexing
+            self.band_idx = (band or 1) - 1
+            if self.band_idx >= self._nbands:
+                raise IndexError(
+                    f'band_idx {self.band_idx} out of range (nbands={self._nbands})'
+                )
+
+            # Set nodata value
+            if 'nodata' in self.da.attrs and self.da.nodata:
+                if isinstance(self.da.nodata, list):
+                    self._nodata = self.da.nodata[self.band_idx]
+                else:
+                    self._nodata = self.da.nodata
+            else:
+                self._nodata = no_data
+
             if not self._nodata:
                 raise ValueError('nodata not found in dataset and product definition')
+
             self._nodata = num2numpy(self._nodata, self.dtype)
-            self._is_2d = len(self.da.dims) == 2
-            self.time_idx = self.set_time_idx(time_idx)
 
         @property
         def nodata(self) -> Optional[float]:
@@ -79,28 +95,6 @@ class ZarrDataSource(object):
         def shape(self) -> RasterShape:
             return self.da.shape if self._is_2d else self.da.shape[1:]
 
-        def set_time_idx(self, time_idx: Optional[int]) -> int:
-            """
-            Updates time index from BandInfo.band
-
-            The resultant time index must be > 0.
-
-            :param int time_index: The time index from BandInfo.band
-            :return: The updated time index
-            """
-            self.time_idx = time_idx or 1
-            # adjust for 0 based indexing
-            self.time_idx -= 1
-
-            time_count = 1 if self._is_2d else self.da[self.da.dims[0]].size
-            if time_count == 0:
-                raise ValueError('Found 0 time slices in storage')
-
-            if self.time_idx < time_count:
-                return self.time_idx
-            else:
-                raise ValueError(f'time_idx exceeded {time_count}')
-
         def read(
             self,
             window: Optional[RasterWindow] = None,
@@ -115,7 +109,7 @@ class ZarrDataSource(object):
             """
 
             # Check if zarr dataset is a 2D array
-            t_ix: Tuple = tuple() if self._is_2d else (self.time_idx,)
+            t_ix: Tuple = tuple() if self._is_2d else (self.band_idx,)
 
             if window is None:
                 xy_ix: Tuple = (...,)
@@ -168,7 +162,7 @@ class ZarrDataSource(object):
         yield ZarrDataSource.BandDataSource(
             dataset=dataset,
             var_name=var_name,
-            time_idx=self._band_info.band,
+            band=self._band_info.band,
             no_data=self._band_info.nodata,
         )
 

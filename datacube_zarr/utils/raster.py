@@ -169,6 +169,10 @@ def raster_to_zarr(  # noqa: C901
 
         with rasterio_src(dataset, crs=crs, resolution=resolution) as src:
             da = xr.open_rasterio(src)
+
+            # Reset PROJ string to remove "+init" from "<auth>:<auth_code>" defs
+            da.attrs["crs"] = CRS.from_string(da.crs).to_string()
+
             if preload_data:
                 logger.debug(f"Preloading {src.name} into memory.")
                 da.load()
@@ -192,16 +196,15 @@ def raster_to_zarr(  # noqa: C901
                     ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
             else:
                 # Rename variable keys to strings required by zarr
-                ds = ds.rename_vars(
-                    {k: f"band{k:0{len(str(nbands))}d}" for k in ds.data_vars.keys()}
-                )
+                ds = ds.rename_vars({k: f"band{k:d}" for k in ds.data_vars.keys()})
 
                 # Copy DataSet attrs to each DataArray
                 for i, arr in enumerate(ds.data_vars.values()):
                     arr.attrs["nodata"] = da.nodatavals[i]
                     arr.attrs["crs"] = ds.crs
+                    arr.attrs["transform"] = ds.transform
                     for k, v in da.attrs.items():
-                        if k not in ("nodatavals", "crs"):
+                        if k not in ("nodatavals", "crs", "transform"):
                             if k in _RASTERIO_BAND_ATTRS:
                                 v = [v[i]]
                             arr.attrs[f"{_META_PREFIX}_{k}"] = v
