@@ -4,6 +4,9 @@
 ## v0.1.2 (xx Month 2020)
 -------------------------
 
+- Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray
+- Update `rasterio` dependency to version 1.1.5
+- Suppress expected warnings in unit tests
 - CLI script `set_zarr_product_extra_dim.py` for changing a zarr dataset's extra dimension.
   - Extra dimension is defined in a product definition yaml under "extra_dimension".
 - Change `time_idx` to `band_idx` in Zarr driver.
