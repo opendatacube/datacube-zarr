@@ -147,12 +147,12 @@ def data():
 
 @pytest.fixture
 def dataset(tmpdir):
-    '''Datacube Dataset with random data.
+    """Datacube Dataset with random data.
 
-    Based on datacube-core/tests/test_load_data.py'''
+    Based on datacube-core/tests/test_load_data.py"""
     tmpdir = Path(str(tmpdir))
 
-    spatial = dict(resolution=(15, -15), offset=(11230, 1381110),)
+    spatial = dict(resolution=(15, -15), offset=(11230, 1381110))
 
     nodata = -999
     array = mk_test_image(96, 64, 'int16', nodata=nodata)
@@ -192,9 +192,9 @@ def dataset(tmpdir):
 
 
 def _gen_zarr_dataset(ds, root):
-    '''Test dataset as loaded from zarr data in files.
+    """Test dataset as loaded from zarr data in files.
 
-    It comprises data attributes required in ODC.'''
+    It comprises data attributes required in ODC."""
     var = list(ds.keys())[0]
     protocol = 'file'
     uri = uri_join(protocol, root)

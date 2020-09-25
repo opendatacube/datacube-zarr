@@ -77,7 +77,7 @@ def _warped_vrt(
     src_params.update(src.bounds._asdict())
     dst_crs = crs or src_crs
     transform, width, height = calculate_default_transform(
-        src_crs=src_crs, dst_crs=dst_crs, resolution=resolution, **src_params,
+        src_crs=src_crs, dst_crs=dst_crs, resolution=resolution, **src_params
     )
     with rasterio.vrt.WarpedVRT(
         src_dataset=src,
@@ -93,7 +93,7 @@ def _warped_vrt(
 
 @contextmanager
 def rasterio_src(
-    uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None,
+    uri: str, crs: Optional[CRS] = None, resolution: Optional[Tuple[float, float]] = None
 ) -> rasterio.io.DatasetReaderBase:
     """Open a rasterio source and virtually reproject if required.
 

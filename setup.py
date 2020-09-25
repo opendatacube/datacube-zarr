@@ -1,11 +1,12 @@
 from setuptools import find_packages, setup
 
 tests_require = [
-    'black',
+    'black>=20.8b1',
     'flask',
-    'flake8-isort',
+    'flake8>=3.8.0',
+    'flake8-isort>=4.0.0',
     'hypothesis',
-    'isort<5.0.0',
+    'isort>=5.1.0',
     'mypy',
     'mock',
     'moto',
@@ -49,8 +50,14 @@ setup(
     extras_require={'test': tests_require},
     tests_require=tests_require,
     entry_points={
-        'console_scripts': ['zarrify = datacube_zarr.tools.zarrify:main'],
-        'datacube.plugins.io.read': ['zarr = datacube_zarr.driver:reader_driver_init',],
-        'datacube.plugins.io.write': ['zarr = datacube_zarr.driver:writer_driver_init',],
+        'console_scripts': [
+            'zarrify = datacube_zarr.tools.zarrify:main',
+        ],
+        'datacube.plugins.io.read': [
+            'zarr = datacube_zarr.driver:reader_driver_init',
+        ],
+        'datacube.plugins.io.write': [
+            'zarr = datacube_zarr.driver:writer_driver_init',
+        ],
     },
 )

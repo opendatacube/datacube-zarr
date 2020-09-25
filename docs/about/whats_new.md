@@ -4,6 +4,7 @@
 ## v0.1.2 (xx Month 2020)
 -------------------------
 
+- Update to 'black>=20.8b1' and 'isort>=5.1.0'.
 - Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray
 - Update `rasterio` dependency to version 1.1.5
 - Suppress expected warnings in unit tests
