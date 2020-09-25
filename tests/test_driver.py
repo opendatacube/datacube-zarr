@@ -53,9 +53,9 @@ def test_zarr_netcdf_driver_import():
 # datacube_zarr.driver Unit tests
 @pytest.mark.parametrize('dataset_fixture', ['odc_dataset', 'odc_dataset_2d'])
 def test_datasource(request, dataset, dataset_fixture):
-    '''Test ZarrDataSource.
+    """Test ZarrDataSource.
 
-    Data is saved to file and opened by the data source.'''
+    Data is saved to file and opened by the data source."""
     odc_dataset_ = request.getfixturevalue(dataset_fixture)
     group_name = list(dataset.keys())[0]
     source = ZarrDataSource(BandInfo(odc_dataset_, group_name))

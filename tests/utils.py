@@ -115,9 +115,9 @@ def _check_zarr_files(data, uri, name, chunks, s3):
 
 
 def _check_zarr_filesystem(data, root, group_name, name, chunks):
-    '''Check zarr files in local filesystem.
+    """Check zarr files in local filesystem.
 
-    Only some metadata and chunk file names are checked, not actual binary content.'''
+    Only some metadata and chunk file names are checked, not actual binary content."""
     assert root.exists(), f'Missing {root} after save'
     # Check chunks in root level metadata
     metadata_path = root / '.zmetadata'
@@ -154,9 +154,9 @@ def _check_zarr_filesystem(data, root, group_name, name, chunks):
 
 
 def _check_zarr_bucket(data, root, group_name, name, chunks, s3):
-    '''Check zarr objects in s3.
+    """Check zarr objects in s3.
 
-    Only some metadata and chunk file names are checked, not actual binary content.'''
+    Only some metadata and chunk file names are checked, not actual binary content."""
     parts = root.parts
     bucket = parts[0]
     root = root.relative_to(bucket)

@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 tests_require = [
-    'black',
+    'black>=20.8b1',
     'flask',
     'flake8-isort',
     'hypothesis',
