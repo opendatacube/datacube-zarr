@@ -3,9 +3,10 @@ from setuptools import find_packages, setup
 tests_require = [
     'black>=20.8b1',
     'flask',
-    'flake8-isort',
+    'flake8>=3.8.0',
+    'flake8-isort>=4.0.0',
     'hypothesis',
-    'isort<5.0.0',
+    'isort>=5.1.0',
     'mypy',
     'mock',
     'moto',
