@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import xarray as xr
 
-from datacube_zarr.zarr_io import ZarrIO
+from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 
 from .utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
 
@@ -230,3 +230,63 @@ def test_save_datasets_nested_zarr(uri, data):
         if group:
             ds = xr.open_zarr(store=store, group=group, consolidated=False)
             assert np.array_equal(dataset, ds[name].values)
+
+
+def test_rename_dataset_dim_nocoords(uri, data):
+    """Test rename dimension in zarr dataset with no coords."""
+    _save_dataset(data, uri, "data")
+    ds_a = ZarrIO().load_dataset(uri)
+    rename_dict = {"dim_0": "x", "dim_1": "y"}
+    for old, new in rename_dict.items():
+        replace_dataset_dim(uri, old, new)
+
+    ds_b = ZarrIO().load_dataset(uri)
+    assert ds_a.rename(rename_dict).equals(ds_b)
+
+
+def test_replace_dataset_dim_nocoords(uri, data):
+    """Test replace dimension in zarr dataset with no coords."""
+    _save_dataset(data, uri, "data")
+    ds_a = ZarrIO().load_dataset(uri)
+    with pytest.raises(ValueError):
+        new_dim = xr.IndexVariable("x", ds_a["dim_0"].data)
+        replace_dataset_dim(uri, "dim_0", new_dim)
+
+
+def test_rename_dataset_dim(uri, tmp_3d_zarr):
+    """Test rename dimension in zarr dataset."""
+    ds_a = ZarrIO().load_dataset(tmp_3d_zarr)
+    replace_dataset_dim(tmp_3d_zarr, "band", "abc")
+    ds_b = ZarrIO().load_dataset(tmp_3d_zarr)
+    assert ds_a.rename({"band": "abc"}).equals(ds_b)
+
+
+@pytest.mark.parametrize("dtype", [np.int64, np.float64])
+def test_replace_dataset_dim(tmp_3d_zarr, dtype):
+    """Test replace dimension in zarr dataset."""
+    ds_a = ZarrIO().load_dataset(tmp_3d_zarr)
+    dim_len = len(ds_a["band"])
+    new_name = "lambda"
+    new_dim = xr.IndexVariable(new_name, np.linspace(123, 456, dim_len).astype(dtype))
+    replace_dataset_dim(tmp_3d_zarr, "band", new_dim)
+    ds_b = ZarrIO().load_dataset(tmp_3d_zarr)
+    assert ds_b.variables[new_name].equals(new_dim)
+    ds_a_new = ds_a.rename({"band": new_name}).assign_coords({new_name: new_dim})
+    assert ds_a_new.equals(ds_b)
+
+
+@pytest.mark.parametrize(
+    "old,new", [("abc", "lambda"), ("array", "lambda"), ("band", "x")]
+)
+def test_replace_dataset_dim_badname(tmp_3d_zarr, old, new):
+    """Test replacing zarr dimension with invalid names."""
+    with pytest.raises(KeyError):
+        replace_dataset_dim(tmp_3d_zarr, old, new)
+
+
+def test_replace_dataset_dim_wronglen(tmp_3d_zarr):
+    """Test replacing zarr dimension with bad length."""
+    ds_a = ZarrIO().load_dataset(tmp_3d_zarr)
+    new_dim = xr.IndexVariable("band2", np.append(ds_a["band"].data, [999]))
+    with pytest.raises(ValueError):
+        replace_dataset_dim(tmp_3d_zarr, "band", new_dim)

@@ -180,7 +180,7 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
     ds = ZarrIO().open_dataset(uri=file_path.as_uri())
     da = ds["band1"]
     transform = Affine(*ds.transform)
-    crs = CRS.from_proj4(ds.crs)
+    crs = CRS.from_string(ds.crs)
     grid = GridSpec(da.shape, transform, crs)
     path = str(file_path.relative_to(assmebler._metadata_path.parent))
     img = da.values

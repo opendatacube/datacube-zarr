@@ -40,7 +40,7 @@ setup(
         'click>=5.0',
         'datacube>1.8.0',
         'numcodecs>=0.6.2',
-        'rasterio>=1.0.4',
+        'rasterio>=1.1.5',
         's3path>=0.1.93',
         's3fs>=0.2.0',
         'xarray>=0.14.1',

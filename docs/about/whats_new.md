@@ -1,10 +1,24 @@
 # What's New
 ------------
 
+## v0.1.2 (xx Month 2020)
+-------------------------
 
-## v0.1.1 (xx August 2020)
---------------------------
+- Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray
+- Update `rasterio` dependency to version 1.1.5
+- Suppress expected warnings in unit tests
+- CLI script `set_zarr_product_extra_dim.py` for changing a zarr dataset's extra dimension.
+  - Extra dimension is defined in a product definition yaml under "extra_dimension".
+- Change `time_idx` to `band_idx` in Zarr driver.
+- Support for list of nodata vals required for 3D zarrs.
+- Add `transform` attribute from rasters to zarr dataset within zarrify.
+- Revert to universal `"band1"` 2D zarr array naming (not `"band01"`, `"band001"`, etc.).
 
+
+## v0.1.1 (02 September 2020)
+-----------------------------
+
+- Function to rename/replace a zarr dataset dimension.
 - Workaround for pytest fails with moto and s3fs.
 - Support for latest version of moto before it is released.
 - Support ERS datasets / fix logging / optional progress bar.
