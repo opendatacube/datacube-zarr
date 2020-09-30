@@ -6,6 +6,15 @@ metadata:
     product:
         name: usgs_espa_ls8c1_sr
 
+load:
+    crs: EPSG:32655
+    resolution:
+        x: 30
+        y: -30
+    align:
+        x: 15
+        y: 15
+
 measurements:
     - name: 'coastal_aerosol'
       aliases: [band_1, sr_band1]
