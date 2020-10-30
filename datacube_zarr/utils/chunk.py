@@ -45,7 +45,7 @@ def calculate_auto_chunk_sizes(
     else:
         chunk_rem = chunk_total / fixed_size
         auto_chunks = {d: sizes[d] for d in auto_dims}
-        for i, d in enumerate(sorted(auto_chunks, key=auto_chunks.get)):
+        for i, d in enumerate(sorted(auto_chunks, key=lambda k: auto_chunks[k])):
             c = int(np.round(chunk_rem ** (1.0 / (len(auto_dims) - i))))
             if auto_chunks[d] > c:
                 auto_chunks[d] = c
