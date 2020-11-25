@@ -13,11 +13,25 @@ from datacube_zarr.zarr_io import replace_dataset_dim
 
 @click.command()
 @click.argument("zarr", type=FileOrS3Path(exists=True), required=True)
-@click.argument("product", type=FileOrS3Path(exists=True), required=True)
-def cli(zarr, product):
+@click.argument("product_def", type=FileOrS3Path(exists=True), required=True)
+@click.option("--name", type=str, help="Product name")
+def cli(zarr, product_def, name):
     """Replace zarr "band" dimension with product specific extra dimension."""
 
-    pd = yaml.load(product.read_text(), Loader=yaml.SafeLoader)
+    pds = yaml.load_all(product_def.read_text(), Loader=yaml.SafeLoader)
+    if name is not None:
+        pds = (pd for pd in pds if pd["name"] == name)
+
+    try:
+        pd = next(pds)
+    except StopIteration:
+        raise click.ClickException("No matching product definition found.")
+
+    if "extra_dimension" not in pd:
+        raise click.ClickException(
+            f"Product definition for '{pd['name']}' has no 'extra_dimension'."
+        )
+
     ed = pd["extra_dimension"]
     dim = xr.IndexVariable(ed["name"], np.array(ed["values"], dtype=ed["dtype"]))
 
