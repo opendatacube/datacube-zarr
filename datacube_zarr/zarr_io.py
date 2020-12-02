@@ -297,4 +297,9 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
 
     # Update references to the old dimension in xarray attributes
     zstore.ds.visitvalues(_xarray_dim_rename_visitor(dim, new_name))
+
+    # xarray 0.16.2 doesn't really consolidate on close
+    if is_consolidated:
+        zarr.consolidate_metadata(zstore.ds.store)
+
     zstore.close()
