@@ -181,7 +181,9 @@ class ZarrIO(ZarrBase):
         """
         _, _, group = uri_split(uri)
         store = self.get_root(uri)
-        ds: xr.Dataset = xr.open_zarr(store=store, group=group, consolidated=True)
+        ds: xr.Dataset = xr.open_dataset(
+            store, group=group, engine="zarr", backend_kwargs={"consolidated": True}
+        )
         return ds
 
     def load_dataset(self, uri: str) -> xr.Dataset:
