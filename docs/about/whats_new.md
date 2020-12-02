@@ -7,7 +7,7 @@
 - Updated ls8 product definitions with default load parameters.
 - Update to 'black>=20.8b1' and 'isort>=5.1.0'.
 - Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray
-- Update `rasterio` dependency to version 1.1.5
+- Update `rasterio` dependency to version >=1.1.5
 - Suppress expected warnings in unit tests
 - CLI script `set_zarr_product_extra_dim.py` for changing a zarr dataset's extra dimension.
   - Extra dimension is defined in a product definition yaml under "extra_dimension".
@@ -15,6 +15,7 @@
 - Support for list of nodata vals required for 3D zarrs.
 - Add `transform` attribute from rasters to zarr dataset within zarrify.
 - Revert to universal `"band1"` 2D zarr array naming (not `"band01"`, `"band001"`, etc.).
+- Update `xarray` dependency to version >=0.16.2
 
 
 ## v0.1.1 (02 September 2020)

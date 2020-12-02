@@ -228,7 +228,9 @@ def test_save_datasets_nested_zarr(uri, data):
         store = ZarrIO().get_root(_uri)
         group = _uri.split(root_uri)[0]
         if group:
-            ds = xr.open_zarr(store=store, group=group, consolidated=False)
+            ds = xr.open_dataset(
+                store, group=group, engine="zarr", backend_kwargs={"consolidated": False}
+            )
             assert np.array_equal(dataset, ds[name].values)
 
 
