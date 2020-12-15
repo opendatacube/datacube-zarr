@@ -19,7 +19,7 @@ def cli(zarr, product):
 
     pd = yaml.load(product.read_text(), Loader=yaml.SafeLoader)
     ed = pd["extra_dimension"]
-    #Todo: Do this properly
+    # Todo: Do this properly
     ed = ed[0]
     dim = xr.IndexVariable(ed["name"], np.array(ed["values"], dtype=ed["dtype"]))
 
