@@ -15,25 +15,42 @@ _default_zarrify_dim = "band"
 
 @click.command()
 @click.argument("zarr", type=FileOrS3Path(exists=True), required=True)
-@click.argument("product", type=FileOrS3Path(exists=True), required=True)
+@click.argument("product_def", type=FileOrS3Path(exists=True), required=True)
+@click.option("--name", type=str, help="Product name")
 @click.option(
     "--dim-map",
     type=KeyValue(),
     multiple=True,
     help="Dimension name mapping '<old>:<new>'.",
 )
-def cli(zarr, product, dim_map):
+def cli(zarr, product_def, name, dim_map):
     """Replace zarr "band" dimension with product specific extra dimension."""
 
-    pd = yaml.load(product.read_text(), Loader=yaml.SafeLoader)
+    # Load extra dimensions from product definition
+    pds = yaml.load_all(product_def.read_text(), Loader=yaml.SafeLoader)
+    if name is not None:
+        pds = (pd for pd in pds if pd["name"] == name)
+
+    try:
+        pd = next(pds)
+    except StopIteration:
+        raise click.ClickException("No matching product definition found.")
+
+    if "extra_dimension" not in pd:
+        raise click.ClickException(
+            f"Product definition for '{pd['name']}' has no 'extra_dimension'."
+        )
+
     eds = pd["extra_dimensions"]
     ed_names = [ed["name"] for ed in eds]
     assert len(ed_names) == len(set(ed_names))
 
+    # Mapping from zarr dim names to extra dimensions
     replace_dims = {old: eds[ed_names.index(new)] for old, new in dim_map.items()}
     if not replace_dims:
         replace_dims[_default_zarrify_dim] = eds[0]
 
+    # Replace zarr dims with new extra dimension data
     for oname, ed in replace_dims.items():
         dim = xr.IndexVariable(ed["name"], np.array(ed["values"], dtype=ed["dtype"]))
 
