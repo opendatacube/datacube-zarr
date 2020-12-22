@@ -36,9 +36,9 @@ def cli(zarr, product_def, name, dim_map):
     except StopIteration:
         raise click.ClickException("No matching product definition found.")
 
-    if "extra_dimension" not in pd:
+    if "extra_dimensions" not in pd:
         raise click.ClickException(
-            f"Product definition for '{pd['name']}' has no 'extra_dimension'."
+            f"Product definition for '{pd['name']}' has no 'extra_dimensions'."
         )
 
     eds = pd["extra_dimensions"]
@@ -46,7 +46,7 @@ def cli(zarr, product_def, name, dim_map):
     assert len(ed_names) == len(set(ed_names))
 
     # Mapping from zarr dim names to extra dimensions
-    replace_dims = {old: eds[ed_names.index(new)] for old, new in dim_map.items()}
+    replace_dims = {old: eds[ed_names.index(new)] for old, new in dim_map}
     if not replace_dims:
         replace_dims[_default_zarrify_dim] = eds[0]
 
