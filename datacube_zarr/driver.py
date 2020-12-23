@@ -6,7 +6,7 @@ Should be able to handle hyperspectral data when ready.
 import itertools
 from contextlib import contextmanager
 from json.decoder import JSONDecodeError
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -23,7 +23,7 @@ PROTOCOL = ['file', 's3']
 FORMAT = 'zarr'
 
 RasterShape = Tuple[int, ...]
-RasterWindow = Tuple[Tuple[int, int]]
+RasterWindow = Tuple[Union[int, Tuple[int, int]], ...]
 
 
 class ZarrDataSource(object):
