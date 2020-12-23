@@ -148,7 +148,7 @@ def test_datasource_stacked_nodata(dataset):
     group_name = list(dataset.keys())[0]
     dataset.aa.attrs['nodata'] = [-9999]
     band_source = ZarrDataSource.BandDataSource(dataset, group_name, None)
-    assert band_source._nodata == -9999
+    assert band_source.nodata == -9999
 
 
 @pytest.mark.parametrize("uri,split_uri", uri_split_test_params)
