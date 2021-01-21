@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
-import yaml
 from click.testing import CliRunner
 from datacube.utils.documents import load_from_yaml
 
@@ -73,58 +72,6 @@ def limit_num_measurements(dataset_type):
     if len(measurements) > TEST_STORAGE_NUM_MEASUREMENTS:
         dataset_type['measurements'] = measurements[:TEST_STORAGE_NUM_MEASUREMENTS]
     return dataset_type
-
-
-def prepare_test_ingestion_configuration(
-    tmpdir, output_dir, filename, mode=None, s3_bucket_name=None
-):
-    customizers = {
-        'fast_ingest': edit_for_fast_ingest,
-        'end2end': edit_for_end2end,
-    }
-
-    filename = Path(filename)
-    if output_dir is None:
-        output_dir = tmpdir.ensure(filename.stem, dir=True)
-    config = load_yaml_file(filename)[0]
-
-    if mode is not None:
-        if mode not in customizers:
-            raise ValueError('Wrong mode: ' + mode)
-        config = customizers[mode](config)
-
-    config['location'] = (
-        f'{s3_bucket_name}/mock-dir/mock-subdir'
-        if 's3' in filename.stem
-        else str(output_dir)
-    )
-
-    # If ingesting with the s3test driver
-    if 'bucket' in config['storage']:
-        config['storage']['bucket'] = str(output_dir)
-
-    config_path = tmpdir.join(filename.name)
-    with open(str(config_path), 'w') as stream:
-        yaml.safe_dump(config, stream)
-    return config_path, config
-
-
-def edit_for_end2end(config):
-    storage = config.get('storage', {})
-
-    storage['crs'] = 'EPSG:3577'
-    storage['tile_size']['x'] = 100000.0
-    storage['tile_size']['y'] = 100000.0
-
-    config['storage'] = storage
-    return config
-
-
-def edit_for_fast_ingest(config):
-    config = alter_product_for_testing(config)
-    config['storage']['crs'] = 'EPSG:28355'
-    config['storage']['chunking']['time'] = 1
-    return config
 
 
 def _make_geotiffs(tiffs_dir, day_offset, num_bands=NUM_BANDS):

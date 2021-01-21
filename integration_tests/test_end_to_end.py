@@ -14,11 +14,9 @@ from datacube.api.core import Datacube
 
 from datacube_zarr.tools.zarrify import main as zarrify
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
-from integration_tests.utils import prepare_test_ingestion_configuration
 
 PROJECT_ROOT = Path(__file__).parents[1]
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs/config_samples/'
-INGESTER_CONFIGS = CONFIG_SAMPLES / 'ingester'
 LS5_DATASET_TYPES = CONFIG_SAMPLES / 'dataset_types/ls5_scenes.yaml'
 LS5_DATASET_TYPES_ZARR = CONFIG_SAMPLES / "dataset_types/ls5_scenes_albers_zarr.yaml"
 TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
@@ -32,31 +30,15 @@ def custom_dumb_fuser(dst, src):
 
 
 @pytest.fixture()
-def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
+def testdata_dir(tmpdir):
     datadir = Path(str(tmpdir), 'data')
     datadir.mkdir()
-
     shutil.copytree(str(TEST_DATA), str(datadir / 'lbg'))
-
-    for file in ingest_configs.values():
-        prepare_test_ingestion_configuration(
-            tmpdir,
-            tmpdir,
-            INGESTER_CONFIGS / file,
-            mode='end2end',
-            s3_bucket_name=s3_bucket_name,
-        )
-
     return datadir
 
 
-ignore_me = pytest.mark.xfail(
-    True, reason="get_data/get_description still to be fixed in Unification"
-)
-
-
 def replace_band_names(metadatafile):
-    """EO prepare script sets band by number but product uses names."""
+    """The LS5 EO prepare script sets band by number but this product uses names."""
     band_map = {
         '1': 'blue',
         '2': 'green',
@@ -84,15 +66,14 @@ def replace_band_names(metadatafile):
     metadatafile.write_text(yaml.dump(meta))
 
 
-def test_end_to_end(clirunner, index, testdata_dir, ingest_configs):
+def test_end_to_end(clirunner, index, testdata_dir):
     """
-    Loads two dataset configurations, then ingests a sample Landsat 5 scene
+    Index two datasets:
+        1) Original LS5 NBAR geotif data
+        2) zarrified and reprojected (to albers) LS5 NBAR dataset
 
-    One dataset configuration specifies Australian Albers Equal Area Projection,
-    the other is simply latitude/longitude.
-
-    The input dataset should be recorded in the index, and two sets of storage units
-    should be created on disk and recorded in the index.
+    This test is the same as ODC test_end_to_end except ingestion to albers is replaced
+    with zarrify (incl. reproject) and index.
     """
 
     lbg_nbar = testdata_dir / 'lbg' / LBG_NBAR
@@ -288,7 +269,6 @@ def check_open_with_dc(index, product):
     resamp = ['nearest', 'cubic', 'bilinear', 'cubic_spline', 'lanczos', 'average']
     results = {}
 
-    # WTF
     def calc_max_change(da):
         midline = int(da.shape[0] * 0.5)
         a = int(abs(da[midline, :-1].data - da[midline, 1:].data).max())
