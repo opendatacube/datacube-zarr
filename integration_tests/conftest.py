@@ -9,7 +9,6 @@ from copy import copy, deepcopy
 from datetime import timedelta
 from pathlib import Path
 from time import sleep
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -27,14 +26,7 @@ from moto import mock_s3
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 
-from integration_tests.utils import (
-    GEOTIFF,
-    _make_geotiffs,
-    _make_ls5_scene_datasets,
-    copytree,
-    load_test_products,
-    load_yaml_file,
-)
+from integration_tests.utils import GEOTIFF, _make_geotiffs, copytree, load_yaml_file
 
 _SINGLE_RUN_CONFIG_TEMPLATE = """
 
@@ -215,15 +207,6 @@ def index_empty(local_config, uninitialised_postgres_db: PostgresDb):
     return index
 
 
-@pytest.fixture
-def initialised_postgres_db(index):
-    """
-    Return a connection to an PostgreSQL database, initialised with the default schema
-    and tables.
-    """
-    return index._db
-
-
 def remove_dynamic_indexes():
     """
     Clear any dynamically created postgresql indexes from the schema.
@@ -402,40 +385,3 @@ def clirunner(global_integration_cli_args, datacube_env_name):
         return result
 
     return _run_cli
-
-
-@pytest.fixture
-def clirunner_raw():
-    def _run_cli(
-        opts,
-        catch_exceptions=False,
-        expect_success=True,
-        cli_method=datacube.scripts.cli_app.cli,
-        verbose_flag='-v',
-    ):
-        exe_opts = []
-        if verbose_flag:
-            exe_opts.append(verbose_flag)
-        exe_opts.extend(opts)
-
-        runner = CliRunner()
-        result = runner.invoke(cli_method, exe_opts, catch_exceptions=catch_exceptions)
-        if expect_success:
-            assert 0 == result.exit_code, "Error for %r. output: %r" % (
-                opts,
-                result.output,
-            )
-        return result
-
-    return _run_cli
-
-
-@pytest.fixture
-def dataset_add_configs():
-    base = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
-    return SimpleNamespace(
-        metadata=str(base / 'metadata.yml'),
-        products=str(base / 'products.yml'),
-        datasets_bad1=str(base / 'datasets_bad1.yml'),
-        datasets=str(base / 'datasets.yml'),
-    )
