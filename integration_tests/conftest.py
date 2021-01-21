@@ -174,12 +174,12 @@ def local_config(datacube_env_name):
     return LocalConfig.find(CONFIG_FILE_PATHS, env=datacube_env_name)
 
 
-@pytest.fixture(params=['file', 's3'])
+@pytest.fixture()  # params=['file', 's3'])
 def ingest_configs(datacube_env_name, request):
     """Provides dictionary product_name => config file name"""
     return {
-        'ls5_nbar_albers': f'ls5_nbar_albers_zarr_{request.param}.yaml',
-        'ls5_pq_albers': f'ls5_pq_albers_zarr_{request.param}.yaml',
+        'ls5_nbar_albers': 'ls5_nbar_albers.yaml',
+        'ls5_pq_albers': 'ls5_pq_albers.yaml',
     }
 
 

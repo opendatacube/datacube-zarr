@@ -125,36 +125,32 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
     with pytest.raises(ValueError):
         dc.find_datasets(time='2019')  # no product supplied, raises exception
 
-    check_open_with_dc(index)
-    check_open_with_grid_workflow(index)
-    check_load_via_dss(index)
+    check_open_with_dc(index, product='ls5_nbar_albers')
+    check_open_with_grid_workflow(index, product='ls5_nbar_albers')
+    check_load_via_dss(index, product='ls5_nbar_albers')
 
 
-def check_open_with_dc(index):
+def check_open_with_dc(index, product):
     dc = Datacube(index=index)
 
-    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue']).to_array(
-        dim='variable'
-    )
+    data_array = dc.load(product=product, measurements=['blue']).to_array(dim='variable')
     assert data_array.shape
     assert (data_array != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers',
-        measurements=['blue'],
-        time='1992-03-23T23:14:25.500000',
+        product=product, measurements=['blue'], time='1992-03-23T23:14:25.500000'
     )
     assert data_array['blue'].shape[0] == 1
     assert (data_array.blue != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers', measurements=['blue'], latitude=-35.3, longitude=149.1
+        product=product, measurements=['blue'], latitude=-35.3, longitude=149.1
     )
     assert data_array['blue'].shape[1:] == (1, 1)
     assert (data_array.blue != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers', latitude=(-35, -36), longitude=(149, 150)
+        product=product, latitude=(-35, -36), longitude=(149, 150)
     ).to_array(dim='variable')
 
     assert data_array.ndim == 4
@@ -163,7 +159,7 @@ def check_open_with_dc(index):
 
     with rasterio.Env():
         lazy_data_array = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35, -36),
             longitude=(149, 150),
             dask_chunks={'time': 1, 'x': 1000, 'y': 1000},
@@ -175,19 +171,15 @@ def check_open_with_dc(index):
             data_array[1, :2, 950:1050, 950:1050]
         )
 
-    dataset = dc.load(
-        product='ls5_nbar_albers', measurements=['blue'], fuse_func=custom_dumb_fuser
-    )
+    dataset = dc.load(product=product, measurements=['blue'], fuse_func=custom_dumb_fuser)
     assert dataset['blue'].size
 
-    dataset = dc.load(
-        product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2)
-    )
+    dataset = dc.load(product=product, latitude=(-35.2, -35.3), longitude=(149.1, 149.2))
     assert dataset['blue'].size
 
     with rasterio.Env():
         lazy_dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35.2, -35.3),
             longitude=(149.1, 149.2),
             dask_chunks={'time': 1},
@@ -200,7 +192,7 @@ def check_open_with_dc(index):
 
         # again but with larger time chunks
         lazy_dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35.2, -35.3),
             longitude=(149.1, 149.2),
             dask_chunks={'time': 2},
@@ -211,11 +203,11 @@ def check_open_with_dc(index):
             time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)
         ).equals(dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
 
-    dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
+    dataset_like = dc.load(product=product, measurements=['blue'], like=dataset)
     assert (dataset.blue == dataset_like.blue).all()
 
     solar_day_dataset = dc.load(
-        product='ls5_nbar_albers',
+        product=product,
         latitude=(-35, -36),
         longitude=(149, 150),
         measurements=['blue'],
@@ -224,20 +216,17 @@ def check_open_with_dc(index):
     assert 0 < solar_day_dataset.time.size <= dataset.time.size
 
     dataset = dc.load(
-        product='ls5_nbar_albers',
-        latitude=(-35.2, -35.3),
-        longitude=(149.1, 149.2),
-        align=(5, 20),
+        product=product, latitude=(-35.2, -35.3), longitude=(149.1, 149.2), align=(5, 20)
     )
     assert dataset.geobox.affine.f % abs(dataset.geobox.affine.e) == 5
     assert dataset.geobox.affine.c % abs(dataset.geobox.affine.a) == 20
-    dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
+    dataset_like = dc.load(product=product, measurements=['blue'], like=dataset)
     assert (dataset.blue == dataset_like.blue).all()
 
     products_df = dc.list_products()
     assert len(products_df)
-    assert len(products_df[products_df['name'].isin(['ls5_nbar_albers'])])
-    assert len(products_df[products_df['name'].isin(['ls5_pq_albers'])])
+    assert len(products_df[products_df['name'].isin([product])])
+    # assert len(products_df[products_df['name'].isin(['ls5_pq_albers'])])
 
     assert len(dc.list_measurements())
     assert len(dc.list_measurements(with_pandas=False))
@@ -257,7 +246,7 @@ def check_open_with_dc(index):
 
     for resamp_meth in resamp:
         dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             measurements=['blue'],
             latitude=(-35.28, -35.285),
             longitude=(149.15, 149.155),
@@ -272,7 +261,7 @@ def check_open_with_dc(index):
 
     # check empty result
     dataset = dc.load(
-        product='ls5_nbar_albers',
+        product=product,
         time=('1918', '1919'),
         measurements=['blue'],
         latitude=(-35.28, -35.285),
@@ -283,18 +272,17 @@ def check_open_with_dc(index):
     assert len(dataset.data_vars) == 0
 
 
-def check_open_with_grid_workflow(index):
-    type_name = 'ls5_nbar_albers'
-    dt = index.products.get_by_name(type_name)
+def check_open_with_grid_workflow(index, product):
+    dt = index.products.get_by_name(product)
 
     from datacube.api.grid_workflow import GridWorkflow
 
     gw = GridWorkflow(index, dt.grid_spec)
 
-    cells = gw.list_cells(product=type_name, cell_index=LBG_CELL)
+    cells = gw.list_cells(product=product, cell_index=LBG_CELL)
     assert LBG_CELL in cells
 
-    cells = gw.list_cells(product=type_name)
+    cells = gw.list_cells(product=product)
     assert LBG_CELL in cells
 
     tile = cells[LBG_CELL]
@@ -317,7 +305,7 @@ def check_open_with_grid_workflow(index):
 
     ts = numpy.datetime64('1992-03-23T23:14:25.500000000')
     tile_key = LBG_CELL + (ts,)
-    tiles = gw.list_tiles(product=type_name)
+    tiles = gw.list_tiles(product=product)
     assert tiles
     assert tile_key in tiles
 
@@ -331,13 +319,13 @@ def check_open_with_grid_workflow(index):
     )
 
 
-def check_load_via_dss(index):
+def check_load_via_dss(index, product):
     dc = Datacube(index=index)
 
-    dss = dc.find_datasets(product='ls5_nbar_albers')
+    dss = dc.find_datasets(product=product)
     assert len(dss) > 0
 
-    xx1 = dc.load(product='ls5_nbar_albers', measurements=['blue'])
+    xx1 = dc.load(product=product, measurements=['blue'])
     xx2 = dc.load(datasets=dss, measurements=['blue'])
     assert xx1.blue.shape
     assert (xx1.blue != -999).any()
