@@ -3,20 +3,16 @@ from random import random, sample
 
 import pytest
 import numpy as np
-from datacube.drivers import reader_drivers, writer_drivers
+from datacube.drivers import reader_drivers
 from datacube.storage import BandInfo
 from mock import MagicMock
 
 from datacube_zarr.driver import (
     ZarrDataSource,
     ZarrReaderDriver,
-    ZarrWriterDriver,
     reader_driver_init,
     uri_split,
-    writer_driver_init,
 )
-
-from .utils import _check_zarr_files, _load_dataset
 
 SPECTRAL_DEFINITION = {
     'wavelength': sorted(sample(range(380, 750), 150)),
@@ -31,13 +27,6 @@ def test_reader_drivers():
     available_drivers = reader_drivers()
     assert isinstance(available_drivers, list)
     assert 'zarr' in available_drivers
-
-
-def test_writer_drivers():
-    '''Check the zarr writer driver is found by Datacube.'''
-    available_drivers = writer_drivers()
-    for name in ('zarr file', 'zarr s3'):
-        assert name in available_drivers
 
 
 def test_zarr_netcdf_driver_import():
@@ -147,7 +136,7 @@ def test_datasource_stacked_nodata(dataset):
     group_name = list(dataset.keys())[0]
     dataset.aa.attrs['nodata'] = [-9999]
     band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, None)
-    assert band_source._nodata == -9999
+    assert band_source.nodata == -9999
 
 
 @pytest.mark.parametrize("uri,split_uri", uri_split_test_params)
@@ -182,88 +171,3 @@ def test_zarr_reader_driver(dataset, odc_dataset):
     with source.open() as band_source:
         ds = band_source.read()
         assert np.array_equal(ds, dataset[group_name].values[0, ...])
-
-
-def test_zarr_writer_driver():
-    '''Check aliases, format and uri_scheme for the writer.'''
-    writer = writer_driver_init()
-    assert isinstance(writer, ZarrWriterDriver)
-    assert writer.aliases == ['zarr file', 'zarr s3']
-    assert writer.format == 'zarr'
-
-
-def test_writer_driver_mk_uri():
-    '''Check mk_uri for the writer for supported aliases'''
-    writer_driver = ZarrWriterDriver()
-
-    # Test 'zarr file' driver alias
-    file_path = '/path/to/my_file.zarr'
-    driver_alias = 'zarr file'
-    storage_config = {'driver': driver_alias}
-    file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
-    assert file_uri == f'file://{file_path}'
-
-    # Test 'zarr s3' driver alias
-    file_path = 'bucket/path/to/my_file.zarr'
-    driver_alias = 'zarr s3'
-    storage_config = {'driver': driver_alias}
-    file_uri = writer_driver.mk_uri(file_path=file_path, storage_config=storage_config)
-    assert file_uri == f's3://{file_path}'
-
-    # Test unknown driver alias
-    file_path = 'bucket/path/to/my_file.zarr'
-    driver_alias = 'unknown alias'
-    storage_config = {'driver': driver_alias}
-    with pytest.raises(ValueError) as excinfo:
-        file_uri = writer_driver.mk_uri(
-            file_path=file_path, storage_config=storage_config
-        )
-    assert str(excinfo.value) == f'Unknown driver alias: {driver_alias}'
-
-
-def test_zarr_file_writer_driver_save(uri, fixed_chunks, data, s3):
-    '''Test the `write_dataset_to_storage` method.'''
-    name = 'array1'
-    writer = ZarrWriterDriver()
-    ds_in = data.to_dataset(name=name)
-    writer.write_dataset_to_storage(
-        dataset=ds_in.copy(),
-        file_uri=uri,
-        storage_config={'chunking': fixed_chunks['input']},
-    )
-    _check_zarr_files(data, uri, name, fixed_chunks, s3)
-
-    # Load and check data
-    ds_out = _load_dataset(uri)
-    assert ds_in.equals(ds_out)  # Compare values only
-
-
-def test_zarr_file_writer_driver_data_corrections(uri, fixed_chunks, data):
-    '''Test dataset key corrections applied by `write_dataset_to_storage`.'''
-    name = 'array1'
-    writer = ZarrWriterDriver()
-    ds_in = data.to_dataset(name=name)
-    # Assign target keys: spectral definition and coords attributes
-    ds_in.array1.attrs['spectral_definition'] = SPECTRAL_DEFINITION
-    coords = {dim: [1] * size for dim, size in ds_in.dims.items()}
-    ds_in = ds_in.assign_coords(coords)
-    for coord_name in ds_in.coords:
-        ds_in.coords[coord_name].attrs['units'] = 'Fake unit'
-    writer.write_dataset_to_storage(
-        dataset=ds_in.copy(),  # The copy should be corrected
-        file_uri=uri,
-        storage_config={'chunking': fixed_chunks['input']},
-    )
-    # Load and check data has been corrected
-    ds_out = _load_dataset(uri)
-    assert ds_in.equals(ds_out)  # Values only
-    for key, value in SPECTRAL_DEFINITION.items():
-        # spectral defs attributes should now start with 'dc_'
-        assert ds_out.array1.attrs[f'dc_spectral_definition_{key}'] == value  # attrs
-    for coord_name in ds_in.coords:
-        assert ds_out.coords[coord_name].equals(ds_in.coords[coord_name])
-        for attr, val in ds_in.coords[coord_name].attrs.items():
-            # units attribute should now start with 'dc_'
-            if attr == 'units':
-                attr = 'dc_units'
-            assert ds_out.coords[coord_name].attrs[attr] == val
