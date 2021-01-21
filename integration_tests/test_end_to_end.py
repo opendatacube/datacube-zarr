@@ -1,17 +1,26 @@
+# Copied from OpenDataCube integration tests https://github.com/opendatacube/datacube-core
+#
+# End to end test of zariffied ls5 dataset converted to albers and indexed
+
 import shutil
 from pathlib import Path
 
 import pytest
 import numpy
 import rasterio
+import yaml
+from click.testing import CliRunner
 from datacube.api.core import Datacube
 
+from datacube_zarr.tools.zarrify import main as zarrify
+from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 from integration_tests.utils import prepare_test_ingestion_configuration
 
 PROJECT_ROOT = Path(__file__).parents[1]
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs/config_samples/'
 INGESTER_CONFIGS = CONFIG_SAMPLES / 'ingester'
 LS5_DATASET_TYPES = CONFIG_SAMPLES / 'dataset_types/ls5_scenes.yaml'
+LS5_DATASET_TYPES_ZARR = CONFIG_SAMPLES / "dataset_types/ls5_scenes_albers_zarr.yaml"
 TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 LBG_NBAR = 'LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323'
 LBG_PQ = 'LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323'
@@ -27,7 +36,7 @@ def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
     datadir = Path(str(tmpdir), 'data')
     datadir.mkdir()
 
-    shutil.copytree(str(TEST_DATA), str(tmpdir / 'lbg'))
+    shutil.copytree(str(TEST_DATA), str(datadir / 'lbg'))
 
     for file in ingest_configs.values():
         prepare_test_ingestion_configuration(
@@ -38,7 +47,7 @@ def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
             s3_bucket_name=s3_bucket_name,
         )
 
-    return tmpdir
+    return datadir
 
 
 ignore_me = pytest.mark.xfail(
@@ -46,9 +55,36 @@ ignore_me = pytest.mark.xfail(
 )
 
 
-@pytest.mark.usefixtures('default_metadata_type', 's3')
-@pytest.mark.parametrize('datacube_env_name', ('datacube',))
-def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env_name):
+def replace_band_names(metadatafile):
+    """EO prepare script sets band by number but product uses names."""
+    band_map = {
+        '1': 'blue',
+        '2': 'green',
+        '3': 'red',
+        '4': 'nir',
+        '5': 'swir1',
+        '7': 'swir2',
+    }
+    meta = yaml.safe_load(metadatafile.read_text())
+
+    def _replace_bands(band_meta):
+        new_bands = {}
+        for k, v in band_map.items():
+            new_bands[v] = band_meta[k]
+        return new_bands
+
+    if meta["product_type"] == "nbar":
+        meta["image"]["bands"] = _replace_bands(meta["image"]["bands"])
+    elif meta["product_type"] == "pqa":
+        for k, v in meta["lineage"]["source_datasets"].items():
+            meta["lineage"]["source_datasets"][k]["image"]["bands"] = _replace_bands(
+                v["image"]["bands"]
+            )
+
+    metadatafile.write_text(yaml.dump(meta))
+
+
+def test_end_to_end(clirunner, index, testdata_dir, ingest_configs):
     """
     Loads two dataset configurations, then ingests a sample Landsat 5 scene
 
@@ -61,8 +97,6 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
 
     lbg_nbar = testdata_dir / 'lbg' / LBG_NBAR
     lbg_pq = testdata_dir / 'lbg' / LBG_PQ
-    ls5_nbar_albers_ingest_config = testdata_dir / ingest_configs['ls5_nbar_albers']
-    ls5_pq_albers_ingest_config = testdata_dir / ingest_configs['ls5_pq_albers']
 
     # Add the LS5 Dataset Types
     clirunner(['-v', 'product', 'add', str(LS5_DATASET_TYPES)])
@@ -112,11 +146,29 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
     # 2. Call dataset update with archive/forget
     # 3. Check location
 
-    # Ingest NBAR
-    clirunner(['-v', 'ingest', '-c', str(ls5_nbar_albers_ingest_config)])
+    # Zarrify geotiffs to albers projection, prepare and index
+    runner = CliRunner()
+    zarrify_args = "--chunk x:500 --chunk y:500 --progress".split()
+    zarrify_args.extend("--crs EPSG:3577 --resolution 25 25".split())
+    zarr_dir = testdata_dir / "zarrs"
+    zarrify_args.extend(["--outpath", str(zarr_dir)])
+    gtif_dir = testdata_dir / 'lbg'
+    zarrify_args.append(str(gtif_dir))
+    res_zarrify = runner.invoke(zarrify, zarrify_args)
+    assert res_zarrify.exit_code == 0, res_zarrify.stdout
+    zarr_dataset_dir = zarr_dir / "lbg"
 
-    # Ingest PQ
-    clirunner(['-v', 'ingest', '-c', str(ls5_pq_albers_ingest_config)])
+    # prepare metadata for zarr
+    res_prep = runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir / LBG_NBAR)])
+    assert res_prep.exit_code == 0, res_prep.stdout
+    for metafile in zarr_dataset_dir.glob("**/agdc-metadata.yaml"):
+        replace_band_names(metafile)
+
+    # Add the zarr LS5 products
+    clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES_ZARR)])
+    for ds in (LBG_NBAR, LBG_PQ):
+        ds_dir = zarr_dataset_dir / ds
+        clirunner(["-v", "dataset", "add", str(ds_dir)])
 
     dc = Datacube(index=index)
     assert isinstance(str(dc), str)
@@ -125,9 +177,10 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
     with pytest.raises(ValueError):
         dc.find_datasets(time='2019')  # no product supplied, raises exception
 
-    check_open_with_dc(index, product='ls5_nbar_albers')
-    check_open_with_grid_workflow(index, product='ls5_nbar_albers')
-    check_load_via_dss(index, product='ls5_nbar_albers')
+    product = 'ls5_nbar_scene_zarr'
+    check_open_with_dc(index, product=product)
+    check_open_with_grid_workflow(index, product=product)
+    check_load_via_dss(index, product=product)
 
 
 def check_open_with_dc(index, product):
