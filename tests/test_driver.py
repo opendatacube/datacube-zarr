@@ -46,11 +46,12 @@ def test_datasource(request, dataset, dataset_fixture):
 
     Data is saved to file and opened by the data source."""
     odc_dataset_ = request.getfixturevalue(dataset_fixture)
+
     group_name = list(dataset.keys())[0]
     source = ZarrDataSource(BandInfo(odc_dataset_, group_name))
     with source.open() as band_source:
         ds = band_source.read()
-        assert np.array_equal(ds, dataset[group_name].values[0, ...])
+        assert np.array_equal(ds.squeeze(), dataset[group_name].values.squeeze())
 
 
 def test_datasource_empty_band_info(dataset):
@@ -72,12 +73,12 @@ def test_datasource_wrong_protocol(dataset):
     assert str(excinfo.value) == 'Expected file:// or s3:// url'
 
 
-def test_datasource_no_timeslice(dataset):
+def test_datasource_read_window(dataset):
     '''Test the ZarrDataSource.BandDataSource.'''
     group_name = list(dataset.keys())[0]
 
     band_source = ZarrDataSource.BandDataSource(
-        dataset, group_name, None, dataset[group_name].nodata
+        dataset, group_name, dataset[group_name].nodata
     )
     assert band_source.crs == dataset.crs
     assert band_source.transform == dataset[group_name].affine
@@ -85,20 +86,22 @@ def test_datasource_no_timeslice(dataset):
     assert band_source.shape == dataset[group_name].shape[1:]
 
     ds2 = band_source.read()
-    assert np.array_equal(ds2, dataset[group_name].values[0, ...])
+    assert np.array_equal(ds2, dataset[group_name].values)
 
-    ds3 = band_source.read(((30, 50), (30, 50)))
+    ds3 = band_source.read((0, (30, 50), (30, 50)))
     assert np.array_equal(ds3, dataset[group_name][0, 30:50, 30:50].values)
 
 
-def test_datasource_bad_time_index(dataset):
+def test_datasource_bad_window(dataset):
     '''Test the ZarrDataSource.BandDataSource with an invalid time index.'''
     group_name = list(dataset.keys())[0]
+    band_source = ZarrDataSource.BandDataSource(
+        dataset, group_name, dataset[group_name].nodata
+    )
+
     with pytest.raises(IndexError) as excinfo:
-        ZarrDataSource.BandDataSource(
-            dataset, group_name, dataset.time.size + 1, dataset[group_name].nodata
-        )
-    assert str(excinfo.value) == 'band_idx 1 out of range (nbands=1)'
+        band_source.read((1,))
+    assert str(excinfo.value) == 'index 1 is out of bounds for axis 0 with size 1'
 
 
 def test_datasource_no_time_slice(dataset):
@@ -106,9 +109,7 @@ def test_datasource_no_time_slice(dataset):
     group_name = list(dataset.keys())[0]
     dataset = dataset.drop_sel(time=dataset.time.values)
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(
-            dataset, group_name, None, dataset[group_name].nodata
-        )
+        ZarrDataSource.BandDataSource(dataset, group_name, dataset[group_name].nodata)
     assert str(excinfo.value) == 'Dataset has 0 bands.'
 
 
@@ -117,7 +118,7 @@ def test_datasource_no_nodata(dataset):
     group_name = list(dataset.keys())[0]
     dataset[group_name].attrs.pop('nodata', None)
     with pytest.raises(ValueError) as excinfo:
-        ZarrDataSource.BandDataSource(dataset, group_name, dataset.time.size, None)
+        ZarrDataSource.BandDataSource(dataset, group_name, None)
     assert str(excinfo.value) == 'nodata not found in dataset and product definition'
 
 
@@ -135,7 +136,7 @@ def test_datasource_stacked_nodata(dataset):
     '''Test the ZarrDataSource.BandDataSource with nodata as a list.'''
     group_name = list(dataset.keys())[0]
     dataset.aa.attrs['nodata'] = [-9999]
-    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None, None)
+    band_source = ZarrDataSource.BandDataSource(dataset, group_name, None)
     assert band_source.nodata == -9999
 
 
@@ -170,4 +171,4 @@ def test_zarr_reader_driver(dataset, odc_dataset):
     source = reader.new_datasource(BandInfo(odc_dataset, group_name))
     with source.open() as band_source:
         ds = band_source.read()
-        assert np.array_equal(ds, dataset[group_name].values[0, ...])
+        assert np.array_equal(ds, dataset[group_name].values)

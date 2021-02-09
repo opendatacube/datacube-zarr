@@ -6,7 +6,7 @@ Should be able to handle hyperspectral data when ready.
 
 from contextlib import contextmanager
 from json.decoder import JSONDecodeError
-from typing import Any, Generator, Optional, Tuple
+from typing import Any, Generator, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -23,7 +23,7 @@ PROTOCOL = ['file', 's3']
 FORMAT = 'zarr'
 
 RasterShape = Tuple[int, ...]
-RasterWindow = Tuple[Tuple[int, int]]
+RasterWindow = Tuple[Union[int, Tuple[int, int]], ...]
 
 
 class ZarrDataSource(object):
@@ -32,7 +32,6 @@ class ZarrDataSource(object):
             self,
             dataset: xr.Dataset,
             var_name: str,
-            band: Optional[int],
             no_data: Optional[float],
         ):
             """
@@ -42,7 +41,6 @@ class ZarrDataSource(object):
 
             :param xr.Dataset dataset: The xr.Dataset
             :param str var_name: The variable name of the xr.DataArray
-            :param int band: The band index into the dataset for the source
             :param float no_data: The no data value if known
             """
             self.ds = dataset
@@ -54,17 +52,10 @@ class ZarrDataSource(object):
             if self._nbands == 0:
                 raise ValueError('Dataset has 0 bands.')
 
-            # Adjust band for 0-indexing
-            self.band_idx = (band or 1) - 1
-            if self.band_idx >= self._nbands:
-                raise IndexError(
-                    f'band_idx {self.band_idx} out of range (nbands={self._nbands})'
-                )
-
             # Set nodata value
             if 'nodata' in self.da.attrs and self.da.nodata:
                 if isinstance(self.da.nodata, list):
-                    self._nodata = self.da.nodata[self.band_idx]
+                    self._nodata = self.da.nodata[0]
                 else:
                     self._nodata = self.da.nodata
             else:
@@ -108,19 +99,16 @@ class ZarrDataSource(object):
             :return: Requested data in a :class:`numpy.ndarray`
             """
 
-            # Check if zarr dataset is a 2D array
-            t_ix: Tuple = tuple() if self._is_2d else (self.band_idx,)
-
             if window is None:
-                xy_ix: Tuple = (...,)
+                ix: Tuple = (...,)
             else:
-                xy_ix = tuple(slice(*w) for w in window)
+                ix = tuple(slice(*w) if isinstance(w, tuple) else w for w in window)
 
             # Fixes intermittent Zarr decompression errors when used with Dask
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
             def fn() -> Any:
-                return self.da.values[t_ix + xy_ix]
+                return self.da.values[ix]
 
             data = fn()
             return data
@@ -162,7 +150,6 @@ class ZarrDataSource(object):
         yield ZarrDataSource.BandDataSource(
             dataset=dataset,
             var_name=var_name,
-            band=self._band_info.band,
             no_data=self._band_info.nodata,
         )
 

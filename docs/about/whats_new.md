@@ -9,8 +9,8 @@
 - Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray
 - Update `rasterio` dependency to version >=1.1.5
 - Suppress expected warnings in unit tests
-- CLI script `set_zarr_product_extra_dim.py` for changing a zarr dataset's extra dimension.
-  - Extra dimension is defined in a product definition yaml under "extra_dimension".
+- CLI script `set_zarr_product_extra_dim.py` for changing a zarr dataset's extra dimensions.
+  - Extra dimensions are defined in a product definition yaml under "extra_dimensions".
 - Change `time_idx` to `band_idx` in Zarr driver.
 - Support for list of nodata vals required for 3D zarrs.
 - Add `transform` attribute from rasters to zarr dataset within zarrify.
