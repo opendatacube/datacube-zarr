@@ -16,6 +16,10 @@
 - Add `transform` attribute from rasters to zarr dataset within zarrify.
 - Revert to universal `"band1"` 2D zarr array naming (not `"band01"`, `"band001"`, etc.).
 - Update `xarray` dependency to version >=0.16.2
+- Remove Zarr writer driver.
+  - Creating Zarr datasets via Datacube ingest is no longer supported. The `zarrify` CLI
+    tool can be used to convert from other formats to Zarr prior to indexing.
+- Zarr dimension rename script supports multiple extra dimensions.
 
 
 ## v0.1.1 (02 September 2020)
