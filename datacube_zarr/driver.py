@@ -108,7 +108,7 @@ class ZarrDataSource(object):
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
             def fn() -> Any:
-                return self.da.values[ix]
+                return self.da[ix].values
 
             data = fn()
             return data
