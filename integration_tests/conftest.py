@@ -9,7 +9,6 @@ from copy import copy, deepcopy
 from datetime import timedelta
 from pathlib import Path
 from time import sleep
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -27,14 +26,7 @@ from moto import mock_s3
 from moto.server import main as moto_server_main
 from s3path import S3Path, _s3_accessor
 
-from integration_tests.utils import (
-    GEOTIFF,
-    _make_geotiffs,
-    _make_ls5_scene_datasets,
-    copytree,
-    load_test_products,
-    load_yaml_file,
-)
+from integration_tests.utils import GEOTIFF, _make_geotiffs, copytree, load_yaml_file
 
 _SINGLE_RUN_CONFIG_TEMPLATE = """
 
@@ -174,16 +166,7 @@ def local_config(datacube_env_name):
     return LocalConfig.find(CONFIG_FILE_PATHS, env=datacube_env_name)
 
 
-@pytest.fixture(params=['file', 's3'])
-def ingest_configs(datacube_env_name, request):
-    """Provides dictionary product_name => config file name"""
-    return {
-        'ls5_nbar_albers': f'ls5_nbar_albers_zarr_{request.param}.yaml',
-        'ls5_pq_albers': f'ls5_pq_albers_zarr_{request.param}.yaml',
-    }
-
-
-@pytest.fixture(params=["US/Pacific", "UTC"])
+@pytest.fixture(params=["UTC"])
 def uninitialised_postgres_db(local_config, request):
     """
     Return a connection to an empty PostgreSQL database
@@ -201,7 +184,7 @@ def uninitialised_postgres_db(local_config, request):
 
     # We need to run this as well
     # I think because SQLAlchemy grabs them into it's MetaData,
-    # and attempts to recreate them. WTF TODO FIX
+    # and attempts to recreate them. TODO FIX
     remove_dynamic_indexes()
 
     yield db
@@ -224,15 +207,6 @@ def index_empty(local_config, uninitialised_postgres_db: PostgresDb):
     return index
 
 
-@pytest.fixture
-def initialised_postgres_db(index):
-    """
-    Return a connection to an PostgreSQL database, initialised with the default schema
-    and tables.
-    """
-    return index._db
-
-
 def remove_dynamic_indexes():
     """
     Clear any dynamically created postgresql indexes from the schema.
@@ -242,26 +216,6 @@ def remove_dynamic_indexes():
         table.indexes.intersection_update(
             [i for i in table.indexes if not i.name.startswith('dix_')]
         )
-
-
-@pytest.fixture
-def ls5_telem_doc(ga_metadata_type):
-    return {
-        "name": "ls5_telem_test",
-        "description": 'LS5 Test',
-        "metadata": {
-            "platform": {"code": "LANDSAT_5"},
-            "product_type": "satellite_telemetry_data",
-            "ga_level": "P00",
-            "format": {"name": "RCC"},
-        },
-        "metadata_type": ga_metadata_type.name,
-    }
-
-
-@pytest.fixture
-def ls5_telem_type(index, ls5_telem_doc):
-    return index.products.add_document(ls5_telem_doc)
 
 
 @pytest.fixture(scope='session')
@@ -286,7 +240,7 @@ def geotiffs(tmpdir_factory):
         {
             'day':..., # compact day string, e.g. `19900302`
             'uuid':..., # a unique UUID for this dataset (i.e. specific day)
-            'path':..., # path to the yaml ingestion file
+            'path':..., # path to the yaml metadata file
             'tiffs':... # list of paths to the actual geotiffs in that dataset,
                         # one per band.
         }
@@ -365,45 +319,8 @@ def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
 
 
 @pytest.fixture
-def example_ls5_dataset_path(example_ls5_dataset_paths):
-    """Create a single sample raw observation (dataset + geotiff)."""
-    return list(example_ls5_dataset_paths.values())[0]
-
-
-@pytest.fixture
-def example_ls5_dataset_paths(tmpdir, geotiffs):
-    """Create sample raw observations (dataset + geotiff).
-
-    This fixture should be used by eah test requiring a set of
-    observations over multiple time slices. The actual geotiffs and
-    corresponding yamls are symlinks to a set created for the whole
-    test session, in order to save disk and time.
-
-    :param tmpdir: The temp directory in which to create the datasets.
-    :param list geotiffs: List of session geotiffs and yamls, to be
-      linked from this unique observation set sample.
-    :return: dict: Dict of directories containing each observation,
-      indexed by dataset UUID.
-    """
-    dataset_dirs = _make_ls5_scene_datasets(geotiffs, tmpdir)
-    return dataset_dirs
-
-
-@pytest.fixture
 def default_metadata_type_doc():
     return [doc for doc in default_metadata_type_docs() if doc['name'] == 'eo'][0]
-
-
-@pytest.fixture
-def telemetry_metadata_type_doc():
-    return [doc for doc in default_metadata_type_docs() if doc['name'] == 'telemetry'][0]
-
-
-@pytest.fixture
-def ga_metadata_type_doc():
-    _full_eo_metadata = Path(__file__).parent.joinpath('extensive-eo-metadata.yaml')
-    [(path, eo_md_type)] = datacube.utils.read_documents(_full_eo_metadata)
-    return eo_md_type
 
 
 @pytest.fixture
@@ -415,34 +332,8 @@ def default_metadata_types(index):
 
 
 @pytest.fixture
-def ga_metadata_type(index, ga_metadata_type_doc):
-    return index.metadata_types.add(index.metadata_types.from_doc(ga_metadata_type_doc))
-
-
-@pytest.fixture
 def default_metadata_type(index, default_metadata_types):
     return index.metadata_types.get_by_name('eo')
-
-
-@pytest.fixture
-def telemetry_metadata_type(index, default_metadata_types):
-    return index.metadata_types.get_by_name('telemetry')
-
-
-@pytest.fixture
-def indexed_ls5_scene_products(index, ga_metadata_type):
-    """Add Landsat 5 scene Products into the Index"""
-    products = load_test_products(
-        CONFIG_SAMPLES / 'dataset_types' / 'ls5_scenes.yaml',
-        # Use our larger metadata type with a more diverse set of field types.
-        metadata_type=ga_metadata_type,
-    )
-
-    types = []
-    for product in products:
-        types.append(index.products.add_document(product))
-
-    return types
 
 
 @pytest.fixture(params=["file", "s3"])
@@ -470,11 +361,6 @@ def ls8_dataset_path(request, s3, tmp_path):
 
 
 @pytest.fixture
-def example_ls5_nbar_metadata_doc():
-    return load_yaml_file(_EXAMPLE_LS5_NBAR_DATASET_FILE)[0]
-
-
-@pytest.fixture
 def clirunner(global_integration_cli_args, datacube_env_name):
     def _run_cli(
         opts,
@@ -499,40 +385,3 @@ def clirunner(global_integration_cli_args, datacube_env_name):
         return result
 
     return _run_cli
-
-
-@pytest.fixture
-def clirunner_raw():
-    def _run_cli(
-        opts,
-        catch_exceptions=False,
-        expect_success=True,
-        cli_method=datacube.scripts.cli_app.cli,
-        verbose_flag='-v',
-    ):
-        exe_opts = []
-        if verbose_flag:
-            exe_opts.append(verbose_flag)
-        exe_opts.extend(opts)
-
-        runner = CliRunner()
-        result = runner.invoke(cli_method, exe_opts, catch_exceptions=catch_exceptions)
-        if expect_success:
-            assert 0 == result.exit_code, "Error for %r. output: %r" % (
-                opts,
-                result.output,
-            )
-        return result
-
-    return _run_cli
-
-
-@pytest.fixture
-def dataset_add_configs():
-    base = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
-    return SimpleNamespace(
-        metadata=str(base / 'metadata.yml'),
-        products=str(base / 'products.yml'),
-        datasets_bad1=str(base / 'datasets_bad1.yml'),
-        datasets=str(base / 'datasets.yml'),
-    )

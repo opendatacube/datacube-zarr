@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Mapping, Optional, Union
+from typing import Callable, Hashable, Mapping, Optional, Union
 
 import fsspec
 import s3fs
@@ -21,12 +21,7 @@ from .utils.context_manager import dask_threadsafe_config
 from .utils.uris import uri_split
 
 
-class ZarrBase:
-    def __init__(self) -> None:
-        self._logger = logging.getLogger(self.__class__.__name__)
-
-
-class ZarrIO(ZarrBase):
+class ZarrIO:
     """
     Zarr read/write interface to save and load xarray.Datasets and xarray DataArrays.
 
@@ -53,8 +48,7 @@ class ZarrIO(ZarrBase):
     WRITE_MODES = ('w', 'w-', 'a')
 
     def __init__(self) -> None:
-
-        super().__init__()
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     def print_tree(self, uri: str) -> zarr.util.TreeViewer:
         """
@@ -196,39 +190,6 @@ class ZarrIO(ZarrBase):
         ds: xr.Dataset = self.open_dataset(uri)
         ds.load()
         return ds
-
-    def save_dataset_to_zarr(
-        self,
-        uri: str,
-        dataset: xr.Dataset,
-        global_attributes: Optional[dict] = None,
-        variable_params: Optional[dict] = None,
-        storage_config: Optional[dict] = None,
-    ) -> Dict[str, Any]:
-        """
-        ODC driver calls this
-        Saves a Data Cube style xarray Dataset to a Storage Unit
-
-        Requires a spatial Dataset, with attached coordinates and global crs attribute.
-
-        :param str uri: The output storage URI.
-        :param `xarray.Dataset` dataset: The xarray Dataset to be saved to Zarr
-        :param dict global_attributes: Global file attributes.
-                                       dict of attr_name: attr_value
-        :param dict variable_params: dict of variable_name:
-                                       {param_name: param_value, [...]}
-                                     Allows setting storage and compression options per
-                                     variable.
-        :param dict storage_config: The storage config from the ingest definition.
-        :return: dict containing additional driver metadata to be stored in the database
-        """
-        chunks = None
-        if storage_config:
-            chunks = storage_config['chunking']
-
-        metadata: Dict[str, Any] = {}
-        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks)
-        return metadata
 
 
 def _xarray_dim_rename_visitor(

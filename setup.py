@@ -56,8 +56,5 @@ setup(
         'datacube.plugins.io.read': [
             'zarr = datacube_zarr.driver:reader_driver_init',
         ],
-        'datacube.plugins.io.write': [
-            'zarr = datacube_zarr.driver:writer_driver_init',
-        ],
     },
 )

@@ -1,6 +1,6 @@
 # ODC examples
 
-## Convert to Zarr and Index (Recommended)
+## Convert to Zarr and Index
    1. Convert to Zarr (see [zarrify](zarrify.md) for usage instructions)
       ```
       zarrify --outpath <zarr_output_dir> --chunk x:2000 --chunk y:2000 <path_to_dataset>
@@ -35,34 +35,3 @@
          ```
          python index_from_s3_bucket.py <bucket> -p <prefix> --suffix="agdc-metadata.yaml"
          ```
-
-## Index then Ingest to Zarr
-   1. Generate `agdc_metadata` file
-      See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
-      ```
-      python galsprepare.py <path_to_ls5_scenes>/*
-      ```
-   1. Initialise ODC DB
-      ```
-      datacube -v system init
-      ```
-   1. Adding product definition
-      See: [Product definitions and prepare scripts](https://github.com/opendatacube/datacube-dataset-config)
-      ```
-      datacube product add docs/config_samples/dataset_types/ls5_scenes.yaml
-      ```
-   1. Index scenes
-      ```
-      datacube dataset add <path_to_ls5_scenes>/*
-      ```
-   1. Ingest scenes to Zarr format
-
-      Example ingest definitions in [docs/config_samples/ingester/]().
-
-      ```
-      datacube -v ingest -c ls5_nbar_albers_zarr_file.yaml
-      ```
-      You can specify `--executor multiproc <num_processes>` to enable multi-processing.
-      ```
-      datacube -v ingest -c ls5_nbar_albers_zarr_file.yaml --executor multiproc <num_processes>
-      ```

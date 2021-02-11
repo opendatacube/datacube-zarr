@@ -119,6 +119,15 @@ def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
     assert_expected_chunking(zarr_path, chunks)
 
 
+def test_zarrify_dir(zarrifycli, tmp_raster):
+    """Test zarrify cli."""
+    res = zarrifycli(["--inplace", "-v", tmp_raster.parent.as_uri()])
+    assert res.exit_code == 0, res.stdout
+    assert not tmp_raster.exists()
+    zarr_path = tmp_raster.parent / f"{tmp_raster.stem}.zarr"
+    assert zarr_path.exists()
+
+
 @pytest.mark.parametrize(
     "chunks_opts", ["--chunk-target-mb 0.01", "--approx-compression-ratio 5"]
 )
