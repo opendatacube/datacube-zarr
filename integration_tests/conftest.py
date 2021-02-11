@@ -240,7 +240,7 @@ def geotiffs(tmpdir_factory):
         {
             'day':..., # compact day string, e.g. `19900302`
             'uuid':..., # a unique UUID for this dataset (i.e. specific day)
-            'path':..., # path to the yaml ingestion file
+            'path':..., # path to the yaml metadata file
             'tiffs':... # list of paths to the actual geotiffs in that dataset,
                         # one per band.
         }
