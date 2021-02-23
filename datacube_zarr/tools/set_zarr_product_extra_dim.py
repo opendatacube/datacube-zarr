@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
 import json
+from pathlib import Path
+from typing import List, Tuple
 
 import click
 import numpy as np
@@ -23,7 +25,7 @@ _default_zarrify_dim = "band"
     multiple=True,
     help="Dimension name mapping '<old>:<new>'.",
 )
-def cli(zarr, product_def, name, dim_map):
+def cli(zarr: Path, product_def: Path, name: str, dim_map: List[Tuple]) -> None:
     """Replace zarr "band" dimension with product specific extra dimension."""
 
     # Load extra dimensions from product definition

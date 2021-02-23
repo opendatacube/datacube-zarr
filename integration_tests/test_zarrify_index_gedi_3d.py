@@ -2,18 +2,14 @@ import shutil
 from pathlib import Path
 
 import pytest
-import rasterio
 import xarray as xr
-import yaml
 from click.testing import CliRunner
 from datacube.api.core import Datacube
-from datacube.index.hl import Doc2Dataset
 
 from datacube_zarr.tools.set_zarr_product_extra_dim import (
     cli as set_zarr_product_extra_dim,
 )
 from datacube_zarr.tools.zarrify import main as zarrify
-from datacube_zarr.zarr_io import replace_dataset_dim
 
 PROJECT_ROOT = Path(__file__).parents[1]
 
