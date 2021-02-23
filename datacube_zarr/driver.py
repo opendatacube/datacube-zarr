@@ -118,6 +118,12 @@ class ZarrDataSource(object):
                 return self.da[ix].values
 
             data = fn()
+
+            if out_shape and data.shape != out_shape:
+                raise ValueError(
+                    f"Data shape does not match 'out_shape': {data.shape} != {out_shape}"
+                )
+
             return data
 
     def __init__(self, band: BandInfo):
