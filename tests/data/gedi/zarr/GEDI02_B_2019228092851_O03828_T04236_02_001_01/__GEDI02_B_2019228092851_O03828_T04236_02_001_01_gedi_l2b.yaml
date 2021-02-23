@@ -1,0 +1,87 @@
+id: 7efe4316-b502-45e6-9ae8-61bb4f1770a9
+$schema: https://schemas.opendatacube.org/dataset
+product:
+  name: gedi_l2b_zarr
+crs: epsg:4326
+grids:
+  default:
+    shape:
+    - 3000
+    - 4000
+    transform:
+    - 0.00027778
+    - 0.0
+    - 148.64089852640407
+    - 0.0
+    - -0.00027778
+    - -34.988444394017975
+    - 0.0
+    - 0.0
+    - 1.0
+measurements:
+  beam:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_beam.zarr
+  channel:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_channel.zarr
+  shot_number:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_shot_number.zarr
+  delta_time:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_delta_time.zarr
+  cover:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_cover.zarr
+  pai:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_pai.zarr
+  rh100:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_rh100.zarr
+  fhd_normal:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_fhd_normal.zarr
+  rhov:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_rhov.zarr
+  rhog:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_rhog.zarr
+  omega:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_omega.zarr
+  sensitivity:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_sensitivity.zarr
+  surface_flag:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_surface_flag.zarr
+  digital_elevation_model:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_digital_elevation_model.zarr
+  elev_lowestmode:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_elev_lowestmode.zarr
+  degrade_flag:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_degrade_flag.zarr
+  stale_return_flag:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_stale_return_flag.zarr
+  l2a_quality_flag:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_l2a_quality_flag.zarr
+  l2b_quality_flag:
+    layer: array
+    path: ./GEDI02_B_2019228092851_O03828_T04236_02_001_01/GEDI02_B_2019228092851_O03828_T04236_02_001_01_l2b_quality_flag.zarr
+properties:
+  datetime: 2019-08-16 09:28:51+00:00
+  dtr:end_datetime: 2019-08-16 09:28:51+00:00
+  dtr:start_datetime: 2019-08-16 09:28:51+00:00
+  eo:instrument: GEDI
+  eo:platform: ISS
+  odc:file_format: zarr
+  odc:processing_datetime: 2021-02-17 23:10:46.463145
+lineage: {}
