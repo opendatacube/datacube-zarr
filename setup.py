@@ -9,7 +9,7 @@ tests_require = [
     'isort>=5.1.0',
     'mypy',
     'mock',
-    'moto',
+    'moto<2',
     'pytest',
     'pytest-cov',
     'eodatasets3',
