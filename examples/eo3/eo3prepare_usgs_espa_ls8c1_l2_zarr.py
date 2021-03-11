@@ -178,15 +178,15 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
     works for geotiffs only at this stage.
     """
     ds = ZarrIO().open_dataset(uri=file_path.as_uri())
-    da = ds["band1"]
-    transform = Affine(*ds.transform)
-    crs = CRS.from_string(ds.crs)
+    da = ds["array"]
+    transform = Affine(*da.transform)
+    crs = CRS.from_string(da.crs)
     grid = GridSpec(da.shape, transform, crs)
     path = str(file_path.relative_to(assmebler._metadata_path.parent))
     img = da.values
-    nodata = ds.nodatavals[0]
+    nodata = da.nodatavals[0]
     assmebler._measurements.record_image(
-        name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
+        name=name, grid=grid, path=path, img=img, layer="array", nodata=nodata
     )
 
 

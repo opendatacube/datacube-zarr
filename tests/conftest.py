@@ -254,9 +254,7 @@ def tmp_raster_multiband(tmp_raster_storage_path):
 def tmp_3d_zarr(tmp_raster_multiband):
     out_dir = tmp_raster_multiband.parent
     chunks = {"x": 100, "y": 100, "band": -1}
-    uris = raster_to_zarr(
-        tmp_raster_multiband, out_dir=out_dir, multi_dim=True, chunks=chunks
-    )
+    uris = raster_to_zarr(tmp_raster_multiband, out_dir=out_dir, chunks=chunks)
     assert len(uris) == 1
     yield uris[0]
 
