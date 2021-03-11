@@ -73,10 +73,8 @@ def validate_chunks(
     if chunks is None:
         chunks = {}
 
-    # Check all dimensions are valid
-    invalid_dims = [d for d in chunks if d not in dims]
-    if invalid_dims:
-        raise ValueError(f"Invalid chunking dim(s) specified: {invalid_dims}.")
+    # Remove chunk specifications for dimensions not present
+    chunks = {k: v for k, v in chunks.items() if k in dims}
 
     # Check chunk values are valid
     def _is_valid_chunks(c: Union[int, str]) -> bool:
