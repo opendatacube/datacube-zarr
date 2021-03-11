@@ -1,4 +1,4 @@
-id: 7efe4316-b502-45e6-9ae8-61bb4f1770a9
+id: a25a5073-1527-4e0c-9738-fad48fcff1fb
 $schema: https://schemas.opendatacube.org/dataset
 product:
   name: gedi_l2b_zarr
@@ -83,5 +83,5 @@ properties:
   eo:instrument: GEDI
   eo:platform: ISS
   odc:file_format: zarr
-  odc:processing_datetime: 2021-02-17 23:10:46.463145
+  odc:processing_datetime: 2021-03-11 05:08:30.572422
 lineage: {}
