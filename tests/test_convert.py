@@ -91,7 +91,8 @@ def test_convert_ls8(ls8_dataset_path, tmp_path):
     zarrs = convert_dir(ls8_dataset_path, out_dir)
     for z in zarrs:
         ds = _load_dataset(z)
-        assert ds["band1"].size > 0
+        assert ds["array"].ndim == 2
+        assert ds["array"].size > 0
 
 
 def test_convert_unsupported(tmp_path):

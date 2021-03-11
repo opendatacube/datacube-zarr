@@ -23,15 +23,15 @@ def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks):
 
 
 @pytest.mark.parametrize("preload_data", [False, True])
-@pytest.mark.parametrize("multi_dim", [True, False])
+@pytest.mark.parametrize("separate_bands", [False, True])
 def test_raster_to_zarr_multi_band(
-    tmp_raster_multiband, tmp_storage_path, multi_dim, preload_data
+    tmp_raster_multiband, tmp_storage_path, separate_bands, preload_data
 ):
     """Convert multibanded raster to zarr."""
     uris = raster_to_zarr(
         tmp_raster_multiband,
         tmp_storage_path,
-        multi_dim=multi_dim,
+        separate_bands=separate_bands,
         preload_data=preload_data,
     )
     assert len(uris) == 1
@@ -40,7 +40,7 @@ def test_raster_to_zarr_multi_band(
     assert zarr_exists(zarr_file) is True
 
     assert raster_and_zarr_are_equal(
-        tmp_raster_multiband.as_uri(), uris[0], multi_dim=multi_dim
+        tmp_raster_multiband.as_uri(), uris[0], separate_bands=separate_bands
     )
 
 

@@ -150,7 +150,7 @@ def prep_dataset(fields, path):
     zarr_paths = {
         band_name(r.stem): {
             "path": "#".join([str(r.relative_to(path))] + ([g] if g else [])),
-            "layer": "band1",
+            "layer": "array",
         }
         for r, g in zarrs
     }
