@@ -308,14 +308,14 @@ def main(
         \b
             /
             ├── raster0
-            │   ├── band1 (200, 300) float32
-            │   ├── band2 (200, 300) float32
+            │   ├── array (2, 200, 300) float32
+            │   ├── band (2,) int64
             │   ├── x (300,) float64
             │   └── y (200,) float64
             ...
             └── rasterN
-                ├── band1 (200, 300) float32
-                ├── band2 (200, 300) float32
+                ├── array (2, 200, 300) float32
+                ├── band (2,) int64
                 ├── x (300,) float64
                 └── y (200,) float64
 
