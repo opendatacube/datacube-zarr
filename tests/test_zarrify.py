@@ -18,7 +18,7 @@ keyvalue_params = [
 ]
 
 
-def assert_expected_chunking(zarr_path, chunks, group="", name="band1"):
+def assert_expected_chunking(zarr_path, chunks, group="", name="array"):
     metadata_path = zarr_path / '.zmetadata'
     with metadata_path.open() as fh:
         metadata = json.load(fh)

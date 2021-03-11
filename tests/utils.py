@@ -69,12 +69,15 @@ def copytree(p1: Path, p2: Path) -> None:
             o2.write_bytes(o1.read_bytes())
 
 
-def raster_and_zarr_are_equal(raster_uri, zarr_uri, multi_dim=False):
+def raster_and_zarr_are_equal(raster_uri, zarr_uri, separate_bands=False):
     """Compare raster and zarr files."""
     da_raster = xr.open_rasterio(raster_uri)
+    if da_raster.shape[0] == 1:
+        da_raster = da_raster.sel(band=1, drop=True)
+
     ds_zarr = ZarrIO().load_dataset(zarr_uri)
 
-    if multi_dim is True:
+    if separate_bands is False:
         da_zarr = ds_zarr["array"]
     else:
         sorted_vars = sorted(ds_zarr.data_vars.values(), key=lambda v: int(v.name[4:]))

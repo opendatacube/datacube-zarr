@@ -213,7 +213,9 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     help="Create single zarr for all datasets in a directory.",
 )
 @click.option(
-    "--multi-dim", is_flag=True, help="Keep multi-banded tifs as 3-dimensional arrays."
+    "--separate-bands",
+    is_flag=True,
+    help="Split multi-banded tifs into separate 2D arrays.",
 )
 @click.option(
     "--preload-data", is_flag=True, help="Load dataset into memory before conversion."
@@ -241,7 +243,7 @@ def main(
     auto_chunk: bool,
     ignore: List[str],
     merge_datasets_per_dir: bool,
-    multi_dim: bool,
+    separate_bands: bool,
     preload_data: bool,
     progress: bool,
 ) -> None:
@@ -262,25 +264,22 @@ def main(
     By default each raster dataset is converted to a zarr dataset with root
     directory `<raster_name>.zarr`.
 
-    E.g., for raster(s) with 2 bands and shape (200, 300), and ommiting
-    the `--outpath` option for simplicity:
+    E.g., for raster(s) with a single band and shape (200, 300), and ommiting
+    the `--outpath` option for simplicity, `zarrify` outputs `raster.zarr`
+    with the following structure:
 
     $ zarrify raster.tif
 
-        results in `raster.zarr` with the following structure, where each
-        band is a separate dataset named "band#" under the root group "/":
-
         \b
             /
-            ├── band1 (200, 300) float32
-            ├── band2 (200, 300) float32
+            ├── array (200, 300) float32
             ├── x (300,) float64
             └── y (200,) float64
 
-    $ zarrify --multi-dim raster.tif
+    For the same raster with multiple bands (e.g. 2 bands) a third dimension
+    named "band" is introduced:
 
-        results in `raster.zarr` with bands collected into a single dataset
-        called "array" and "band" number is an additional dimension:
+    $ zarrify raster.tif
 
         \b
             /
@@ -289,10 +288,22 @@ def main(
             ├── x (300,) float64
             └── y (200,) float64
 
-    $ zarrify --merge-datasets-per-dir path/to/rasters/
+    To separate each band into its own variable the following flag can be used:
 
-        for a directory containing N rasters (e.g raster1.tif,...) results
-        in `raster.zarr` with a group per image:
+    $ zarrify --separate-bands raster.tif
+
+        \b
+            /
+            ├── band1 (200, 300) float32
+            ├── band2 (200, 300) float32
+            ├── x (300,) float64
+            └── y (200,) float64
+
+    For a directory containing N rasters (e.g raster1.tif,...) zarrify will treat
+    process each individually. They can be merged into a single zarr file with a
+    group per input file, as follows:
+
+    $ zarrify --merge-datasets-per-dir path/to/rasters/
 
         \b
             /
@@ -347,7 +358,7 @@ def main(
     zarrgs = {
         "crs": crs,
         "resolution": resolution,
-        "multi_dim": multi_dim,
+        "separate_bands": separate_bands,
         "preload_data": preload_data,
         "auto_chunk": auto_chunk,
         "progress": progress,
