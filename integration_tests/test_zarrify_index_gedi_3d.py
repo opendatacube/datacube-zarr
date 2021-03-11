@@ -49,7 +49,7 @@ def gedi_zarr3d(tmp_path_factory):
     zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs")
     runner = CliRunner()
     zarrify_args = ["--chunk", "x:512", "--chunk", "y:512", "--progress"]
-    zarrify_args.extend(["--multi-dim", "--outpath", str(zarr_dir)])
+    zarrify_args.extend(["--outpath", str(zarr_dir)])
 
     # zarrify each dataset and copy metadata
     ds = [d for d in GEDI_GTIF_DATA.iterdir() if d.is_dir()]
@@ -89,6 +89,8 @@ def test_zarrified_gedi(gedi_zarr3d):
     for d in ds:
         for f in d.glob("*.tif"):
             a = xr.open_rasterio(f)
+            if a.shape[0] == 1:
+                a = a.sel(band=1, drop=True)
             b = xr.open_zarr(gedi_zarr3d / d.stem / f"{f.stem}.zarr")["array"].load()
             if f.stem.endswith("_z"):
                 a = a.rename({"band": "z"}).assign_coords({"z": b.z.data})
