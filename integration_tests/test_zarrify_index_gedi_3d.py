@@ -1,8 +1,8 @@
-import shutil
 from pathlib import Path
 
 import pytest
 import xarray as xr
+import yaml
 from click.testing import CliRunner
 from datacube.api.core import Datacube
 
@@ -43,13 +43,39 @@ LBG_LATITUDE = (-35.821784394017975, -34.988444394017975)
 LBG_LONGITUDE = (148.64089852640407, 149.75201852640407)
 
 
-@pytest.fixture(scope="session")
-def gedi_zarr3d(tmp_path_factory):
+def _copy_gedi_metadata(indir, outdir, merged=False):
+    """copy metadata files (created by prepare script)."""
+
+    def _update_merged_measurement_path(meas):
+        base, parent, name = meas["path"].rsplit("/", 2)
+        z = f"{parent}_.zarr#{name.split('.zarr')[0]}"
+        meas["path"] = "/".join([base, parent, z])
+        return meas
+
+    meta_files = indir.glob("__*.yaml")
+    meta_files_out = []
+    for m in meta_files:
+        meta = yaml.safe_load(m.read_text())
+        if merged:
+            meta["measurements"] = {
+                k: _update_merged_measurement_path(v)
+                for k, v in meta["measurements"].items()
+            }
+
+        mout = outdir / m.name
+        mout.write_text(yaml.dump(meta))
+        meta_files_out.append(mout)
+
+    return meta_files_out
+
+
+def zarrify_gedi_data(outdir, merged=False):
     """Zarrify GEDI rasters"""
-    zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs")
     runner = CliRunner()
     zarrify_args = ["--chunk", "x:512", "--chunk", "y:512", "--progress"]
-    zarrify_args.extend(["--outpath", str(zarr_dir)])
+    zarrify_args.extend(["--outpath", str(outdir)])
+    if merged:
+        zarrify_args.extend(["--merge-datasets-per-dir"])
 
     # zarrify each dataset and copy metadata
     ds = [d for d in GEDI_GTIF_DATA.iterdir() if d.is_dir()]
@@ -61,25 +87,40 @@ def gedi_zarr3d(tmp_path_factory):
         assert res.exit_code == 0, res.stdout
 
         # copy metadata files (created by prepare script)
-        meta_files = (GEDI_ZARR_DATA / dname).glob("*.yaml")
-        for m in meta_files:
-            shutil.copy(m, zarr_dir)
+        mfiles = _copy_gedi_metadata(GEDI_ZARR_DATA / dname, outdir, merged=merged)
 
         # reset extra dims
-        zarr_files = (zarr_dir / dname).glob("*.zarr")
-        for z in zarr_files:
-            assert z.stem.startswith(dname)
-            pname = z.stem[len(dname) + 1 :]
+        for m in mfiles:
+            assert dname in m.stem
+            pname = m.stem[len(dname) + 3 :]
             if _gedi_product_is_3d(pname):
+                meta = yaml.safe_load(m.read_text())
+                zurl = "/".join(
+                    ["file:/", str(m.parent), meta["measurements"].popitem()[1]["path"]]
+                )
                 args = [
                     "--name",
-                    f"gedi_l2b_{pname}_zarr",
-                    z.as_uri(),
+                    f"{pname}_zarr",
+                    zurl,
                     str(GEDI_ZARR_PROD_DEF),
                 ]
                 res = runner.invoke(set_zarr_product_extra_dim, args)
                 assert res.exit_code == 0, res.stdout
 
+
+@pytest.fixture(scope="session")
+def gedi_zarr3d(tmp_path_factory):
+    """Zarrify rasters individually."""
+    zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs")
+    zarrify_gedi_data(zarr_dir)
+    return zarr_dir
+
+
+@pytest.fixture(scope="session")
+def gedi_zarr3d_merged(tmp_path_factory):
+    """Zarrify rasters individually."""
+    zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs_merged")
+    zarrify_gedi_data(zarr_dir, merged=True)
     return zarr_dir
 
 
@@ -92,6 +133,22 @@ def test_zarrified_gedi(gedi_zarr3d):
             if a.shape[0] == 1:
                 a = a.sel(band=1, drop=True)
             b = xr.open_zarr(gedi_zarr3d / d.stem / f"{f.stem}.zarr")["array"].load()
+            if f.stem.endswith("_z"):
+                a = a.rename({"band": "z"}).assign_coords({"z": b.z.data})
+            assert a.equals(b)
+
+
+def test_zarrified_gedi_merged(gedi_zarr3d_merged):
+    """Check that zarrify created a valid zarr for each input dir."""
+    ds = [d for d in GEDI_GTIF_DATA.iterdir() if d.is_dir()]
+    for d in ds:
+        zpath = gedi_zarr3d_merged / d.stem / f"{d.stem}_.zarr"
+        assert zpath.exists()
+        for f in d.glob("*.tif"):
+            a = xr.open_rasterio(f)
+            if a.shape[0] == 1:
+                a = a.sel(band=1, drop=True)
+            b = xr.open_zarr(zpath, group=f.stem)["array"].load()
             if f.stem.endswith("_z"):
                 a = a.rename({"band": "z"}).assign_coords({"z": b.z.data})
             assert a.equals(b)
@@ -110,6 +167,14 @@ def indexed_gedi_zarr(clirunner, datacube_env_name, index, gedi_zarr3d):
     """Add Zarr product definition and datasets."""
     clirunner(["-v", "product", "add", str(GEDI_ZARR_PROD_DEF)])
     meta_files = [str(m) for m in gedi_zarr3d.glob("__*.yaml")]
+    clirunner(["-v", "dataset", "add"] + meta_files)
+
+
+@pytest.fixture
+def indexed_gedi_zarr_merged(clirunner, datacube_env_name, index, gedi_zarr3d_merged):
+    """Add merged Zarr product definition and datasets."""
+    clirunner(["-v", "product", "add", str(GEDI_ZARR_PROD_DEF)])
+    meta_files = [str(m) for m in gedi_zarr3d_merged.glob("__*.yaml")]
     clirunner(["-v", "dataset", "add"] + meta_files)
 
 
@@ -132,7 +197,8 @@ def test_gedi_gtif_index(indexed_gedi_gtif, index):
     assert not (data['pai'].values == data['pai'].nodata).all()
 
 
-def test_gedi_zarr_index(indexed_gedi_zarr, index):
+@pytest.mark.parametrize("indexed_zarr", [indexed_gedi_zarr, indexed_gedi_zarr_merged])
+def test_gedi_zarr_index(indexed_zarr, index):
     """Test that zarr data is indexed."""
     dc = Datacube(index=index)
     prods = list(dc.list_products()["name"])
@@ -162,7 +228,8 @@ def stack_3d_on_z(ds, name):
     return ds3
 
 
-def test_gedi_gtif_zarr_product(index, indexed_gedi_gtif, indexed_gedi_zarr):
+@pytest.mark.parametrize("indexed_zarr", [indexed_gedi_zarr, indexed_gedi_zarr_merged])
+def test_gedi_gtif_zarr_product(index, indexed_zarr):
     """Load gtif and zarr datasets and compare."""
 
     dc = Datacube(index=index)
