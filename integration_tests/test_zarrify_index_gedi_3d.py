@@ -298,7 +298,9 @@ def test_gedi_gtif_zarr_product(index, indexed_gedi_gtif, indexed_gedi_zarr):
     _compare_all_gedi_gtif_zarr_products(index)
 
 
-def test_gedi_gtif_zarr_product_merged(index, indexed_gedi_gtif, indexed_gedi_zarr_merged):
+def test_gedi_gtif_zarr_product_merged(
+    index, indexed_gedi_gtif, indexed_gedi_zarr_merged
+):
     """Test loaded zarr(merged)/gtif products match."""
     _compare_all_gedi_gtif_zarr_products(index)
 
