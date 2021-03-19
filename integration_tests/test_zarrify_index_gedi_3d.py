@@ -118,7 +118,7 @@ def gedi_zarr3d(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def gedi_zarr3d_merged(tmp_path_factory):
-    """Zarrify rasters individually."""
+    """Zarrify rasters into a single zarr."""
     zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs_merged")
     zarrify_gedi_data(zarr_dir, merged=True)
     return zarr_dir
@@ -175,7 +175,8 @@ def indexed_gedi_zarr_merged(clirunner, datacube_env_name, index, gedi_zarr3d_me
     """Add merged Zarr product definition and datasets."""
     clirunner(["-v", "product", "add", str(GEDI_ZARR_PROD_DEF)])
     meta_files = [str(m) for m in gedi_zarr3d_merged.glob("__*.yaml")]
-    clirunner(["-v", "dataset", "add"] + meta_files)
+    res = clirunner(["-v", "dataset", "add"] + meta_files)
+    assert res.exit_code == 0
 
 
 def test_gedi_gtif_index(indexed_gedi_gtif, index):
@@ -197,8 +198,27 @@ def test_gedi_gtif_index(indexed_gedi_gtif, index):
     assert not (data['pai'].values == data['pai'].nodata).all()
 
 
-@pytest.mark.parametrize("indexed_zarr", [indexed_gedi_zarr, indexed_gedi_zarr_merged])
-def test_gedi_zarr_index(indexed_zarr, index):
+def test_gedi_zarr_index(indexed_gedi_zarr, index):
+    """Test that zarr data is indexed."""
+    dc = Datacube(index=index)
+    prods = list(dc.list_products()["name"])
+    for p in GEDI_L2B_PRODUCTS:
+        assert f"{p}_zarr" in prods
+
+    assert len(dc.list_measurements())
+
+    data = dc.load(
+        product="gedi_l2b_zarr",
+        measurements=["pai"],
+        output_crs=GEDI_CRS,
+        resolution=GEDI_RESOLUTION,
+    )
+    # zarr metadata doesnt include geometry.coordinates for valid region
+    assert list(data.sizes.values()) == [3011, 4195, 2]
+    assert not (data['pai'].values == data['pai'].nodata).all()
+
+
+def test_gedi_zarr_index_merged(indexed_gedi_zarr_merged, index):
     """Test that zarr data is indexed."""
     dc = Datacube(index=index)
     prods = list(dc.list_products()["name"])
@@ -228,8 +248,7 @@ def stack_3d_on_z(ds, name):
     return ds3
 
 
-@pytest.mark.parametrize("indexed_zarr", [indexed_gedi_zarr, indexed_gedi_zarr_merged])
-def test_gedi_gtif_zarr_product(index, indexed_zarr):
+def _compare_all_gedi_gtif_zarr_products(index):
     """Load gtif and zarr datasets and compare."""
 
     dc = Datacube(index=index)
@@ -272,6 +291,16 @@ def test_gedi_gtif_zarr_product(index, indexed_zarr):
             data_zarr_3d = data_zarr[measurement]
             data_tiff_3d = stack_3d_on_z(data_tiff, measurement)[measurement]
             xr.testing.assert_equal(data_tiff_3d, data_zarr_3d)
+
+
+def test_gedi_gtif_zarr_product(index, indexed_gedi_gtif, indexed_gedi_zarr):
+    """Test loaded zarr/gtif products match."""
+    _compare_all_gedi_gtif_zarr_products(index)
+
+
+def test_gedi_gtif_zarr_product_merged(index, indexed_gedi_gtif, indexed_gedi_zarr_merged):
+    """Test loaded zarr(merged)/gtif products match."""
+    _compare_all_gedi_gtif_zarr_products(index)
 
 
 def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
