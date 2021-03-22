@@ -114,15 +114,23 @@ class ZarrDataSource(object):
             # Fixes intermittent Zarr decompression errors when used with Dask
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-            def fn() -> Any:
+            def _get_data() -> Any:
                 return self.da[ix].values
 
-            data = fn()
+            data = _get_data()
 
+            # ODC requires the driver to perform nearest neighbour re-sampling to
+            # match `out_shape` when provided. This is intended for sources which support
+            # overviews (e.g. COGS but not zarr currently).
+            # The index sampling method below matches the results of rasterio/GDAL read
+            # with `outshape` specified.
+            # See also: https://github.com/opendatacube/datacube-core/issues/779
             if out_shape and data.shape != out_shape:
-                raise ValueError(
-                    f"Data shape does not match 'out_shape': {data.shape} != {out_shape}"
-                )
+                new_ix = [
+                    np.linspace(d / (2 * n), d * (1 - 1 / (2 * n)), num=n).astype(int)
+                    for d, n in zip(data.shape, out_shape)
+                ]
+                data = data[np.ix_(*new_ix)]
 
             return data
 

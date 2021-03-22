@@ -1,10 +1,12 @@
 '''Unit tests for the datacube_zarr.driver module.'''
+from pathlib import Path
 from random import random, sample
 
 import pytest
 import numpy as np
 from datacube.drivers import reader_drivers
 from datacube.storage import BandInfo
+from datacube.testutils.iodriver import open_reader
 from mock import MagicMock
 
 from datacube_zarr.driver import (
@@ -90,6 +92,21 @@ def test_datasource_read_window(dataset):
 
     ds3 = band_source.read((0, (30, 50), (30, 50)))
     assert np.array_equal(ds3, dataset[group_name][0, 30:50, 30:50].values)
+
+
+def test_datasource_read_outshape(dataset, tmpdir):
+    """Test that reads with `out_shape` specified match the rio driver."""
+    group_name = list(dataset.keys())[0]
+    z_src = ZarrDataSource.BandDataSource(dataset, group_name, dataset[group_name].nodata)
+
+    # Create a ODC `RIOReader` reader from the original test tiff file
+    tif = next(Path(tmpdir).iterdir())
+    t_src = open_reader(tif)
+
+    for out_shape in (None, (2, 2), (16, 24), (100, 200)):
+        t_data = t_src.read(out_shape=out_shape).result()
+        z_data = z_src.read((0,), out_shape=out_shape)
+        np.testing.assert_array_equal(z_data, t_data)
 
 
 def test_datasource_bad_window(dataset):
