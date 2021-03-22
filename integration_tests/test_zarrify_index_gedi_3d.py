@@ -305,13 +305,78 @@ def test_gedi_gtif_zarr_product_merged(
     _compare_all_gedi_gtif_zarr_products(index)
 
 
-def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
+@pytest.mark.parametrize("z_query", [5, (5, 15), 50, (50, 75)])
+def test_gedi_load_extradim_slice(
+    index, indexed_gedi_gtif, indexed_gedi_zarr_merged, z_query
+):
+    dc = Datacube(index=index)
+    prod = "gedi_l2b_cover_z"
+
+    if isinstance(z_query, int):
+        meas = [str(z_query)]
+    else:
+        meas = [str(z) for z in range(z_query[0], z_query[1] + 5, 5)]
+
+    data_tiff = dc.load(
+        product=prod,
+        measurements=meas,
+        latitude=LBG_LATITUDE,
+        longitude=LBG_LONGITUDE,
+        output_crs=GEDI_CRS,
+        resolution=GEDI_RESOLUTION,
+    )
+    data_tiff_3d = stack_3d_on_z(data_tiff, "cover_z")
+    data_zarr = dc.load(
+        product=f"{prod}_zarr",
+        measurements=["cover_z"],
+        latitude=LBG_LATITUDE,
+        longitude=LBG_LONGITUDE,
+        output_crs=GEDI_CRS,
+        resolution=GEDI_RESOLUTION,
+        z=z_query,
+    )
+    xr.testing.assert_equal(data_zarr, data_tiff_3d)
+
+
+def test_odc_resample(index, indexed_gedi_gtif, indexed_gedi_zarr):
+    dc = Datacube(index=index)
+    prod = "gedi_l2b"
+    meas = ["pai"]
+    output_crs = "EPSG:28355"
+    resolution = (100, -100)
+    resampling = "nearest"
+    data_tiff = dc.load(
+        product=prod,
+        measurements=meas,
+        latitude=LBG_LATITUDE,
+        longitude=LBG_LONGITUDE,
+        output_crs=output_crs,
+        resolution=resolution,
+        resampling=resampling,
+    )
+    data_zarr = dc.load(
+        product=f"{prod}_zarr",
+        measurements=meas,
+        latitude=LBG_LATITUDE,
+        longitude=LBG_LONGITUDE,
+        output_crs=output_crs,
+        resolution=resolution,
+        resampling=resampling,
+    )
+    xr.testing.assert_equal(data_zarr, data_tiff)
+
+
+def test_3d_resample(index, indexed_gedi_gtif, indexed_gedi_zarr):
     """Reproject to GDA94 (MGA Zone 55)."""
     dc = Datacube(index=index)
     prod = "gedi_l2b_cover_z"
     measurement = "cover_z"
-    output_crs = "EPSG:28355"
-    resolution = (25, -25)
+    resolution = (0.002, -0.002)
+    time = '2019-08-16'
+
+    # Slice on z dimension
+    z_range = 20  # (20, 30)
+    z_meas = ["20"]  # , "25", "30"]
 
     resampling_methods = [
         'nearest',
@@ -323,9 +388,65 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
     ]
 
     for resampling in resampling_methods:
-
         data_tiff = dc.load(
             product=prod,
+            measurements=z_meas,
+            latitude=LBG_LATITUDE,
+            longitude=LBG_LONGITUDE,
+            output_crs=GEDI_CRS,
+            resolution=resolution,
+            resampling=resampling,
+            time=time,
+        )
+        data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
+        del data_tiff
+
+        data_zarr = dc.load(
+            product=f"{prod}_zarr",
+            measurements=[measurement],
+            latitude=LBG_LATITUDE,
+            longitude=LBG_LONGITUDE,
+            output_crs=GEDI_CRS,
+            resolution=resolution,
+            resampling=resampling,
+            time=time,
+            z=z_range,
+        )
+        assert data_zarr[measurement].size
+
+        if resampling in ("nearest",):
+            xr.testing.assert_equal(data_zarr, data_tiff_3d)
+        else:
+            xr.testing.assert_allclose(data_zarr, data_tiff_3d)
+
+        del data_tiff_3d, data_zarr
+
+
+def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
+    """Reproject to GDA94 (MGA Zone 55)."""
+    dc = Datacube(index=index)
+    prod = "gedi_l2b_cover_z"
+    measurement = "cover_z"
+    output_crs = "EPSG:28355"
+    resolution = (100, -100)
+
+    # Slice on z dimension
+    z_range = (20, 30)
+    z_meas = ["20", "25", "30"]
+
+    resampling_methods = [
+        'nearest',
+        'cubic',
+        'bilinear',
+        'cubic_spline',
+        'lanczos',
+        'average',
+    ]
+
+    for resampling in resampling_methods:
+        data_tiff = dc.load(
+            product=prod,
+            measurements=z_meas,
             latitude=LBG_LATITUDE,
             longitude=LBG_LONGITUDE,
             output_crs=output_crs,
@@ -333,6 +454,7 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
             resampling=resampling,
         )
         data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
+        del data_tiff
 
         data_zarr = dc.load(
             product=f"{prod}_zarr",
@@ -342,6 +464,7 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
             output_crs=output_crs,
             resolution=resolution,
             resampling=resampling,
+            z=z_range,
         )
         assert data_zarr[measurement].size
 
@@ -349,6 +472,8 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
             xr.testing.assert_equal(data_zarr, data_tiff_3d)
         else:
             xr.testing.assert_allclose(data_zarr, data_tiff_3d)
+
+        del data_tiff_3d, data_zarr
 
 
 def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr):
