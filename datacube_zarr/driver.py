@@ -104,13 +104,6 @@ class ZarrDataSource(object):
             else:
                 ix = tuple(slice(*w) if isinstance(w, tuple) else w for w in window)
 
-            # A 2D window is acceptable for a single banded 3D dataset
-            if len(ix) == 2 and not self._is_2d:
-                if self._nbands == 1:
-                    ix = (0,) + ix
-                else:
-                    raise ValueError("2D window supplied to multi-banded 3D data source.")
-
             # Fixes intermittent Zarr decompression errors when used with Dask
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
