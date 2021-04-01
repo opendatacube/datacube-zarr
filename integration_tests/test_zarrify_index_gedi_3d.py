@@ -9,7 +9,7 @@ from datacube.api.core import Datacube
 from datacube_zarr.tools.set_zarr_product_extra_dim import (
     cli as set_zarr_product_extra_dim,
 )
-from datacube_zarr.tools.zarrify import main as zarrify
+from datacube_zarr.tools.zarrify import cli as zarrify
 
 PROJECT_ROOT = Path(__file__).parents[1]
 

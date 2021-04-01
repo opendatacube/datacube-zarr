@@ -231,7 +231,7 @@ def setup_logging(ctx: click.Context, param: click.Parameter, value: bool) -> No
     help="Enables verbose mode.",
 )
 @click.version_option(version=version)
-def main(
+def cli(
     dataset: Path,
     outpath: Optional[Path],
     inplace: bool,
@@ -394,4 +394,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()  # pragma: no cover
+    cli()  # pragma: no cover

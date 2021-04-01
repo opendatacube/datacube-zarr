@@ -19,7 +19,10 @@ from rasterio.crs import CRS
 from s3path import S3Path, _s3_accessor
 
 from datacube_zarr import ZarrIO
-from datacube_zarr.tools.zarrify import main as zarrify
+from datacube_zarr.tools.set_zarr_product_extra_dim import (
+    cli as set_zarr_product_extra_dim,
+)
+from datacube_zarr.tools.zarrify import cli as zarrify
 from datacube_zarr.utils.raster import raster_to_zarr
 from datacube_zarr.utils.uris import uri_join
 from tests.utils import copytree, create_random_raster
@@ -191,18 +194,28 @@ def dataset(tmpdir):
     yield dc_dataset
 
 
-def _gen_zarr_dataset(ds, root):
+def _gen_zarr_dataset(ds, root, group=None):
     """Test dataset as loaded from zarr data in files.
 
     It comprises data attributes required in ODC."""
     var = list(ds.keys())[0]
     protocol = 'file'
-    uri = uri_join(protocol, root)
+    uri = uri_join(protocol, root, group)
     zio = ZarrIO()
     zio.save_dataset(uri=uri, dataset=ds)
     bands = [{'name': var, 'path': str(root)}]
     ds1 = mk_sample_dataset(bands, 'file', format='zarr')
     return ds1
+
+
+@pytest.fixture
+def zarr_with_group(dataset, tmpdir):
+    '''ODC test zarr dataset.'''
+    root = Path(tmpdir) / 'zarr_with_group.zarr'
+    uri = uri_join("file", root, group="group")
+    zio = ZarrIO()
+    zio.save_dataset(uri=uri, dataset=dataset)
+    yield uri
 
 
 @pytest.fixture
@@ -338,6 +351,18 @@ def zarrifycli():
 
     def _run(args):
         res = runner.invoke(zarrify, args)
+        return res
+
+    return _run
+
+
+@pytest.fixture(scope="session")
+def set_zarr_product_extra_dim_cli():
+    """set_zarr_product_extra_dim runner."""
+    runner = CliRunner()
+
+    def _run(args):
+        res = runner.invoke(set_zarr_product_extra_dim, args)
         return res
 
     return _run
