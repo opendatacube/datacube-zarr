@@ -194,7 +194,7 @@ def test_gedi_gtif_index(indexed_gedi_gtif, index):
         output_crs=GEDI_CRS,
         resolution=GEDI_RESOLUTION,
     )
-    assert list(data.sizes.values()) == [2487, 3396, 2]
+    assert list(data.sizes.values()) == [425, 557, 2]
     assert not (data['pai'].values == data['pai'].nodata).all()
 
 
@@ -214,7 +214,7 @@ def test_gedi_zarr_index(indexed_gedi_zarr, index):
         resolution=GEDI_RESOLUTION,
     )
     # zarr metadata doesnt include geometry.coordinates for valid region
-    assert list(data.sizes.values()) == [3011, 4195, 2]
+    assert list(data.sizes.values()) == [421, 552, 2]
     assert not (data['pai'].values == data['pai'].nodata).all()
 
 
@@ -234,7 +234,7 @@ def test_gedi_zarr_index_merged(indexed_gedi_zarr_merged, index):
         resolution=GEDI_RESOLUTION,
     )
     # zarr metadata doesnt include geometry.coordinates for valid region
-    assert list(data.sizes.values()) == [3011, 4195, 2]
+    assert list(data.sizes.values()) == [421, 552, 2]
     assert not (data['pai'].values == data['pai'].nodata).all()
 
 
@@ -373,11 +373,7 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
         z=z_range,
     )
     assert data_zarr[measurement].size
-
-    if resampling in ("nearest",):
-        xr.testing.assert_equal(data_zarr, data_tiff_3d)
-    else:
-        xr.testing.assert_allclose(data_zarr, data_tiff_3d)
+    xr.testing.assert_equal(data_zarr, data_tiff_3d)
 
 
 def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr):
