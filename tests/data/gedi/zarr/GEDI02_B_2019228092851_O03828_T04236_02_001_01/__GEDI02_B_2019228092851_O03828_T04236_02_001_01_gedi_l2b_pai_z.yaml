@@ -1,4 +1,4 @@
-id: fa57e476-5ad8-4394-b8fa-f13061e5b9b2
+id: 8ef50515-ca1a-4fa6-ac31-b9775e3be014
 $schema: https://schemas.opendatacube.org/dataset
 product:
   name: gedi_l2b_pai_z_zarr
@@ -6,15 +6,15 @@ crs: epsg:4326
 grids:
   default:
     shape:
-    - 3000
-    - 4000
+    - 415
+    - 548
     transform:
     - 0.00027778
     - 0.0
-    - 148.64089852640407
+    - 149.04036673536626
     - 0.0
     - -0.00027778
-    - -34.988444394017975
+    - -35.30377268593081
     - 0.0
     - 0.0
     - 1.0
@@ -116,5 +116,5 @@ properties:
   eo:instrument: GEDI
   eo:platform: ISS
   odc:file_format: zarr
-  odc:processing_datetime: 2021-03-11 05:08:30.775698
+  odc:processing_datetime: 2021-04-15 04:44:47.527674
 lineage: {}
