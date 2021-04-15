@@ -119,11 +119,14 @@ class ZarrDataSource(object):
             # with `outshape` specified.
             # See also: https://github.com/opendatacube/datacube-core/issues/779
             if out_shape and data.shape != out_shape:
-                new_ix = [
-                    np.linspace(d / (2 * n), d * (1 - 1 / (2 * n)), num=n).astype(int)
-                    for d, n in zip(data.shape, out_shape)
-                ]
-                data = data[np.ix_(*new_ix)]
+                if any(s <= 0 for s in out_shape):
+                    data = np.empty(shape=out_shape, dtype=data.dtype)
+                else:
+                    new_ix = [
+                        (np.linspace(d, d * (2 * n - 1), num=n) / (2 * n)).astype(int)
+                        for d, n in zip(data.shape, out_shape)
+                    ]
+                    data = data[np.ix_(*new_ix)]
 
             return data
 

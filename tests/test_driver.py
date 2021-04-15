@@ -102,8 +102,7 @@ def test_datasource_read_outshape(dataset, tmpdir):
     # Create a ODC `RIOReader` reader from the original test tiff file
     tif = next(Path(tmpdir).iterdir())
     t_src = open_reader(tif)
-
-    for out_shape in (None, (2, 2), (16, 24), (100, 200)):
+    for out_shape in (None, (0, 1), (2, 2), (4, 7), (16, 24), (32, 30), (143, 52)):
         t_data = t_src.read(out_shape=out_shape).result()
         z_data = z_src.read((0,), out_shape=out_shape)
         np.testing.assert_array_equal(z_data, t_data)
