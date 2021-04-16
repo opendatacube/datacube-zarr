@@ -19,12 +19,10 @@ GEDI_GTIF_PROD_DEF = GEDI_GTIF_DATA / "GEDI02_B.yaml"
 GEDI_ZARR_DATA = GEDI_TEST_DATA / "zarr"
 GEDI_ZARR_PROD_DEF = GEDI_ZARR_DATA / "GEDI02_B_3d_format.yaml"
 
-GEDI_L2B_PRODUCTS = [
-    "gedi_l2b",
-    "gedi_l2b_cover_z",
-    "gedi_l2b_pai_z",
-    "gedi_l2b_pavd_z",
-]
+GEDI_L2B_TEST_PRODUCTS = {
+    "gedi_l2b": ["beam", "pai"],
+    "gedi_l2b_cover_z": None,
+}
 
 
 def _gedi_product_is_3d(prod):
@@ -183,7 +181,7 @@ def test_gedi_gtif_index(indexed_gedi_gtif, index):
     """Test that geotiff data is indexed."""
     dc = Datacube(index=index)
     prods = list(dc.list_products()["name"])
-    for p in GEDI_L2B_PRODUCTS:
+    for p in GEDI_L2B_TEST_PRODUCTS:
         assert p in prods
 
     assert len(dc.list_measurements())
@@ -202,7 +200,7 @@ def test_gedi_zarr_index(indexed_gedi_zarr, index):
     """Test that zarr data is indexed."""
     dc = Datacube(index=index)
     prods = list(dc.list_products()["name"])
-    for p in GEDI_L2B_PRODUCTS:
+    for p in GEDI_L2B_TEST_PRODUCTS:
         assert f"{p}_zarr" in prods
 
     assert len(dc.list_measurements())
@@ -222,7 +220,7 @@ def test_gedi_zarr_index_merged(indexed_gedi_zarr_merged, index):
     """Test that zarr data is indexed."""
     dc = Datacube(index=index)
     prods = list(dc.list_products()["name"])
-    for p in GEDI_L2B_PRODUCTS:
+    for p in GEDI_L2B_TEST_PRODUCTS:
         assert f"{p}_zarr" in prods
 
     assert len(dc.list_measurements())
@@ -253,11 +251,12 @@ def _compare_all_gedi_gtif_zarr_products(index):
 
     dc = Datacube(index=index)
 
-    for prod in GEDI_L2B_PRODUCTS:
+    for prod, meas in GEDI_L2B_TEST_PRODUCTS.items():
 
         # load all product measurements tiff and zarr datasets
         data_tiff = dc.load(
             product=prod,
+            measurements=meas,
             latitude=LBG_LATITUDE,
             longitude=LBG_LONGITUDE,
             output_crs=GEDI_CRS,
@@ -265,6 +264,7 @@ def _compare_all_gedi_gtif_zarr_products(index):
         )
         data_zarr = dc.load(
             product=f"{prod}_zarr",
+            measurements=meas,
             latitude=LBG_LATITUDE,
             longitude=LBG_LONGITUDE,
             output_crs=GEDI_CRS,
@@ -326,6 +326,7 @@ def test_gedi_load_extradim_slice(
         resolution=GEDI_RESOLUTION,
     )
     data_tiff_3d = stack_3d_on_z(data_tiff, "cover_z")
+    del data_tiff
     data_zarr = dc.load(
         product=f"{prod}_zarr",
         measurements=["cover_z"],
@@ -361,7 +362,7 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
         resampling=resampling,
     )
     data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
-
+    del data_tiff
     data_zarr = dc.load(
         product=f"{prod}_zarr",
         measurements=[measurement],
@@ -392,6 +393,7 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr):
         dask_chunks={'time': 2},
     )
     data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
+    del data_tiff
     data_zarr = dc.load(
         product=f"{prod}_zarr",
         measurements=[measurement],
