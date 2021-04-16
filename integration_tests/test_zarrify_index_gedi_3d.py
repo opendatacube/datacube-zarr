@@ -177,6 +177,11 @@ def indexed_gedi_zarr_merged(clirunner, datacube_env_name, index, gedi_zarr3d_me
     assert res.exit_code == 0
 
 
+def dataarray_has_valid_data(da):
+    """Check xarray has valid data."""
+    return da.size and not (da.values == da.nodata).all()
+
+
 def test_gedi_gtif_index(indexed_gedi_gtif, index):
     """Test that geotiff data is indexed."""
     dc = Datacube(index=index)
@@ -193,7 +198,7 @@ def test_gedi_gtif_index(indexed_gedi_gtif, index):
         resolution=GEDI_RESOLUTION,
     )
     assert list(data.sizes.values()) == [425, 557, 2]
-    assert not (data['pai'].values == data['pai'].nodata).all()
+    assert dataarray_has_valid_data(data['pai'])
 
 
 def test_gedi_zarr_index(indexed_gedi_zarr, index):
@@ -213,7 +218,7 @@ def test_gedi_zarr_index(indexed_gedi_zarr, index):
     )
     # zarr metadata doesnt include geometry.coordinates for valid region
     assert list(data.sizes.values()) == [421, 552, 2]
-    assert not (data['pai'].values == data['pai'].nodata).all()
+    assert dataarray_has_valid_data(data['pai'])
 
 
 def test_gedi_zarr_index_merged(indexed_gedi_zarr_merged, index):
@@ -233,7 +238,7 @@ def test_gedi_zarr_index_merged(indexed_gedi_zarr_merged, index):
     )
     # zarr metadata doesnt include geometry.coordinates for valid region
     assert list(data.sizes.values()) == [421, 552, 2]
-    assert not (data['pai'].values == data['pai'].nodata).all()
+    assert dataarray_has_valid_data(data['pai'])
 
 
 def stack_3d_on_z(ds, name):
@@ -271,7 +276,7 @@ def _compare_all_gedi_gtif_zarr_products(index):
             resolution=GEDI_RESOLUTION,
         )
         for da in data_zarr.data_vars.values():
-            assert da.size
+            assert dataarray_has_valid_data(da)
 
         # compare datasets
         if not _gedi_product_is_3d(prod):
@@ -336,6 +341,7 @@ def test_gedi_load_extradim_slice(
         resolution=GEDI_RESOLUTION,
         z=z_query,
     )
+    assert dataarray_has_valid_data(data_zarr["cover_z"])
     xr.testing.assert_equal(data_zarr, data_tiff_3d)
 
 
@@ -373,7 +379,7 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
         resampling=resampling,
         z=z_range,
     )
-    assert data_zarr[measurement].size
+    assert dataarray_has_valid_data(data_zarr[measurement])
     xr.testing.assert_equal(data_zarr, data_tiff_3d)
 
 
@@ -403,5 +409,5 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr):
         resolution=GEDI_RESOLUTION,
         dask_chunks={'time': 2, 'z': 15},
     )
-    assert data_zarr[measurement].size
+    assert dataarray_has_valid_data(data_zarr[measurement])
     xr.testing.assert_equal(data_zarr, data_tiff_3d)
