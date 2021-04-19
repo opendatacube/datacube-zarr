@@ -37,8 +37,8 @@ GEDI_RESOLUTION = (0.00027778, -0.00027778)
 GEDI_CRS = "EPSG:4326"
 
 # Bounds of the Lake Burligh Griffin dataset
-LBG_LATITUDE = (-35.821784394017975, -34.988444394017975)
-LBG_LONGITUDE = (148.64089852640407, 149.75201852640407)
+LBG_LATITUDE = (-35.45, -35.25)
+LBG_LONGITUDE = (149.0, 149.2)
 
 
 def _copy_gedi_metadata(indir, outdir, merged=False):
@@ -284,15 +284,15 @@ def _compare_all_gedi_gtif_zarr_products(index):
             xr.testing.assert_equal(data_zarr, data_tiff)
 
         else:
-            # For 3d products all measurements indludes 2D measurements for each value in
-            # the extra dimension  as well as the complete 3D measurement
+            # For 3d products all measurements includes 2D measurements for each value in
+            # the extra dimension as well as the complete 3D measurement
 
-            # Compare 2D measurements with gtiff product
+            # Compare zarr 2D measurements with gtiff product
             measurement = prod[len("gedi_l2b_") :]
             data_zarr_2d = data_zarr.drop_vars([measurement, "z"])
             xr.testing.assert_equal(data_zarr_2d, data_tiff)
 
-            # Merge the tiff 2d measurement to 3d and compare to zarr
+            # Compare zarr 3D measurement to (stacked) gtiff product
             data_zarr_3d = data_zarr[measurement]
             data_tiff_3d = stack_3d_on_z(data_tiff, measurement)[measurement]
             xr.testing.assert_equal(data_tiff_3d, data_zarr_3d)
