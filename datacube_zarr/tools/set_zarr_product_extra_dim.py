@@ -91,7 +91,7 @@ def cli(
         n = len(ZarrIO().open_dataset(zarr_uri)[oname])
 
         if n != len(dim):
-            raise ValueError(
+            raise click.ClickException(
                 f"Inconsistent dimension lengths: {oname} {n}, {ed['name']} {len(dim)}."
             )
 
