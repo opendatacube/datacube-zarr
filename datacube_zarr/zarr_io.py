@@ -175,8 +175,9 @@ class ZarrIO:
         """
         _, _, group = uri_split(uri)
         store = self.get_root(uri)
+        zarr_args = {"consolidated": True}
         ds: xr.Dataset = xr.open_dataset(
-            store, group=group, engine="zarr", backend_kwargs={"consolidated": True}
+            store, group=group, engine="zarr", chunks="auto", backend_kwargs=zarr_args
         )
         return ds
 

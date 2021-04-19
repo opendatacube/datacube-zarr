@@ -84,13 +84,12 @@ bad_chunks = [
     "--chunk x:none",
     "--chunk x:2.2",
     "--auto-chunk --chunk x:100",
-    "--chunk z:100",
 ]
 
 
 @pytest.mark.parametrize("chunks", bad_chunks)
 def test_zarrify_bad_chunk_options(zarrifycli, tmp_path, chunks):
-    """Test bad inplace/outpath options."""
+    """Test bad chunk options."""
     raster = create_random_raster(tmp_path)
     res = zarrifycli([str(raster), "--inplace"] + chunks.split())
     assert res.exit_code != 0, res.stdout

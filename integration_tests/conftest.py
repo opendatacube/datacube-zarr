@@ -138,7 +138,7 @@ def s3(s3_client, s3_bucket_name):
     yield {'client': s3_client, 'root': root}
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def global_integration_cli_args():
     """
     The first arguments to pass to a cli command for integration test configuration.
@@ -166,12 +166,12 @@ def local_config(datacube_env_name):
     return LocalConfig.find(CONFIG_FILE_PATHS, env=datacube_env_name)
 
 
-@pytest.fixture(params=["UTC"])
-def uninitialised_postgres_db(local_config, request):
+@pytest.fixture
+def uninitialised_postgres_db(local_config):
     """
     Return a connection to an empty PostgreSQL database
     """
-    timezone = request.param
+    timezone = "UTC"
     db = PostgresDb.from_config(
         local_config, application_name='test-run', validate_connection=False
     )

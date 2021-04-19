@@ -12,7 +12,7 @@ import yaml
 from click.testing import CliRunner
 from datacube.api.core import Datacube
 
-from datacube_zarr.tools.zarrify import main as zarrify
+from datacube_zarr.tools.zarrify import cli as zarrify
 from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 
 PROJECT_ROOT = Path(__file__).parents[1]
