@@ -2,6 +2,7 @@ import pytest
 import boto3
 import botocore
 from s3path import S3Path
+import rasterio
 
 from datacube_zarr.utils.convert import convert_dir, convert_to_zarr, get_datasets
 from datacube_zarr.utils.uris import uri_split
@@ -39,6 +40,20 @@ def test_mock_s3_boto3_resource(s3):
     assert s3.Bucket(bucket) in s3.buckets.all()
 
 
+def test_mock_s3_rasterio(s3):
+    """Check test bucket accessible by rasterio."""
+    s3_url = f"s3://{s3['root']}/test_mock_s3_rasterio.gtif"
+    meta = {
+        "count": 1,
+        "width": 100,
+        "height": 100,
+        "dtype": "float32",
+        "driver": "GTiff",
+    }
+    with rasterio.open(s3_url, "w", **meta) as _:
+        pass
+
+
 def test_find_datasets_geotif(tmp_dir_of_rasters):
     """Test finding geotif datasets."""
     data_dir, geotifs, others = tmp_dir_of_rasters
@@ -46,6 +61,8 @@ def test_find_datasets_geotif(tmp_dir_of_rasters):
     found_geotifs = [ds[0] for ds in found_datasets]
     assert all(t == "GeoTiff" for t in found_types)
     assert set(geotifs) == set(found_geotifs)
+    with rasterio.open(found_geotifs[0].as_uri(), "r") as _:
+        pass
 
 
 @pytest.mark.parametrize("inplace", [False, True])
