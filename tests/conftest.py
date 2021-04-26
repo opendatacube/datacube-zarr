@@ -1,6 +1,7 @@
 import random
 import string
 import threading
+import multiprocessing
 from pathlib import Path
 from time import sleep
 from types import SimpleNamespace
@@ -94,11 +95,17 @@ def moto_s3_server(monkeypatch_session):
     monkeypatch_session.setenv('AWS_HTTPS', 'NO')
 
     # Run a moto server
-    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
-    thread.daemon = True
-    thread.start()
+    proc = multiprocessing.Process(
+        target=moto_server_main,
+        name="moto_s3_server",
+        args=(["s3"],),
+        daemon=True,
+    )
+    proc.start()
     sleep(0.3)
     yield address
+    proc.terminate()
+    proc.join()
 
 
 @pytest.fixture(scope="session")
