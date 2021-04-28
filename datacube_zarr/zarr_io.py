@@ -21,6 +21,15 @@ from .utils.context_manager import dask_threadsafe_config
 from .utils.uris import uri_split
 
 
+def _set_default_boto_region() -> None:
+    client_kwargs = {"region_name": auto_find_region()}
+    conf = fsspec.config.conf
+    if "client_kwargs" in conf:
+        conf["client_kwargs"].update(client_kwargs)
+    else:
+        conf.update({"client_kwargs": client_kwargs})
+
+
 class ZarrIO:
     """
     Zarr read/write interface to save and load xarray.Datasets and xarray DataArrays.
@@ -263,3 +272,7 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
         zarr.consolidate_metadata(zstore.ds.store)
 
     zstore.close()
+
+
+# Set default region param
+_set_default_boto_region()
