@@ -1,57 +1,10 @@
 import pytest
-import boto3
-import botocore
-from s3path import S3Path
 import rasterio
 
 from datacube_zarr.utils.convert import convert_dir, convert_to_zarr, get_datasets
 from datacube_zarr.utils.uris import uri_split
 
 from .utils import _load_dataset, copytree, raster_and_zarr_are_equal
-
-
-def test_mock_s3_path(s3):
-    """Check test bucket exists with S3Path."""
-    bucket = s3["root"].split("/")[0]
-    path = S3Path(f"/{bucket}")
-    assert path.exists()
-
-
-def test_mock_s3_botocore(s3):
-    """Check test bucket exists with botocore."""
-    bucket = s3["root"].split("/")[0]
-    client = botocore.session.Session().create_client("s3")
-    resp = client.head_bucket(Bucket=bucket)
-    assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
-
-
-def test_mock_s3_boto3_client(s3):
-    """Check test bucket exists with boto3 client."""
-    bucket = s3["root"].split("/")[0]
-    client = boto3.client("s3")
-    resp = client.head_bucket(Bucket=bucket)
-    assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
-
-
-def test_mock_s3_boto3_resource(s3):
-    """Check test bucket exists with boto3 resource."""
-    bucket = s3["root"].split("/")[0]
-    s3 = boto3.resource("s3")
-    assert s3.Bucket(bucket) in s3.buckets.all()
-
-
-def test_mock_s3_rasterio(s3):
-    """Check test bucket accessible by rasterio."""
-    s3_url = f"s3://{s3['root']}/test_mock_s3_rasterio.gtif"
-    meta = {
-        "count": 1,
-        "width": 100,
-        "height": 100,
-        "dtype": "float32",
-        "driver": "GTiff",
-    }
-    with rasterio.open(s3_url, "w", **meta) as _:
-        pass
 
 
 def test_find_datasets_geotif(tmp_dir_of_rasters):
@@ -68,17 +21,17 @@ def test_find_datasets_geotif(tmp_dir_of_rasters):
 @pytest.mark.parametrize("inplace", [False, True])
 @pytest.mark.parametrize("merge_datasets_per_dir", [False, True])
 def test_convert_dir_geotif(
-    tmp_dir_of_rasters, tmp_storage_path, merge_datasets_per_dir, inplace
+    tmp_dir_of_rasters, tmp_output_storage_path, merge_datasets_per_dir, inplace
 ):
     """Test converting a directory of geotifs."""
     data_dir, geotifs, others = tmp_dir_of_rasters
     others_rel = [o.relative_to(data_dir) for o in others]
     if inplace:
-        copytree(data_dir, tmp_storage_path)
-        data_dir = tmp_storage_path
+        copytree(data_dir, tmp_output_storage_path)
+        data_dir = tmp_output_storage_path
         outdir = None
     else:
-        outdir = tmp_storage_path / "outdir"
+        outdir = tmp_output_storage_path
 
     zarrs = convert_dir(data_dir, outdir, merge_datasets_per_dir=merge_datasets_per_dir)
 
