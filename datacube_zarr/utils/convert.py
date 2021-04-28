@@ -8,8 +8,6 @@ from os.path import commonprefix
 from pathlib import Path
 from typing import Any, Iterator, List, Optional, Tuple
 
-import boto3
-
 from datacube_zarr.utils.raster import raster_to_zarr
 
 _SUPPORTED_FORMATS = {
@@ -149,11 +147,7 @@ def convert_to_zarr(
     # if converting inplace, remove the original file
     if inplace:
         for f in files:
-            if f.as_uri().startswith("s3://"):
-                bucket, key = f.as_uri()[5:].split("/", 1)
-                boto3.resource("s3").Object(bucket, key).delete()
-            else:
-                f.unlink()
+            f.unlink()
             logger.info(f"delete: {_root_as_str(f)}")
 
     return zarrs
