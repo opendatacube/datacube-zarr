@@ -71,15 +71,11 @@ class ZarrIO:
         :return: The Zarr store for this URI.
         """
         protocol, root, _ = uri_split(uri)
+
         if protocol == 's3':
-            store = s3fs.S3Map(
-                root=root,
-                s3=s3fs.S3FileSystem(
-                    client_kwargs=dict(region_name=auto_find_region()),
-                    use_listings_cache=False,
-                ),
-                check=False,
-            )
+            s3 = s3fs.S3FileSystem()
+            s3.invalidate_cache()
+            store = s3.get_mapper(root=root, check=False)
         elif protocol == 'file':
             store = zarr.DirectoryStore(root)
         else:
