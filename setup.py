@@ -26,7 +26,7 @@ setup(
     description="Zarr plug-in driver for datacube",
     long_description=open('readme.md').read(),
     long_description_content_type='text/markdown',
-    python_requires='>=3.6.0',
+    python_requires='>=3.8.0',
     packages=find_packages(
         exclude=('tests', 'tests.*', 'integration_tests', 'integration_tests.*')
     ),
@@ -36,13 +36,12 @@ setup(
     },
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'boto3>=1.9.0',
         'click>=5.0',
         'datacube>1.8.0',
         'numcodecs>=0.6.2',
         'rasterio>=1.1.5',
         's3path>=0.1.93',
-        's3fs>=0.2.0',
+        's3fs[boto3,awscli]>=2021.04.0',
         'xarray>=0.16.2',
         'zarr>=2.3.2',
     ],
