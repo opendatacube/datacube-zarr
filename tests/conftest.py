@@ -104,6 +104,10 @@ def gdal_mock_s3_endpoint(moto_s3_server, monkeypatch_session):
 
 @pytest.fixture(scope='session')
 def fsspec_mock_s3_endpoint(moto_s3_server, moto_aws_credentials):
+    """Set the boto s3 endpoint via fspec config.
+
+    Boto libraries don't offer any way to do this."""
+
     fsspec_conf = {
         "s3": {
             "client_kwargs": {
@@ -117,6 +121,7 @@ def fsspec_mock_s3_endpoint(moto_s3_server, moto_aws_credentials):
 
 @pytest.fixture(scope="session")
 def moto_s3_resource(moto_s3_server, moto_aws_credentials):
+    """A boto3 s3 resource pointing to the moto server."""
     s3resource = boto3.resource(
         's3',
         endpoint_url=moto_s3_server,

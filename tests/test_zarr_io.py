@@ -9,6 +9,13 @@ from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 from .utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
 
 
+def test_consolidated_metadata_exists(tmp_3d_zarr):
+    """Test that s3fs cache is working."""
+    root = ZarrIO().get_root(tmp_3d_zarr)
+    is_consolidated = ".zmetadata" in root
+    assert is_consolidated
+
+
 @pytest.mark.parametrize("save_fn", [_save_dataarray, _save_dataset])
 def test_save_dataarray(tmp_storage_path, chunks, data, save_fn):
     '''Test ZarrIO.save_dataarray to save and load for a single DataArray.'''
