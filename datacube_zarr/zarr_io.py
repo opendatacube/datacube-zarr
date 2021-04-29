@@ -111,29 +111,6 @@ class ZarrIO:
             if root_path.exists() and root_path.is_dir():
                 shutil.rmtree(root_path)
 
-    def save_dataarray(
-        self,
-        uri: str,
-        dataarray: xr.DataArray,
-        name: str,
-        chunks: Optional[dict] = None,
-        mode: str = 'w-',
-    ) -> None:
-        """
-        Saves a xarray.DataArray
-
-        :param str uri: The output URI.
-        :param `xarray.DataArray` dataarray: The xarray.DataArray to be saved
-        :param str name: The name of the xarray.DataArray
-        :param dict chunks: The chunking parameter for each dimension.
-        :param str mode: {'w', 'w-', 'a', None}
-            w: overwrite
-            w-: overwrite if exists
-            a: overwrite existing variables (create if does not exist)
-        """
-        dataset = dataarray.to_dataset(name=name)
-        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks, mode=mode)
-
     def save_dataset(
         self,
         uri: str,

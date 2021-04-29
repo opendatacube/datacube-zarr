@@ -89,12 +89,6 @@ def raster_and_zarr_are_equal(raster_uri, zarr_uri, separate_bands=False):
     return data_coords_dims_equal and crs_equal
 
 
-def _save_dataarray(data, uri, name, chunks=None):
-    '''Save DataArray to storage.'''
-    zio = ZarrIO()
-    zio.save_dataarray(uri=uri, dataarray=data.copy(), name=name, chunks=chunks)
-
-
 def _save_dataset(data, uri, name, chunks=None):
     '''Save Dataset to storage.'''
     zio = ZarrIO()

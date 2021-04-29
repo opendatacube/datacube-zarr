@@ -6,7 +6,7 @@ import xarray as xr
 
 from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 
-from .utils import _check_zarr_files, _load_dataset, _save_dataarray, _save_dataset
+from .utils import _check_zarr_files, _load_dataset, _save_dataset
 
 
 def test_consolidated_metadata_exists(tmp_3d_zarr):
@@ -16,14 +16,13 @@ def test_consolidated_metadata_exists(tmp_3d_zarr):
     assert is_consolidated
 
 
-@pytest.mark.parametrize("save_fn", [_save_dataarray, _save_dataset])
-def test_save_dataarray(tmp_storage_path, chunks, data, save_fn):
-    '''Test ZarrIO.save_dataarray to save and load for a single DataArray.'''
+def test_save_dataset(tmp_storage_path, chunks, data):
+    '''Test ZarrIO.save_dataset to save and load for a single DataArray.'''
     root = tmp_storage_path / "data.zarr"
     group = "dataset1"
     name = 'array1'
     uri = f"{root.as_uri()}#{group}"
-    save_fn(data, uri, name, chunks['input'])
+    _save_dataset(data, uri, name, chunks['input'])
 
     # Check filesystem or s3 structure and some metadata
     _check_zarr_files(data, root, group, name, chunks)
@@ -33,9 +32,8 @@ def test_save_dataarray(tmp_storage_path, chunks, data, save_fn):
     assert np.array_equal(data, ds[name].values)
 
 
-@pytest.mark.parametrize("save_fn", [_save_dataarray, _save_dataset])
-def test_save_dataarrays(tmp_storage_path, chunks, data, save_fn):
-    '''Test ZarrIO.save_dataarray to save and load multiple DataArrays.'''
+def test_save_datasets(tmp_storage_path, chunks, data):
+    '''Test ZarrIO.save_dataset to save and load multiple DataArrays.'''
     datasets = []
     root = tmp_storage_path / "data.zarr"
     for set_no in range(1, 3):
@@ -44,7 +42,7 @@ def test_save_dataarrays(tmp_storage_path, chunks, data, save_fn):
         name = f'array{set_no}'
         ds = data.copy() * set_no  # Make each dataset a bit different for testing
         datasets.append((uri, name, ds))
-        save_fn(ds, uri, name, chunks['input'])
+        _save_dataset(ds, uri, name, chunks['input'])
 
     assert len(datasets) == 2
 
@@ -55,29 +53,17 @@ def test_save_dataarrays(tmp_storage_path, chunks, data, save_fn):
 
 
 def test_print_tree(tmp_storage_path, fixed_chunks, data):
-    '''Test zarr print data tree with a mix of Datasets and DataArrays co-existing.'''
+    '''Test zarr print data tree with a mix of Datasets.'''
     root = tmp_storage_path / "data.zarr"
     root_uri = root.as_uri()
     zio = ZarrIO()
-    zio.save_dataarray(
-        uri=f'{root_uri}#dataset1',
-        dataarray=data,
-        name='array1',
-        chunks=fixed_chunks['input'],
-    )
-    zio.save_dataarray(
-        uri=f'{root_uri}#dataset2',
-        dataarray=data,
-        name='array2',
-        chunks=fixed_chunks['input'],
-    )
     zio.save_dataset(
-        uri=f'{root_uri}#dataset3',
+        uri=f'{root_uri}#dataset1',
         dataset=data.to_dataset(name='array1'),
         chunks=fixed_chunks['input'],
     )
     zio.save_dataset(
-        uri=f'{root_uri}#dataset4',
+        uri=f'{root_uri}#dataset2',
         dataset=data.to_dataset(name='array2'),
         chunks=fixed_chunks['input'],
     )
@@ -85,11 +71,7 @@ def test_print_tree(tmp_storage_path, fixed_chunks, data):
     expected = '''/
  ├── dataset1
  │   └── array1 (1300, 1300) float64
- ├── dataset2
- │   └── array2 (1300, 1300) float64
- ├── dataset3
- │   └── array1 (1300, 1300) float64
- └── dataset4
+ └── dataset2
      └── array2 (1300, 1300) float64'''
     assert actual == expected
 
@@ -112,10 +94,9 @@ def test_clean_store(tmp_storage_path, fixed_chunks, data):
     )
     # Clean and store something else
     zio.clean_store(root_uri)
-    zio.save_dataarray(
+    zio.save_dataset(
         uri=f'{root_uri}#dataset2',
-        dataarray=data,
-        name='array2',
+        dataset=data.to_dataset(name='array2'),
         chunks=fixed_chunks['input'],
     )
     assert (
@@ -141,19 +122,6 @@ def test_invalid_mode(example_uri, fixed_chunks, data):
         zio.save_dataset(
             example_uri,
             dataset=data.to_dataset(name='array1'),
-            chunks=fixed_chunks['input'],
-            mode='xxx',
-        )
-    assert (
-        str(excinfo.value)
-        == f"Only the following modes are supported {ZarrIO.WRITE_MODES}"
-    )
-
-    with pytest.raises(ValueError) as excinfo:
-        zio.save_dataarray(
-            example_uri,
-            dataarray=data,
-            name='array1',
             chunks=fixed_chunks['input'],
             mode='xxx',
         )
