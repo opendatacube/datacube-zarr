@@ -17,7 +17,6 @@ from .utils.chunk import (
     ZARR_TARGET_CHUNK_SIZE_MB,
     chunk_dataset,
 )
-from .utils.context_manager import dask_threadsafe_config
 from .utils.uris import uri_split
 
 
@@ -165,10 +164,9 @@ class ZarrIO:
         protocol, _, group = uri_split(uri)
         store = self.get_root(uri)
 
-        with dask_threadsafe_config(protocol):
-            dataset.to_zarr(
-                store=store, group=group, mode=mode, consolidated=True, encoding=encoding
-            )
+        dataset.to_zarr(
+            store=store, group=group, mode=mode, consolidated=True, encoding=encoding
+        )
 
     def open_dataset(self, uri: str) -> xr.Dataset:
         """
