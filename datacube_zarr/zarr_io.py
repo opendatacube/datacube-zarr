@@ -161,17 +161,6 @@ class ZarrIO:
         )
         return ds
 
-    def load_dataset(self, uri: str) -> xr.Dataset:
-        """
-        Loads a xarray.Dataset
-
-        :param str uri: The dataset URI
-        :return: The loaded xr.Dataset
-        """
-        ds: xr.Dataset = self.open_dataset(uri)
-        ds.load()
-        return ds
-
 
 def _xarray_dim_rename_visitor(
     old: str, new: str

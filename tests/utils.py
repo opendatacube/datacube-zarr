@@ -69,13 +69,25 @@ def copytree(p1: Path, p2: Path) -> None:
             o2.write_bytes(o1.read_bytes())
 
 
+def _load_dataset(uri):
+    '''Load Dataset from storage.'''
+    zio = ZarrIO()
+    return zio.open_dataset(uri=uri).load()
+
+
+def _save_dataset(data, uri, name, chunks=None):
+    '''Save Dataset to storage.'''
+    zio = ZarrIO()
+    zio.save_dataset(uri=uri, dataset=data.copy().to_dataset(name=name), chunks=chunks)
+
+
 def raster_and_zarr_are_equal(raster_uri, zarr_uri, separate_bands=False):
     """Compare raster and zarr files."""
     da_raster = xr.open_rasterio(raster_uri)
     if da_raster.shape[0] == 1:
         da_raster = da_raster.sel(band=1, drop=True)
 
-    ds_zarr = ZarrIO().load_dataset(zarr_uri)
+    ds_zarr = _load_dataset(zarr_uri)
 
     if separate_bands is False:
         da_zarr = ds_zarr["array"]
@@ -87,18 +99,6 @@ def raster_and_zarr_are_equal(raster_uri, zarr_uri, separate_bands=False):
     data_coords_dims_equal = da_raster.equals(da_zarr)
     crs_equal = CRS.from_string(da_raster.crs) == CRS.from_string(da_zarr.crs)
     return data_coords_dims_equal and crs_equal
-
-
-def _save_dataset(data, uri, name, chunks=None):
-    '''Save Dataset to storage.'''
-    zio = ZarrIO()
-    zio.save_dataset(uri=uri, dataset=data.copy().to_dataset(name=name), chunks=chunks)
-
-
-def _load_dataset(uri):
-    '''Load Dataset from storage.'''
-    zio = ZarrIO()
-    return zio.load_dataset(uri=uri)
 
 
 def _check_zarr_files(data, root, group, name, chunks):
