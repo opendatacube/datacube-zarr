@@ -5,8 +5,7 @@ Should be able to handle hyperspectral data when ready.
 """
 
 from contextlib import contextmanager
-from json.decoder import JSONDecodeError
-from typing import Any, Generator, Optional, Tuple, Union
+from typing import Generator, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -15,7 +14,6 @@ from datacube.storage import BandInfo
 from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
-from .utils.retry import retry
 from .utils.uris import uri_split
 from .zarr_io import ZarrIO
 
@@ -98,19 +96,12 @@ class ZarrDataSource(object):
             :param RasterShape out_shape: The desired output shape
             :return: Requested data in a :class:`numpy.ndarray`
             """
-
             if window is None:
                 ix: Tuple = (...,)
             else:
                 ix = tuple(slice(*w) if isinstance(w, tuple) else w for w in window)
 
-            # Fixes intermittent Zarr decompression errors when used with Dask
-            # e.g. RuntimeError: error during blosc decompression: 0
-            @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-            def _get_data() -> Any:
-                return self.da[ix].values
-
-            data = _get_data()
+            data = self.da[ix].values
 
             # ODC requires the driver to perform nearest neighbour re-sampling to
             # match `out_shape` when provided. This is intended for sources which support
@@ -153,15 +144,7 @@ class ZarrDataSource(object):
         Opens a Zarr endpoint.
         This only loads metadata, in preperations for reads.
         """
-        zio = ZarrIO()
-
-        # Fixes intermittent Zarr decompression errors when used with Dask
-        # e.g. RuntimeError: error during blosc decompression: 0
-        @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-        def fn() -> Any:
-            return zio.open_dataset(uri=self.uri)
-
-        dataset = fn()
+        dataset = ZarrIO().open_dataset(uri=self.uri)
 
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
