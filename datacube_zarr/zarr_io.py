@@ -8,7 +8,7 @@ import s3fs
 import xarray as xr
 import zarr
 from datacube.utils.aws import auto_find_region
-from numcodecs import Zstd
+from numcodecs import Blosc
 from xarray.backends.common import ArrayWriter
 from xarray.backends.zarr import DIMENSION_KEY, ZarrStore
 
@@ -157,7 +157,7 @@ class ZarrIO:
         if mode not in self.WRITE_MODES:
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
-        compressor = Zstd(level=9)
+        compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         dataset = chunk_dataset(dataset, chunks, target_mb, compression_ratio)
         encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
