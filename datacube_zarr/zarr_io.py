@@ -1,7 +1,6 @@
 import logging
-import shutil
-from pathlib import Path
-from typing import Callable, Hashable, Mapping, Optional, Union
+from collections.abc import MutableMapping
+from typing import Callable, Hashable, Mapping, Optional, Tuple, Union
 
 import fsspec
 import s3fs
@@ -27,6 +26,30 @@ def _set_default_boto_region() -> None:
         conf["client_kwargs"].update(client_kwargs)
     else:
         conf.update({"client_kwargs": client_kwargs})
+
+
+def _uri_to_store_and_group(uri: str) -> Tuple[MutableMapping, str]:
+    """Convert a '<protocol>://<path>#<group>' sting to a zarr storage class and group."""
+
+    # With new s3fs release we can use zarr.FSStore directly or via normalize_store_args
+    #
+    # store_uri, group = uri.split("#", 1) if "#" in uri else (uri, '')
+    # storage_options = {"normalize_keys": False}
+    # store = zarr.creation.normalize_store_arg(
+    #    store_uri, clobber=True, storage_options=storage_options
+    # )
+
+    protocol, root, group = uri_split(uri)
+    if protocol == 's3':
+        s3 = s3fs.S3FileSystem()
+        s3.invalidate_cache()
+        store = s3.get_mapper(root=root, check=False)
+    elif protocol == 'file':
+        store = zarr.DirectoryStore(root)
+    else:
+        raise ValueError(f'Protocol not known: {protocol}')
+
+    return store, group
 
 
 class ZarrIO:
@@ -69,26 +92,14 @@ class ZarrIO:
         group = zarr.open_group(store=store, mode="r")
         return group.tree()
 
-    def get_root(
-        self, uri: str
-    ) -> Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore]:
+    def get_root(self, uri: str) -> MutableMapping:
         """
         Sets up the Zarr Group root for IO operations, similar to a Path.
 
         :param str uri: The storage URI.
         :return: The Zarr store for this URI.
         """
-        protocol, root, _ = uri_split(uri)
-
-        if protocol == 's3':
-            s3 = s3fs.S3FileSystem()
-            s3.invalidate_cache()
-            store = s3.get_mapper(root=root, check=False)
-        elif protocol == 'file':
-            store = zarr.DirectoryStore(root)
-        else:
-            raise ValueError(f'unknown protocol: {protocol}')
-
+        store, _ = _uri_to_store_and_group(uri)
         return store
 
     def clean_store(self, uri: str) -> None:
@@ -98,18 +109,8 @@ class ZarrIO:
 
         :param str uri: The storage URI.
         """
-        protocol, root, _ = uri_split(uri)
-        if protocol == 's3':
-            self._logger.info(f'Deleting S3 {root}')
-            store = self.get_root(uri)
-            group = zarr.group(store=store)
-            group.clear()
-            store.clear()
-        elif protocol == 'file':
-            self._logger.info(f'Deleting directory {root}')
-            root_path = Path(root)
-            if root_path.exists() and root_path.is_dir():
-                shutil.rmtree(root_path)
+        store, _ = _uri_to_store_and_group(uri)
+        store.clear()
 
     def save_dataset(
         self,
@@ -134,13 +135,12 @@ class ZarrIO:
         if mode not in self.WRITE_MODES:
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
-        compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         dataset = chunk_dataset(dataset, chunks, target_mb, compression_ratio)
+
+        compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
-        protocol, _, group = uri_split(uri)
-        store = self.get_root(uri)
-
+        store, group = _uri_to_store_and_group(uri)
         dataset.to_zarr(
             store=store, group=group, mode=mode, consolidated=True, encoding=encoding
         )
@@ -153,11 +153,10 @@ class ZarrIO:
         :param str group_name: The group_name to store under root
         :return: The opened xr.Dataset
         """
-        _, _, group = uri_split(uri)
-        store = self.get_root(uri)
         zarr_args = {"consolidated": True}
+        store, group = _uri_to_store_and_group(uri)
         ds: xr.Dataset = xr.open_dataset(
-            store, group=group, engine="zarr", chunks="auto", backend_kwargs=zarr_args
+            store, group=group, engine="zarr", chunks={}, backend_kwargs=zarr_args
         )
         return ds
 

@@ -16,10 +16,17 @@ def test_consolidated_metadata_exists(tmp_3d_zarr):
     assert is_consolidated
 
 
-def test_save_dataset(tmp_storage_path, chunks, data):
+
+@pytest.mark.parametrize(
+    "group",
+    [
+        "dataset1",
+        "Dataset1",
+    ],  # pytest.param("DataSet1", marks=pytest.mark.xfail(reason="uppercase"))],
+)
+def test_save_dataset(tmp_storage_path, chunks, data, group):
     '''Test ZarrIO.save_dataset to save and load for a single DataArray.'''
     root = tmp_storage_path / "data.zarr"
-    group = "dataset1"
     name = 'array1'
     uri = f"{root.as_uri()}#{group}"
     _save_dataset(data, uri, name, chunks['input'])
@@ -79,6 +86,8 @@ def test_print_tree(tmp_storage_path, fixed_chunks, data):
 def test_clean_store(tmp_storage_path, fixed_chunks, data):
     '''Test cleaning of zarr store.'''
     root = tmp_storage_path / "data.zarr"
+    assert not root.exists()
+
     root_uri = root.as_uri()
     zio = ZarrIO()
     zio.save_dataset(
@@ -86,6 +95,7 @@ def test_clean_store(tmp_storage_path, fixed_chunks, data):
         dataset=data.to_dataset(name='array1'),
         chunks=fixed_chunks['input'],
     )
+    assert root.exists()
     assert (
         str(zio.print_tree(root_uri))
         == '''/
@@ -94,6 +104,8 @@ def test_clean_store(tmp_storage_path, fixed_chunks, data):
     )
     # Clean and store something else
     zio.clean_store(root_uri)
+    assert not root.exists()
+
     zio.save_dataset(
         uri=f'{root_uri}#dataset2',
         dataset=data.to_dataset(name='array2'),
@@ -112,7 +124,7 @@ def test_invalid_protocol():
     with pytest.raises(ValueError) as excinfo:
         zio = ZarrIO()
         zio.get_root('xxx://root')
-    assert str(excinfo.value) == 'unknown protocol: xxx'
+    assert str(excinfo.value) == "Protocol not known: xxx"
 
 
 def test_invalid_mode(example_uri, fixed_chunks, data):
