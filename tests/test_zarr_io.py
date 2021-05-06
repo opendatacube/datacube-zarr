@@ -9,12 +9,20 @@ from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 from .utils import _check_zarr_files, _load_dataset, _save_dataset
 
 
-def test_consolidated_metadata_exists(tmp_3d_zarr):
-    """Test that s3fs cache is working."""
-    root = ZarrIO().get_root(tmp_3d_zarr)
-    is_consolidated = ".zmetadata" in root
-    assert is_consolidated
+# Remove this when updating to latest s3fs
+@pytest.mark.xfail(reason="https://github.com/dask/s3fs/issues/47")
+def test_s3fs(tmp_s3path):
+    base = tmp_s3path / "base"
+    root = str(base)[1:]
+    import s3fs
 
+    fs = s3fs.S3FileSystem()
+    fs.touch(f"{root}/file.abc")
+    fs.touch(f"{root}/sub/file2.abc")
+    fs.find(root)
+    ls_res = fs.ls(root)
+    assert f"{root}/file.abc" in ls_res
+    assert f"{root}/sub" in ls_res
 
 
 @pytest.mark.parametrize(
