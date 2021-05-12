@@ -4,7 +4,7 @@
 launch_db () {
     local pgdata="${1:-/srv/postgresql}"
     local dbuser="${2:-odc}"
-    local bin=/usr/lib/postgresql/10/bin
+    local bin=/usr/lib/postgresql/12/bin
 
     [ -e "${pgdata}/PG_VERSION" ] || {
         sudo -u postgres "${bin}/initdb" -D "${pgdata}" --auth-host=md5 --encoding=UTF8
