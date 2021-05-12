@@ -82,7 +82,7 @@ def mock_product_def_2d(tmp_path):
 @pytest.fixture(scope="session")
 def dummy_zarr_path(tmp_path_factory):
     zarr_dir = tmp_path_factory.mktemp("gedi_3d_zarrs")
-    dummy_zarr = zarr_dir / "dummt.zarr"
+    dummy_zarr = zarr_dir / "dummy.zarr"
     dummy_zarr.touch()
     return dummy_zarr
 

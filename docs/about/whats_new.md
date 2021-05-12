@@ -1,9 +1,16 @@
 # What's New
 ------------
 
-## v0.1.2 (xx Month 2020)
+
+
+
+## v0.2.2 (xx Month 2020)
 -------------------------
 
+- Update to python3.8
+- Update to moto version 2
+- Update to s3fs>5 using aiobotocore
+- Change default compression back to blosc
 - Updated ls8 product definitions with default load parameters.
 - Update to 'black>=20.8b1' and 'isort>=5.1.0'.
 - Remove deprecated "+init" from "<auth>:<auth_code>" CRS definitions loaded via xarray

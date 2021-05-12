@@ -3,8 +3,9 @@
 Common methods for index integration tests.
 """
 import itertools
+import multiprocessing
 import os
-import threading
+import re
 from copy import copy, deepcopy
 from datetime import timedelta
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 import boto3
 import datacube.scripts.cli_app
 import datacube.utils
+import fsspec
 import yaml
 from click.testing import CliRunner
 from datacube.config import LocalConfig
@@ -22,9 +24,8 @@ from datacube.drivers.postgres import PostgresDb, _core
 from datacube.index import index_connect
 from datacube.index._metadata_types import default_metadata_type_docs
 from hypothesis import HealthCheck, settings
-from moto import mock_s3
 from moto.server import main as moto_server_main
-from s3path import S3Path, _s3_accessor
+from s3path import S3Path, register_configuration_parameter
 
 from integration_tests.utils import GEOTIFF, _make_geotiffs, copytree, load_yaml_file
 
@@ -64,20 +65,6 @@ settings.register_profile(
 )
 settings.load_profile('opendatacube')
 
-s3_count = 0
-'''Give a new ID to each moto bucket as they don't seem to clean properly between
-runs.'''
-
-
-_MOCK_S3_REGION = "mock-region"
-
-
-@pytest.fixture
-def s3_bucket_name():
-    global s3_count
-    yield f'mock-bucket-integration-{s3_count}'
-    s3_count += 1
-
 
 @pytest.fixture(scope='session')
 def monkeypatch_session():
@@ -93,11 +80,18 @@ def monkeypatch_session():
 
 
 @pytest.fixture(scope='session')
-def mock_aws_aws_credentials(monkeypatch_session):
+def moto_aws_credentials(monkeypatch_session):
     '''Mocked AWS Credentials for moto.'''
-    monkeypatch_session.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
-    monkeypatch_session.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
-    monkeypatch_session.setenv('AWS_DEFAULT_REGION', _MOCK_S3_REGION)
+
+    MOCK_AWS_CREDENTIALS = {
+        'AWS_ACCESS_KEY_ID': 'mock-key-id',
+        'AWS_SECRET_ACCESS_KEY': 'mock-secret',
+        'AWS_DEFAULT_REGION': "mock-region",
+    }
+    for k, v in MOCK_AWS_CREDENTIALS.items():
+        monkeypatch_session.setenv(k, v)
+
+    return MOCK_AWS_CREDENTIALS
 
 
 @pytest.fixture(scope="session")
@@ -105,37 +99,120 @@ def moto_s3_server(monkeypatch_session):
     """Mock AWS S3 Server."""
     address = "http://127.0.0.1:5000"
 
-    # GDAL AWS connection options
-    monkeypatch_session.setenv('AWS_S3_ENDPOINT', address.split("://")[1])
+    # Run a moto server
+    proc = multiprocessing.Process(
+        target=moto_server_main,
+        name="moto_s3_server",
+        args=(["s3"],),
+        daemon=True,
+    )
+    proc.start()
+    sleep(0.3)
+    yield address
+    proc.terminate()
+    proc.join()
+
+
+@pytest.fixture(scope='session')
+def gdal_mock_s3_endpoint(moto_s3_server, monkeypatch_session):
+    """Set environment variables for GDAL/rasterio to access moto server."""
+    monkeypatch_session.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
     monkeypatch_session.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
     monkeypatch_session.setenv('AWS_HTTPS', 'NO')
 
-    # Run a moto server
-    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
-    thread.daemon = True
-    thread.start()
-    sleep(0.3)
-    yield address
+
+@pytest.fixture(scope='session')
+def fsspec_mock_s3_endpoint(moto_s3_server, moto_aws_credentials):
+    """Set the boto s3 endpoint via fspec config.
+
+    Boto libraries don't offer any way to do this."""
+
+    fsspec_conf = {
+        "s3": {
+            "client_kwargs": {
+                "endpoint_url": moto_s3_server,
+                "region_name": moto_aws_credentials['AWS_DEFAULT_REGION'],
+            }
+        }
+    }
+    fsspec.config.conf.update(fsspec_conf)
 
 
 @pytest.fixture(scope="session")
-def s3_client(moto_s3_server, mock_aws_aws_credentials):
-    '''Mock s3 client.'''
-    with mock_s3():
-        client = boto3.client('s3', region_name=_MOCK_S3_REGION)
-        _s3_accessor.s3 = boto3.resource('s3', region_name=_MOCK_S3_REGION)
-        yield client
-
-
-@pytest.fixture
-def s3(s3_client, s3_bucket_name):
-    '''Mock s3 client and root url.'''
-    s3_client.create_bucket(
-        Bucket=s3_bucket_name,
-        CreateBucketConfiguration={'LocationConstraint': _MOCK_S3_REGION},
+def moto_s3_resource(moto_s3_server, moto_aws_credentials):
+    """A boto3 s3 resource pointing to the moto server."""
+    s3resource = boto3.resource(
+        's3',
+        endpoint_url=moto_s3_server,
+        aws_access_key_id=moto_aws_credentials['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=moto_aws_credentials['AWS_SECRET_ACCESS_KEY'],
+        # config=Config(signature_version='s3v4'),
+        region_name=moto_aws_credentials['AWS_DEFAULT_REGION'],
     )
-    root = f'{s3_bucket_name}/mock-dir/mock-subdir'
-    yield {'client': s3_client, 'root': root}
+    return s3resource
+
+
+@pytest.fixture(scope="session")
+def s3path_mock_s3_endpoint(moto_s3_resource):
+    """Set boto resource for s3path libaray to access moto server."""
+    all_buckets = S3Path('/')
+    register_configuration_parameter(all_buckets, resource=moto_s3_resource)
+
+
+@pytest.fixture(scope="session")
+def s3(
+    gdal_mock_s3_endpoint,
+    s3path_mock_s3_endpoint,
+    fsspec_mock_s3_endpoint,
+):
+    """Collect together all requires per-session mock s3 fixtures and return a bucket."""
+    s3_bucket = S3Path("/mock-s3-bucket-integration")
+    s3_bucket.mkdir()
+    return s3_bucket
+
+
+@pytest.fixture(scope="session")
+def tmp_s3path_factory(s3):
+    """S3Path version of pytest tmp_path_factory."""
+
+    def _as_int(s):
+        try:
+            return int(s)
+        except ValueError:
+            return -1
+
+    class TmpS3PathFactory:
+        def __init__(self, basetmp):
+            self.basetmp = basetmp
+
+        def mktemp(self, name):
+            suffixes = [
+                str(p.relative_to(self.basetmp))[len(name) :]
+                for p in self.basetmp.glob(f"{name}*")
+            ]
+            max_existing = max([_as_int(s) for s in suffixes], default=-1)
+            p = self.basetmp / f"{name}{max_existing + 1}"
+            return p
+
+    return TmpS3PathFactory(basetmp=s3 / "pytest")
+
+
+@pytest.fixture()
+def tmp_s3path(request, tmp_s3path_factory):
+    """S3Path vesrion of tmp_path fixture."""
+    MAXVAL = 30
+    name = re.sub(r"[\W]", "_", request.node.name)[:MAXVAL]
+    return tmp_s3path_factory.mktemp(name)
+
+
+@pytest.fixture(params=('file', 's3'))
+def tmp_storage_path(request, tmp_path, tmp_s3path):
+    return tmp_s3path if request.param == "s3" else tmp_path
+
+
+@pytest.fixture()
+def tmp_input_storage_path(tmp_storage_path):
+    return tmp_storage_path / "input"
 
 
 @pytest.fixture(scope="session")
@@ -336,26 +413,18 @@ def default_metadata_type(index, default_metadata_types):
     return index.metadata_types.get_by_name('eo')
 
 
-@pytest.fixture(params=["file", "s3"])
-def ls5_dataset_path(request, s3, tmp_path):
+@pytest.fixture()
+def ls5_dataset_path(tmp_input_storage_path):
     """LS5 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "lbg"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    dataset_path = tmp_input_storage_path / "geotifs" / "lbg"
     copytree(TEST_DATA, dataset_path)
     return dataset_path
 
 
-@pytest.fixture(params=["file"])
-def ls8_dataset_path(request, s3, tmp_path):
-    """LS8 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+@pytest.fixture()
+def ls8_dataset_path(tmp_path):
+    """LS8 test dataset on filesystem."""
+    dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
     copytree(TEST_DATA_LS8, dataset_path)
     return dataset_path
 

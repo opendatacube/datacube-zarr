@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import dask
 import xarray as xr
 import yaml
 from click.testing import CliRunner
@@ -383,31 +384,33 @@ def test_3d_reprojection(index, indexed_gedi_gtif, indexed_gedi_zarr):
     xr.testing.assert_equal(data_zarr, data_tiff_3d)
 
 
-def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr):
+@pytest.mark.parametrize("scheduler", ["single-threaded", "threads", "processes"])
+def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
     """Test dask load."""
 
-    dc = Datacube(index=index)
-    prod = "gedi_l2b_cover_z"
-    measurement = "cover_z"
+    with dask.config.set(scheduler=scheduler, num_workers=4):
+        dc = Datacube(index=index)
+        prod = "gedi_l2b_cover_z"
+        measurement = "cover_z"
 
-    data_tiff = dc.load(
-        product=prod,
-        latitude=LBG_LATITUDE,
-        longitude=LBG_LONGITUDE,
-        output_crs=GEDI_CRS,
-        resolution=GEDI_RESOLUTION,
-        dask_chunks={'time': 2},
-    )
-    data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
-    del data_tiff
-    data_zarr = dc.load(
-        product=f"{prod}_zarr",
-        measurements=[measurement],
-        latitude=LBG_LATITUDE,
-        longitude=LBG_LONGITUDE,
-        output_crs=GEDI_CRS,
-        resolution=GEDI_RESOLUTION,
-        dask_chunks={'time': 2, 'z': 15},
-    )
-    assert dataarray_has_valid_data(data_zarr[measurement])
-    xr.testing.assert_equal(data_zarr, data_tiff_3d)
+        data_tiff = dc.load(
+            product=prod,
+            latitude=LBG_LATITUDE,
+            longitude=LBG_LONGITUDE,
+            output_crs=GEDI_CRS,
+            resolution=GEDI_RESOLUTION,
+            dask_chunks={'time': 2},
+        )
+        data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
+        del data_tiff
+        data_zarr = dc.load(
+            product=f"{prod}_zarr",
+            measurements=[measurement],
+            latitude=LBG_LATITUDE,
+            longitude=LBG_LONGITUDE,
+            output_crs=GEDI_CRS,
+            resolution=GEDI_RESOLUTION,
+            dask_chunks={'time': 2, 'z': 15},
+        )
+        assert dataarray_has_valid_data(data_zarr[measurement])
+        xr.testing.assert_equal(data_zarr, data_tiff_3d)

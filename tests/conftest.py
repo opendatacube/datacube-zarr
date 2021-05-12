@@ -1,22 +1,21 @@
-import random
-import string
-import threading
+import multiprocessing
+import re
 from pathlib import Path
 from time import sleep
 from types import SimpleNamespace
 
 import pytest
 import boto3
+import fsspec
 import numpy as np
 import pyproj
 import xarray as xr
 from click.testing import CliRunner
 from datacube import Datacube
 from datacube.testutils import gen_tiff_dataset, mk_sample_dataset, mk_test_image
-from moto import mock_s3
 from moto.server import main as moto_server_main
 from rasterio.crs import CRS
-from s3path import S3Path, _s3_accessor
+from s3path import S3Path, register_configuration_parameter
 
 from datacube_zarr import ZarrIO
 from datacube_zarr.tools.set_zarr_product_extra_dim import (
@@ -47,20 +46,6 @@ CHUNKS = (
 '''Zarr chunk sizes to be tested and expected output in metadata and number of chunks
 per side.'''
 
-s3_count = 0
-'''Give a new ID to each moto bucket as they don't seem to clean properly between
-runs.'''
-
-
-_MOCK_S3_REGION = "mock-region"
-
-
-@pytest.fixture
-def s3_bucket_name():
-    global s3_count
-    yield f'mock-bucket-integration-{s3_count}'
-    s3_count += 1
-
 
 @pytest.fixture(scope='session')
 def monkeypatch_session():
@@ -76,11 +61,18 @@ def monkeypatch_session():
 
 
 @pytest.fixture(scope='session')
-def mock_aws_aws_credentials(monkeypatch_session):
+def moto_aws_credentials(monkeypatch_session):
     '''Mocked AWS Credentials for moto.'''
-    monkeypatch_session.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
-    monkeypatch_session.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
-    monkeypatch_session.setenv('AWS_DEFAULT_REGION', _MOCK_S3_REGION)
+
+    MOCK_AWS_CREDENTIALS = {
+        'AWS_ACCESS_KEY_ID': 'mock-key-id',
+        'AWS_SECRET_ACCESS_KEY': 'mock-secret',
+        'AWS_DEFAULT_REGION': "mock-region",
+    }
+    for k, v in MOCK_AWS_CREDENTIALS.items():
+        monkeypatch_session.setenv(k, v)
+
+    return MOCK_AWS_CREDENTIALS
 
 
 @pytest.fixture(scope="session")
@@ -88,46 +80,131 @@ def moto_s3_server(monkeypatch_session):
     """Mock AWS S3 Server."""
     address = "http://127.0.0.1:5000"
 
-    # GDAL AWS connection options
-    monkeypatch_session.setenv('AWS_S3_ENDPOINT', address.split("://")[1])
+    # Run a moto server
+    proc = multiprocessing.Process(
+        target=moto_server_main,
+        name="moto_s3_server",
+        args=(["s3"],),
+        daemon=True,
+    )
+    proc.start()
+    sleep(0.3)
+    yield address
+    proc.terminate()
+    proc.join()
+
+
+@pytest.fixture(scope='session')
+def gdal_mock_s3_endpoint(moto_s3_server, monkeypatch_session):
+    """Set environment variables for GDAL/rasterio to access moto server."""
+    monkeypatch_session.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
     monkeypatch_session.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
     monkeypatch_session.setenv('AWS_HTTPS', 'NO')
 
-    # Run a moto server
-    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
-    thread.daemon = True
-    thread.start()
-    sleep(0.3)
-    yield address
+
+@pytest.fixture(scope='session')
+def fsspec_mock_s3_endpoint(moto_s3_server, moto_aws_credentials):
+    """Set the boto s3 endpoint via fspec config.
+
+    Boto libraries don't offer any way to do this."""
+
+    fsspec_conf = {
+        "s3": {
+            "client_kwargs": {
+                "endpoint_url": moto_s3_server,
+                "region_name": moto_aws_credentials['AWS_DEFAULT_REGION'],
+            }
+        }
+    }
+    fsspec.config.conf.update(fsspec_conf)
 
 
 @pytest.fixture(scope="session")
-def s3_client(moto_s3_server, mock_aws_aws_credentials):
-    '''Mock s3 client.'''
-    with mock_s3():
-        client = boto3.client('s3', region_name=_MOCK_S3_REGION)
-        _s3_accessor.s3 = boto3.resource('s3', region_name=_MOCK_S3_REGION)
-        yield client
-
-
-@pytest.fixture
-def s3(s3_client, s3_bucket_name):
-    '''Mock s3 client and root url.'''
-    s3_client.create_bucket(
-        Bucket=s3_bucket_name,
-        CreateBucketConfiguration={'LocationConstraint': _MOCK_S3_REGION},
+def moto_s3_resource(moto_s3_server, moto_aws_credentials):
+    """A boto3 s3 resource pointing to the moto server."""
+    s3resource = boto3.resource(
+        's3',
+        endpoint_url=moto_s3_server,
+        aws_access_key_id=moto_aws_credentials['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=moto_aws_credentials['AWS_SECRET_ACCESS_KEY'],
+        # config=Config(signature_version='s3v4'),
+        region_name=moto_aws_credentials['AWS_DEFAULT_REGION'],
     )
-    root = f'{s3_bucket_name}/mock-dir/mock-subdir'
-    yield {'client': s3_client, 'root': root}
+    return s3resource
+
+
+@pytest.fixture(scope="session")
+def s3path_mock_s3_endpoint(moto_s3_resource):
+    """Set boto resource for s3path libaray to access moto server."""
+    all_buckets = S3Path('/')
+    register_configuration_parameter(all_buckets, resource=moto_s3_resource)
+
+
+@pytest.fixture(scope="session")
+def s3(
+    gdal_mock_s3_endpoint,
+    s3path_mock_s3_endpoint,
+    fsspec_mock_s3_endpoint,
+):
+    """Collect together all requires per-session mock s3 fixtures and return a bucket."""
+    s3_bucket = S3Path("/mock-s3-bucket")
+    s3_bucket.mkdir()
+    return s3_bucket
+
+
+@pytest.fixture(scope="session")
+def tmp_s3path_factory(s3):
+    """S3Path version of pytest tmp_path_factory."""
+
+    def _as_int(s):
+        try:
+            return int(s)
+        except ValueError:
+            return -1
+
+    class TmpS3PathFactory:
+        def __init__(self, basetmp):
+            self.basetmp = basetmp
+
+        def mktemp(self, name):
+            suffixes = [
+                str(p.relative_to(self.basetmp))[len(name) :]
+                for p in self.basetmp.glob(f"{name}*")
+            ]
+            max_existing = max([_as_int(s) for s in suffixes], default=-1)
+            p = self.basetmp / f"{name}{max_existing + 1}"
+            return p
+
+    return TmpS3PathFactory(basetmp=s3 / "pytest")
+
+
+@pytest.fixture()
+def tmp_s3path(request, tmp_s3path_factory):
+    """S3Path vesrion of tmp_path fixture."""
+    MAXVAL = 30
+    name = re.sub(r"[\W]", "_", request.node.name)[:MAXVAL]
+    return tmp_s3path_factory.mktemp(name)
 
 
 @pytest.fixture(params=('file', 's3'))
-def uri(request, tmpdir, s3):
+def tmp_storage_path(request, tmp_path, tmp_s3path):
+    return tmp_s3path if request.param == "s3" else tmp_path
+
+
+@pytest.fixture()
+def tmp_input_storage_path(tmp_storage_path):
+    return tmp_storage_path / "input"
+
+
+@pytest.fixture()
+def tmp_output_storage_path(tmp_storage_path):
+    return tmp_storage_path / "output"
+
+
+@pytest.fixture()
+def example_uri(tmp_storage_path):
     '''Test URI parametrised for `file` and `s3` protocols.'''
-    protocol = request.param
-    root = s3['root'] if protocol == 's3' else Path(tmpdir) / 'data.zarr'
-    group_name = 'dataset1'
-    yield uri_join(protocol, root, group_name)
+    return (tmp_storage_path / "data.zarr").as_uri() + "#dataset1"
 
 
 @pytest.fixture
@@ -149,11 +226,10 @@ def data():
 
 
 @pytest.fixture
-def dataset(tmpdir):
+def dataset(tmp_path):
     """Datacube Dataset with random data.
 
     Based on datacube-core/tests/test_load_data.py"""
-    tmpdir = Path(str(tmpdir))
 
     spatial = dict(resolution=(15, -15), offset=(11230, 1381110))
 
@@ -162,7 +238,7 @@ def dataset(tmpdir):
 
     ds, gbox = gen_tiff_dataset(
         [SimpleNamespace(name='aa', values=array, nodata=nodata)],
-        tmpdir,
+        tmp_path,
         prefix='ds1-',
         timestamp='2018-07-19',
         **spatial,
@@ -209,9 +285,9 @@ def _gen_zarr_dataset(ds, root, group=None):
 
 
 @pytest.fixture
-def zarr_with_group(dataset, tmpdir):
+def zarr_with_group(dataset, tmp_path):
     '''ODC test zarr dataset.'''
-    root = Path(tmpdir) / 'zarr_with_group.zarr'
+    root = tmp_path / 'zarr_with_group.zarr'
     uri = uri_join("file", root, group="group")
     zio = ZarrIO()
     zio.save_dataset(uri=uri, dataset=dataset)
@@ -219,47 +295,33 @@ def zarr_with_group(dataset, tmpdir):
 
 
 @pytest.fixture
-def odc_dataset(dataset, tmpdir):
+def odc_dataset(dataset, tmp_path):
     '''ODC test zarr dataset.'''
-    root = Path(tmpdir) / 'data.zarr'
+    root = tmp_path / 'data.zarr'
     yield _gen_zarr_dataset(dataset, root)
 
 
 @pytest.fixture
-def odc_dataset_2d(dataset, tmpdir):
+def odc_dataset_2d(dataset, tmp_path):
     '''ODC test zarr dataset with only 2 dimensions.'''
-    root = Path(tmpdir) / 'data_2d.zarr'
+    root = tmp_path / 'data_2d.zarr'
     dataset = dataset.squeeze(drop=True)
     yield _gen_zarr_dataset(dataset, root)
 
 
-@pytest.fixture(params=('file', 's3'))
-def tmp_storage_path(request, tmp_path, s3):
-    """Temporary storage path."""
-    protocol = request.param
-    prefix = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-    if protocol == "s3":
-        return S3Path(f"/{s3['root']}/{prefix}/")
-    else:
-        return tmp_path / prefix
-
-
-tmp_raster_storage_path = tmp_storage_path
-
-
 @pytest.fixture()
-def tmp_raster(tmp_raster_storage_path):
+def tmp_raster(tmp_input_storage_path):
     """Temporary geotif."""
-    outdir = tmp_raster_storage_path / "geotif"
-    raster = create_random_raster(outdir)
+    d = tmp_input_storage_path / "geotif"
+    raster = create_random_raster(d)
     yield raster
 
 
 @pytest.fixture()
-def tmp_raster_multiband(tmp_raster_storage_path):
+def tmp_raster_multiband(tmp_input_storage_path):
     """Temporary multiband geotif."""
-    outdir = tmp_raster_storage_path / "geotif_multi"
-    raster = create_random_raster(outdir, nbands=5)
+    d = tmp_input_storage_path / "geotif_multi"
+    raster = create_random_raster(d, nbands=5)
     yield raster
 
 
@@ -279,6 +341,7 @@ def tmp_hdf4_dataset(tmp_path):
     outdir.mkdir()
     raster = create_random_raster(outdir, nbands=5)
     da = xr.open_rasterio(raster.as_uri())
+
     crs = CRS.from_string(da.crs).to_string()
 
     # make dataset and add spatial ref
@@ -295,14 +358,13 @@ def tmp_hdf4_dataset(tmp_path):
     hdf_path = tmp_path / "hdf" / f"{raster.stem}.nc"
     hdf_path.parent.mkdir()
     ds.to_netcdf(hdf_path, format="NETCDF4")
-
     return hdf_path
 
 
 @pytest.fixture()
-def tmp_dir_of_rasters(tmp_raster_storage_path):
+def tmp_dir_of_rasters(tmp_input_storage_path):
     """Temporary directory of geotifs."""
-    outdir = tmp_raster_storage_path / "geotif_scene"
+    outdir = tmp_input_storage_path / "geotif_scene"
     rasters = [create_random_raster(outdir, label=f"raster{i}") for i in range(5)]
     others = [outdir / "metadata.xml", outdir / "path" / "to" / "otherfile.txt"]
     for o in others:
@@ -320,26 +382,18 @@ def tmp_empty_dataset(tmp_path):
     yield hdf
 
 
-@pytest.fixture(params=["file", "s3"])
-def ls5_dataset_path(request, s3, tmp_path):
+@pytest.fixture()
+def ls5_dataset_path(tmp_input_storage_path):
     """LS5 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "lbg"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    dataset_path = tmp_input_storage_path / "geotifs" / "lbg"
     copytree(TEST_DATA, dataset_path)
     return dataset_path
 
 
-@pytest.fixture(params=["file", "s3"])
-def ls8_dataset_path(request, s3, tmp_path):
+@pytest.fixture()
+def ls8_dataset_path(tmp_input_storage_path):
     """LS8 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    dataset_path = tmp_input_storage_path / "geotifs" / "lbg"
     copytree(TEST_DATA_LS8, dataset_path)
     return dataset_path
 
