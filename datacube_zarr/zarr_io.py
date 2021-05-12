@@ -19,15 +19,6 @@ from .utils.chunk import (
 from .utils.uris import uri_split
 
 
-def _set_default_boto_region() -> None:
-    client_kwargs = {"region_name": auto_find_region()}
-    conf = fsspec.config.conf
-    if "client_kwargs" in conf:
-        conf["client_kwargs"].update(client_kwargs)
-    else:
-        conf.update({"client_kwargs": client_kwargs})
-
-
 def _uri_to_store_and_group(uri: str) -> Tuple[MutableMapping, str]:
     """Convert a '<protocol>://<path>#<group>' sting to a zarr storage class and group."""
 
@@ -80,6 +71,17 @@ class ZarrIO:
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
+
+        # Set the AWS region if not already set
+        fsconf = fsspec.config.conf
+        region = fsconf.get("client_kwargs", {}).get("region_name", None)
+        if region is None:
+            client_kwargs = {"region_name": auto_find_region()}
+            if "client_kwargs" in fsconf:
+                fsconf["client_kwargs"].update(client_kwargs)
+            else:
+                fsconf.update({"client_kwargs": client_kwargs})
+            self._logger.info(f'Setting AWS region to {region}.')
 
     def print_tree(self, uri: str) -> zarr.util.TreeViewer:
         """
@@ -235,7 +237,3 @@ def replace_dataset_dim(uri: str, dim: str, new: Union[str, xr.IndexVariable]) -
         zarr.consolidate_metadata(zstore.ds.store)
 
     zstore.close()
-
-
-# Set default region param
-_set_default_boto_region()
