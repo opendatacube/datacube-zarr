@@ -1,4 +1,4 @@
-FROM csiroeasi/datacube-drivers-test:3d.latest
+FROM csiroeasi/datacube-drivers-test:focal.latest
 
 # Based on https://github.com/opendatacube/datacube-core/blob/develop/docker/Dockerfile
 
