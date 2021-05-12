@@ -4,7 +4,7 @@
     from datacube_zarr import ZarrIO
     zio = ZarrIO()
 
-## Saving a xarray.Dataset:
+## Saving an xarray.Dataset:
     data = xr.DataArray(np.random.randn(1300, 1300))
 
     # Save to Disk
@@ -19,8 +19,8 @@
         chunks={'dim_0': 1100, 'dim_1': 1100},
     )
 
-## Loading a xarray.Dataset:
-    ds = zio.load_dataset(uri=uri)
+## Opening an xarray.Dataset:
+    ds = zio.open_dataset(uri=uri)
 
 ## Viewing the Zarr tree
     zio.print_tree(uri=uri)
