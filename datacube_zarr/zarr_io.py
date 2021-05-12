@@ -1,9 +1,7 @@
 import logging
-from collections.abc import MutableMapping
-from typing import Callable, Hashable, Mapping, Optional, Tuple, Union
+from typing import Callable, Hashable, Mapping, MutableMapping, Optional, Union
 
 import fsspec
-import s3fs
 import xarray as xr
 import zarr
 from datacube.utils.aws import auto_find_region
@@ -16,31 +14,7 @@ from .utils.chunk import (
     ZARR_TARGET_CHUNK_SIZE_MB,
     chunk_dataset,
 )
-from .utils.uris import uri_split
-
-
-def _uri_to_store_and_group(uri: str) -> Tuple[MutableMapping, str]:
-    """Convert a '<protocol>://<path>#<group>' sting to a zarr storage class and group."""
-
-    # With new s3fs release we can use zarr.FSStore directly or via normalize_store_args
-    #
-    # store_uri, group = uri.split("#", 1) if "#" in uri else (uri, '')
-    # storage_options = {"normalize_keys": False}
-    # store = zarr.creation.normalize_store_arg(
-    #    store_uri, clobber=True, storage_options=storage_options
-    # )
-
-    protocol, root, group = uri_split(uri)
-    if protocol == 's3':
-        s3 = s3fs.S3FileSystem()
-        s3.invalidate_cache()
-        store = s3.get_mapper(root=root, check=False)
-    elif protocol == 'file':
-        store = zarr.DirectoryStore(root)
-    else:
-        raise ValueError(f'Protocol not known: {protocol}')
-
-    return store, group
+from .utils.uris import uri_split, uri_to_store_and_group
 
 
 class ZarrIO:
@@ -101,7 +75,7 @@ class ZarrIO:
         :param str uri: The storage URI.
         :return: The Zarr store for this URI.
         """
-        store, _ = _uri_to_store_and_group(uri)
+        store, _ = uri_to_store_and_group(uri)
         return store
 
     def clean_store(self, uri: str) -> None:
@@ -111,7 +85,7 @@ class ZarrIO:
 
         :param str uri: The storage URI.
         """
-        store, _ = _uri_to_store_and_group(uri)
+        store, _ = uri_to_store_and_group(uri)
         store.clear()
 
     def save_dataset(
@@ -142,7 +116,7 @@ class ZarrIO:
         compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
-        store, group = _uri_to_store_and_group(uri)
+        store, group = uri_to_store_and_group(uri)
         dataset.to_zarr(
             store=store, group=group, mode=mode, consolidated=True, encoding=encoding
         )
@@ -156,7 +130,7 @@ class ZarrIO:
         :return: The opened xr.Dataset
         """
         zarr_args = {"consolidated": True}
-        store, group = _uri_to_store_and_group(uri)
+        store, group = uri_to_store_and_group(uri)
         ds: xr.Dataset = xr.open_dataset(
             store, group=group, engine="zarr", chunks={}, backend_kwargs=zarr_args
         )

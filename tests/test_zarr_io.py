@@ -9,8 +9,9 @@ from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 from .utils import _check_zarr_files, _load_dataset, _save_dataset
 
 
-# Remove this when updating to latest s3fs
-@pytest.mark.xfail(reason="https://github.com/dask/s3fs/issues/47")
+# Remove this when updating to latest s3fs.
+# This bug stops us from using `zarr.FSStore`.
+@pytest.mark.xfail(reason="https://github.com/dask/s3fs/issues/475")
 def test_s3fs(tmp_s3path):
     base = tmp_s3path / "base"
     root = str(base)[1:]
