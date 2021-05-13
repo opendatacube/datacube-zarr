@@ -27,6 +27,7 @@
   - Creating Zarr datasets via Datacube ingest is no longer supported. The `zarrify` CLI
     tool can be used to convert from other formats to Zarr prior to indexing.
 - Zarr dimension rename script supports multiple extra dimensions.
+- Remove `load_dataset` and `save_dataarray` wrappers from `ZarrIO` class.
 
 
 ## v0.1.1 (02 September 2020)
