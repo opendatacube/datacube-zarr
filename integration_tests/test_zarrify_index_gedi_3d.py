@@ -392,6 +392,7 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
         dc = Datacube(index=index)
         prod = "gedi_l2b_cover_z"
         measurement = "cover_z"
+        chunks = {'time': 1, 'latitude': 500, 'longitude': 500}
 
         data_tiff = dc.load(
             product=prod,
@@ -399,10 +400,11 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
             longitude=LBG_LONGITUDE,
             output_crs=GEDI_CRS,
             resolution=GEDI_RESOLUTION,
-            dask_chunks={'time': 2},
+            dask_chunks=chunks,
         )
-        data_tiff_3d = stack_3d_on_z(data_tiff, measurement)
+        data_tiff_3d = stack_3d_on_z(data_tiff, measurement).load()
         del data_tiff
+
         data_zarr = dc.load(
             product=f"{prod}_zarr",
             measurements=[measurement],
@@ -410,7 +412,9 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
             longitude=LBG_LONGITUDE,
             output_crs=GEDI_CRS,
             resolution=GEDI_RESOLUTION,
-            dask_chunks={'time': 2, 'z': 15},
+            dask_chunks={**chunks, 'z': 15},
         )
+        data_zarr.load()
+
         assert dataarray_has_valid_data(data_zarr[measurement])
         xr.testing.assert_equal(data_zarr, data_tiff_3d)
