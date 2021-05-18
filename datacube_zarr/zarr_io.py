@@ -14,6 +14,7 @@ from .utils.chunk import (
     ZARR_TARGET_CHUNK_SIZE_MB,
     chunk_dataset,
 )
+from .utils.retry import retry
 from .utils.uris import uri_split, uri_to_store_and_group
 
 
@@ -50,11 +51,18 @@ class ZarrIO:
         fsconf = fsspec.config.conf
         region = fsconf.get("client_kwargs", {}).get("region_name", None)
         if region is None:
-            client_kwargs = {"region_name": auto_find_region()}
-            if "client_kwargs" in fsconf:
-                fsconf["client_kwargs"].update(client_kwargs)
-            else:
-                fsconf.update({"client_kwargs": client_kwargs})
+
+            @retry(on_exceptions=(ValueError,))
+            def _get_auto_find_region() -> str:
+                region: str = auto_find_region()
+                return region
+
+            region = _get_auto_find_region()
+
+            if "client_kwargs" not in fsconf:
+                fsconf["client_kwargs"] = {}
+
+            fsconf["client_kwargs"].update({"region_name": region})
             self._logger.info(f'Setting AWS region to {region}.')
 
     def print_tree(self, uri: str) -> zarr.util.TreeViewer:
