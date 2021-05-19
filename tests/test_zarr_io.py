@@ -9,30 +9,7 @@ from datacube_zarr.zarr_io import ZarrIO, replace_dataset_dim
 from .utils import _check_zarr_files, _load_dataset, _save_dataset
 
 
-# Remove this when updating to latest s3fs.
-# This bug stops us from using `zarr.FSStore`.
-@pytest.mark.xfail(reason="https://github.com/dask/s3fs/issues/475")
-def test_s3fs(tmp_s3path):
-    base = tmp_s3path / "base"
-    root = str(base)[1:]
-    import s3fs
-
-    fs = s3fs.S3FileSystem()
-    fs.touch(f"{root}/file.abc")
-    fs.touch(f"{root}/sub/file2.abc")
-    fs.find(root)
-    ls_res = fs.ls(root)
-    assert f"{root}/file.abc" in ls_res
-    assert f"{root}/sub" in ls_res
-
-
-@pytest.mark.parametrize(
-    "group",
-    [
-        "dataset1",
-        "Dataset1",
-    ],  # pytest.param("DataSet1", marks=pytest.mark.xfail(reason="uppercase"))],
-)
+@pytest.mark.parametrize("group", ["dataset1", "Dataset1"])
 def test_save_dataset(tmp_storage_path, chunks, data, group):
     '''Test ZarrIO.save_dataset to save and load for a single DataArray.'''
     root = tmp_storage_path / "data.zarr"

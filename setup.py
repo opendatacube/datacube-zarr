@@ -41,7 +41,7 @@ setup(
         'numcodecs>=0.6.2',
         'rasterio>=1.1.5',
         's3path>=0.1.93',
-        's3fs[boto3,awscli]>=2021.04.0',
+        's3fs[boto3,awscli]>=2021.05.0',
         'xarray>=0.16.2',
         'zarr>=2.3.2',
     ],

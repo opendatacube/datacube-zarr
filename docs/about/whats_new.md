@@ -9,7 +9,7 @@
 
 - Update to python3.8
 - Update to moto version 2
-- Update to s3fs>5 using aiobotocore
+- Update to s3fs>2021.05.0 using aiobotocore
 - Change default compression back to blosc
 - Updated ls8 product definitions with default load parameters.
 - Update to 'black>=20.8b1' and 'isort>=5.1.0'.
