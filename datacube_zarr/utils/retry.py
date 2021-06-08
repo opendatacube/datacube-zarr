@@ -1,7 +1,10 @@
+import logging
 from functools import wraps
 from typing import Any, Callable, Tuple, Type, TypeVar, Union, cast
 
 F = TypeVar('F', bound=Callable[..., Any])
+
+logger = logging.getLogger(__file__)
 
 
 def retry(
@@ -25,6 +28,10 @@ def retry(
                 try:
                     return f(*args, **kwargs)
                 except on_exceptions:
+                    logger.debug(
+                        f"function '{f.__name__}' failed. "
+                        "Retrying {num_retries}/{max_retries}."
+                    )
                     if num_retries > max_retries:
                         raise
                     num_retries += 1
