@@ -1,7 +1,5 @@
-from typing import MutableMapping, Optional, Tuple
+from typing import Optional, Tuple
 from urllib.parse import urlparse
-
-import zarr
 
 
 def uri_split(uri: str) -> Tuple[str, str, str]:
@@ -36,14 +34,3 @@ def uri_join(protocol: str, root: str, group: Optional[str] = None) -> str:
     """
     uri = f"{protocol}://{root}" + (f"#{group}" if group else "")
     return uri
-
-
-def uri_to_store_and_group(uri: str) -> Tuple[MutableMapping, str]:
-    """Convert a '<protocol>://<path>#<group>' string to a storage class and group."""
-    protocol, root, group = uri_split(uri)
-    if protocol == "file":
-        store = zarr.DirectoryStore(root)
-    else:
-        store_uri = uri_join(protocol, root)
-        store = zarr.storage.FSStore(store_uri, normalize_keys=False)
-    return store, group
