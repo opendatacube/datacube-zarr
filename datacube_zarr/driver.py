@@ -107,7 +107,7 @@ class ZarrDataSource(object):
             # Fixes intermittent Zarr decompression errors when used with Dask
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-            def _get_data() -> Any:
+            def _get_data() -> np.ndarray:
                 return self.da[ix].values
 
             data = _get_data()
