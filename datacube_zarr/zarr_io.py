@@ -52,7 +52,7 @@ class ZarrIO:
     WRITE_MODES = ('w', 'w-', 'a')
 
     def __init__(self) -> None:
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Set the AWS region if not already set
         s3fs_conf = fsspec.config.conf.get("s3", {})

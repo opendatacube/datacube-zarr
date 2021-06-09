@@ -4,7 +4,7 @@ from typing import Any, Callable, Tuple, Type, TypeVar, Union, cast
 
 F = TypeVar('F', bound=Callable[..., Any])
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 def retry(
