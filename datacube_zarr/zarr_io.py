@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Hashable, Mapping, MutableMapping, Optional, Union
+from typing import Callable, Hashable, Mapping, MutableMapping, Optional, Tuple, Union
 
 import fsspec
 import xarray as xr
@@ -15,7 +15,14 @@ from .utils.chunk import (
     chunk_dataset,
 )
 from .utils.retry import retry
-from .utils.uris import uri_split, uri_to_store_and_group
+from .utils.uris import uri_join, uri_split
+
+
+@retry(on_exceptions=(ValueError,))
+def _get_auto_find_region() -> str:
+    """Attempt to automatically find the AWS region."""
+    region: str = auto_find_region()
+    return region
 
 
 class ZarrIO:
@@ -45,25 +52,28 @@ class ZarrIO:
     WRITE_MODES = ('w', 'w-', 'a')
 
     def __init__(self) -> None:
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Set the AWS region if not already set
-        fsconf = fsspec.config.conf
-        region = fsconf.get("client_kwargs", {}).get("region_name", None)
-        if region is None:
-
-            @retry(on_exceptions=(ValueError,))
-            def _get_auto_find_region() -> str:
-                region: str = auto_find_region()
-                return region
-
+        s3fs_conf = fsspec.config.conf.get("s3", {})
+        self._s3_client_kwargs = s3fs_conf.get("client_kwargs", {})
+        if self._s3_client_kwargs.get("region_name", None) is None:
             region = _get_auto_find_region()
+            self._logger.info(f'Found AWS region as: {region}.')
+            self._s3_client_kwargs["region_name"] = region
 
-            if "client_kwargs" not in fsconf:
-                fsconf["client_kwargs"] = {}
+    def uri_to_store_and_group(self, uri: str) -> Tuple[MutableMapping, str]:
+        """Convert a '<protocol>://<path>#<group>' string to a storage class and group."""
+        protocol, root, group = uri_split(uri)
+        if protocol == "file":
+            store = zarr.DirectoryStore(root)
+        else:
+            store_uri = uri_join(protocol, root)
+            store = zarr.storage.FSStore(
+                store_uri, normalize_keys=False, client_kwargs=self._s3_client_kwargs
+            )
 
-            fsconf["client_kwargs"].update({"region_name": region})
-            self._logger.info(f'Setting AWS region to {region}.')
+        return store, group
 
     def print_tree(self, uri: str) -> zarr.util.TreeViewer:
         """
@@ -83,7 +93,7 @@ class ZarrIO:
         :param str uri: The storage URI.
         :return: The Zarr store for this URI.
         """
-        store, _ = uri_to_store_and_group(uri)
+        store, _ = self.uri_to_store_and_group(uri)
         return store
 
     def clean_store(self, uri: str) -> None:
@@ -93,7 +103,7 @@ class ZarrIO:
 
         :param str uri: The storage URI.
         """
-        store, _ = uri_to_store_and_group(uri)
+        store, _ = self.uri_to_store_and_group(uri)
         store.clear()
 
     def save_dataset(
@@ -124,7 +134,7 @@ class ZarrIO:
         compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
-        store, group = uri_to_store_and_group(uri)
+        store, group = self.uri_to_store_and_group(uri)
         dataset.to_zarr(
             store=store, group=group, mode=mode, consolidated=True, encoding=encoding
         )
@@ -138,7 +148,7 @@ class ZarrIO:
         :return: The opened xr.Dataset
         """
         zarr_args = {"consolidated": True}
-        store, group = uri_to_store_and_group(uri)
+        store, group = self.uri_to_store_and_group(uri)
         ds: xr.Dataset = xr.open_dataset(
             store, group=group, engine="zarr", chunks={}, backend_kwargs=zarr_args
         )

@@ -158,10 +158,10 @@ class ZarrDataSource(object):
         # Fixes intermittent Zarr decompression errors when used with Dask
         # e.g. RuntimeError: error during blosc decompression: 0
         @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-        def fn() -> Any:
+        def _open_dataset() -> Any:
             return zio.open_dataset(uri=self.uri)
 
-        dataset = fn()
+        dataset = _open_dataset()
 
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
