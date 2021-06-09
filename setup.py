@@ -7,6 +7,8 @@ tests_require = [
     'hypothesis',
     'isort>=5.1.0',
     'mypy',
+    'types-click',
+    'types-pyYAML',
     'mock',
     'moto[server,s3]>2',
     'pytest',
