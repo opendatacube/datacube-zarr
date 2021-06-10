@@ -29,9 +29,6 @@ from s3path import S3Path, register_configuration_parameter
 
 from integration_tests.utils import GEOTIFF, _make_geotiffs, copytree, load_yaml_file
 
-_SINGLE_RUN_CONFIG_TEMPLATE = """
-
-"""
 
 INTEGRATION_TESTS_DIR = Path(__file__).parent
 

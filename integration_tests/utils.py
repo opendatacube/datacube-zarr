@@ -7,13 +7,6 @@ import numpy as np
 import rasterio
 from datacube.utils.documents import load_from_yaml
 
-# On Windows, symlinks are not supported in Python 2 and require
-# specific privileges otherwise, so we copy instead of linking
-if os.name == 'nt' or not hasattr(os, 'symlink'):
-    symlink = shutil.copy
-else:
-    symlink = os.symlink  # type: ignore
-
 #: Number of bands to place in generated GeoTIFFs
 NUM_BANDS = 3
 
