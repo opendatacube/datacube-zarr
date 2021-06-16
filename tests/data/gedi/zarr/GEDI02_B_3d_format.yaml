@@ -117,42 +117,7 @@ extra_dimensions:
   dtype: float64
 measurements:
 - name: cover_z
-  extra_dim:
-    dimension: z
-    measurement_map: ['5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55',
-      '60', '65', '70', '75', '80', '85', '90', '95', '100', '105', '110', '115',
-      '120', '125', '130', '135', '140', '145', '150']
-    alias_map:
-    - [band_1]
-    - [band_2]
-    - [band_3]
-    - [band_4]
-    - [band_5]
-    - [band_6]
-    - [band_7]
-    - [band_8]
-    - [band_9]
-    - [band_10]
-    - [band_11]
-    - [band_12]
-    - [band_13]
-    - [band_14]
-    - [band_15]
-    - [band_16]
-    - [band_17]
-    - [band_18]
-    - [band_19]
-    - [band_20]
-    - [band_21]
-    - [band_22]
-    - [band_23]
-    - [band_24]
-    - [band_25]
-    - [band_26]
-    - [band_27]
-    - [band_28]
-    - [band_29]
-    - [band_30]
+  extra_dim: z
   dtype: float32
   nodata: -9999.0
   units: na
@@ -172,42 +137,7 @@ extra_dimensions:
   dtype: float64
 measurements:
 - name: pai_z
-  extra_dim:
-    dimension: z
-    measurement_map: ['5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55',
-      '60', '65', '70', '75', '80', '85', '90', '95', '100', '105', '110', '115',
-      '120', '125', '130', '135', '140', '145', '150']
-    alias_map:
-    - [band_1]
-    - [band_2]
-    - [band_3]
-    - [band_4]
-    - [band_5]
-    - [band_6]
-    - [band_7]
-    - [band_8]
-    - [band_9]
-    - [band_10]
-    - [band_11]
-    - [band_12]
-    - [band_13]
-    - [band_14]
-    - [band_15]
-    - [band_16]
-    - [band_17]
-    - [band_18]
-    - [band_19]
-    - [band_20]
-    - [band_21]
-    - [band_22]
-    - [band_23]
-    - [band_24]
-    - [band_25]
-    - [band_26]
-    - [band_27]
-    - [band_28]
-    - [band_29]
-    - [band_30]
+  extra_dim: z
   dtype: float32
   nodata: -9999.0
   units: m2/m2
@@ -228,42 +158,7 @@ extra_dimensions:
   dtype: float64
 measurements:
 - name: pavd_z
-  extra_dim:
-    dimension: z
-    measurement_map: ['5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55',
-      '60', '65', '70', '75', '80', '85', '90', '95', '100', '105', '110', '115',
-      '120', '125', '130', '135', '140', '145', '150']
-    alias_map:
-    - [band_1]
-    - [band_2]
-    - [band_3]
-    - [band_4]
-    - [band_5]
-    - [band_6]
-    - [band_7]
-    - [band_8]
-    - [band_9]
-    - [band_10]
-    - [band_11]
-    - [band_12]
-    - [band_13]
-    - [band_14]
-    - [band_15]
-    - [band_16]
-    - [band_17]
-    - [band_18]
-    - [band_19]
-    - [band_20]
-    - [band_21]
-    - [band_22]
-    - [band_23]
-    - [band_24]
-    - [band_25]
-    - [band_26]
-    - [band_27]
-    - [band_28]
-    - [band_29]
-    - [band_30]
+  extra_dim: z
   dtype: float32
   nodata: -9999.0
   units: m2/m3
