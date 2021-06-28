@@ -182,8 +182,5 @@ def test_zarrify_prepare_index_ls8_eo3(
             resolution=resolution,
         )
 
-        print(data_tiff)
-        print(data_zarr)
-
         # compare datasets
         assert data_zarr.equals(data_tiff)

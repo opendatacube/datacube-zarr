@@ -6,18 +6,14 @@ import itertools
 import multiprocessing
 import os
 import re
-from copy import copy, deepcopy
-from datetime import timedelta
 from pathlib import Path
 from time import sleep
-from uuid import uuid4
 
 import pytest
 import boto3
 import datacube.scripts.cli_app
 import datacube.utils
 import fsspec
-import yaml
 from click.testing import CliRunner
 from datacube.config import LocalConfig
 from datacube.drivers.postgres import PostgresDb, _core
@@ -27,15 +23,9 @@ from hypothesis import HealthCheck, settings
 from moto.server import main as moto_server_main
 from s3path import S3Path, register_configuration_parameter
 
-from integration_tests.utils import GEOTIFF, _make_geotiffs, copytree, load_yaml_file
-
-_SINGLE_RUN_CONFIG_TEMPLATE = """
-
-"""
+from integration_tests.utils import copytree
 
 INTEGRATION_TESTS_DIR = Path(__file__).parent
-
-_EXAMPLE_LS5_NBAR_DATASET_FILE = INTEGRATION_TESTS_DIR / 'example-ls5-nbar.yaml'
 
 #: Number of time slices to create in sample data
 NUM_TIME_SLICES = 3
@@ -293,106 +283,6 @@ def remove_dynamic_indexes():
         table.indexes.intersection_update(
             [i for i in table.indexes if not i.name.startswith('dix_')]
         )
-
-
-@pytest.fixture(scope='session')
-def geotiffs(tmpdir_factory):
-    """Create test geotiffs and corresponding yamls.
-
-    We create one yaml per time slice, itself comprising one geotiff
-    per band, each with specific custom data that can be later
-    tested. These are meant to be used by all tests in the current
-    session, by way of symlinking the yamls and tiffs returned by this
-    fixture, in order to save disk space (and potentially generation
-    time).
-
-    The yamls are customised versions of
-    :ref:`_EXAMPLE_LS5_NBAR_DATASET_FILE` shifted by 24h and with
-    spatial coords reflecting the size of the test geotiff, defined in
-    :ref:`GEOTIFF`.
-
-    :param tmpdir_fatory: pytest tmp dir factory.
-    :return: List of dictionaries like::
-
-        {
-            'day':..., # compact day string, e.g. `19900302`
-            'uuid':..., # a unique UUID for this dataset (i.e. specific day)
-            'path':..., # path to the yaml metadata file
-            'tiffs':... # list of paths to the actual geotiffs in that dataset,
-                        # one per band.
-        }
-
-    """
-    tiffs_dir = tmpdir_factory.mktemp('tiffs')
-
-    config = load_yaml_file(_EXAMPLE_LS5_NBAR_DATASET_FILE)[0]
-
-    # Customise the spatial coordinates
-    ul = GEOTIFF['ul']
-    lr = {
-        dim: ul[dim] + GEOTIFF['shape'][dim] * GEOTIFF['pixel_size'][dim]
-        for dim in ('x', 'y')
-    }
-    config['grid_spatial']['projection']['geo_ref_points'] = {
-        'ul': ul,
-        'ur': {'x': lr['x'], 'y': ul['y']},
-        'll': {'x': ul['x'], 'y': lr['y']},
-        'lr': lr,
-    }
-    # Generate the custom geotiff yamls
-    return [
-        _make_tiffs_and_yamls(tiffs_dir, config, day_offset)
-        for day_offset in range(NUM_TIME_SLICES)
-    ]
-
-
-def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
-    """Make a custom yaml and tiff for a day offset.
-
-    :param path-like tiffs_dir: The base path to receive the tiffs.
-    :param dict config: The yaml config to be cloned and altered.
-    :param int day_offset: how many days to offset the original yaml by.
-    """
-    config = deepcopy(config)
-
-    # Increment all dates by the day_offset
-    delta = timedelta(days=day_offset)
-    day_orig = config['acquisition']['aos'].strftime('%Y%m%d')
-    config['acquisition']['aos'] += delta
-    config['acquisition']['los'] += delta
-    config['extent']['from_dt'] += delta
-    config['extent']['center_dt'] += delta
-    config['extent']['to_dt'] += delta
-    day = config['acquisition']['aos'].strftime('%Y%m%d')
-
-    # Set the main UUID and assign random UUIDs where needed
-    uuid = uuid4()
-    config['id'] = str(uuid)
-    level1 = config['lineage']['source_datasets']['level1']
-    level1['id'] = str(uuid4())
-    level1['lineage']['source_datasets']['satellite_telemetry_data']['id'] = str(uuid4())
-
-    # Alter band data
-    bands = config['image']['bands']
-    for band in bands.keys():
-        # Copy dict to avoid aliases in yaml output (for better legibility)
-        bands[band]['shape'] = copy(GEOTIFF['shape'])
-        bands[band]['cell_size'] = {
-            dim: abs(GEOTIFF['pixel_size'][dim]) for dim in ('x', 'y')
-        }
-        bands[band]['path'] = (
-            bands[band]['path'].replace('product/', '').replace(day_orig, day)
-        )
-
-    dest_path = str(tiffs_dir.join('agdc-metadata_%s.yaml' % day))
-    with open(dest_path, 'w') as dest_yaml:
-        yaml.dump(config, dest_yaml)
-    return {
-        'day': day,
-        'uuid': uuid,
-        'path': dest_path,
-        'tiffs': _make_geotiffs(tiffs_dir, day_offset),  # make 1 geotiff per band
-    }
 
 
 @pytest.fixture

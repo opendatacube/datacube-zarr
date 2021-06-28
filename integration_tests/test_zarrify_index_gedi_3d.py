@@ -279,24 +279,11 @@ def _compare_all_gedi_gtif_zarr_products(index):
         for da in data_zarr.data_vars.values():
             assert dataarray_has_valid_data(da)
 
-        # compare datasets
-        if not _gedi_product_is_3d(prod):
-            # For 2D products, outputs are equal
-            xr.testing.assert_equal(data_zarr, data_tiff)
-
-        else:
-            # For 3d products all measurements includes 2D measurements for each value in
-            # the extra dimension as well as the complete 3D measurement
-
-            # Compare zarr 2D measurements with gtiff product
+        if _gedi_product_is_3d(prod):
             measurement = prod[len("gedi_l2b_") :]
-            data_zarr_2d = data_zarr.drop_vars([measurement, "z"])
-            xr.testing.assert_equal(data_zarr_2d, data_tiff)
+            data_tiff = stack_3d_on_z(data_tiff, measurement)
 
-            # Compare zarr 3D measurement to (stacked) gtiff product
-            data_zarr_3d = data_zarr[measurement]
-            data_tiff_3d = stack_3d_on_z(data_tiff, measurement)[measurement]
-            xr.testing.assert_equal(data_tiff_3d, data_zarr_3d)
+        xr.testing.assert_equal(data_zarr, data_tiff)
 
 
 def test_gedi_gtif_zarr_product(index, indexed_gedi_gtif, indexed_gedi_zarr):
@@ -402,8 +389,7 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
             resolution=GEDI_RESOLUTION,
             dask_chunks=chunks,
         )
-        data_tiff_3d = stack_3d_on_z(data_tiff, measurement).load()
-        del data_tiff
+        data_tiff = stack_3d_on_z(data_tiff, measurement).load()
 
         data_zarr = dc.load(
             product=f"{prod}_zarr",
@@ -417,4 +403,4 @@ def test_3d_dask_chunks(index, indexed_gedi_gtif, indexed_gedi_zarr, scheduler):
         data_zarr.load()
 
         assert dataarray_has_valid_data(data_zarr[measurement])
-        xr.testing.assert_equal(data_zarr, data_tiff_3d)
+        xr.testing.assert_equal(data_zarr, data_tiff)
