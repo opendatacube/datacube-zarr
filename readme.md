@@ -2,7 +2,7 @@
 
 ## Overview
 
-This provides a Zarr [Plug-in driver](https://datacube-core.readthedocs.io/en/latest/architecture/driver.html)
+This provides a Zarr [Data Read Plug-in](https://datacube-core.readthedocs.io/en/latest/architecture/driver.html) driver.
 for the [Open Data Cube (ODC) project](https://github.com/opendatacube/datacube-core/).
 
 For ODC documentation, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/)
@@ -11,9 +11,7 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ## User Guides
 - [zarrify command line tool](/docs/zarrify.md)
-- Index and Ingestion
-  - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
-  - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)
+- [OpenDataCube Index](/docs/odc_examples.md#convert-to-zarr-and-index)
 - [ZarrIO usage](/docs/zarr_io.md)
 
 

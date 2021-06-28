@@ -1,14 +1,11 @@
 import logging
-import shutil
-from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Mapping, Optional, Union
+from typing import Callable, Hashable, Mapping, MutableMapping, Optional, Tuple, Union
 
 import fsspec
-import s3fs
 import xarray as xr
 import zarr
 from datacube.utils.aws import auto_find_region
-from numcodecs import Zstd
+from numcodecs import Blosc
 from xarray.backends.common import ArrayWriter
 from xarray.backends.zarr import DIMENSION_KEY, ZarrStore
 
@@ -17,16 +14,18 @@ from .utils.chunk import (
     ZARR_TARGET_CHUNK_SIZE_MB,
     chunk_dataset,
 )
-from .utils.context_manager import dask_threadsafe_config
-from .utils.uris import uri_split
+from .utils.retry import retry
+from .utils.uris import uri_join, uri_split
 
 
-class ZarrBase:
-    def __init__(self) -> None:
-        self._logger = logging.getLogger(self.__class__.__name__)
+@retry(on_exceptions=(ValueError,))
+def _get_auto_find_region() -> str:
+    """Attempt to automatically find the AWS region."""
+    region: str = auto_find_region()
+    return region
 
 
-class ZarrIO(ZarrBase):
+class ZarrIO:
     """
     Zarr read/write interface to save and load xarray.Datasets and xarray DataArrays.
 
@@ -53,8 +52,28 @@ class ZarrIO(ZarrBase):
     WRITE_MODES = ('w', 'w-', 'a')
 
     def __init__(self) -> None:
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-        super().__init__()
+        # Set the AWS region if not already set
+        s3fs_conf = fsspec.config.conf.get("s3", {})
+        self._s3_client_kwargs = s3fs_conf.get("client_kwargs", {})
+        if self._s3_client_kwargs.get("region_name", None) is None:
+            region = _get_auto_find_region()
+            self._logger.info(f'Found AWS region as: {region}.')
+            self._s3_client_kwargs["region_name"] = region
+
+    def uri_to_store_and_group(self, uri: str) -> Tuple[MutableMapping, str]:
+        """Convert a '<protocol>://<path>#<group>' string to a storage class and group."""
+        protocol, root, group = uri_split(uri)
+        if protocol == "file":
+            store = zarr.DirectoryStore(root)
+        else:
+            store_uri = uri_join(protocol, root)
+            store = zarr.storage.FSStore(
+                store_uri, normalize_keys=False, client_kwargs=self._s3_client_kwargs
+            )
+
+        return store, group
 
     def print_tree(self, uri: str) -> zarr.util.TreeViewer:
         """
@@ -67,30 +86,14 @@ class ZarrIO(ZarrBase):
         group = zarr.open_group(store=store, mode="r")
         return group.tree()
 
-    def get_root(
-        self, uri: str
-    ) -> Union[fsspec.mapping.FSMap, zarr.storage.DirectoryStore]:
+    def get_root(self, uri: str) -> MutableMapping:
         """
         Sets up the Zarr Group root for IO operations, similar to a Path.
 
         :param str uri: The storage URI.
         :return: The Zarr store for this URI.
         """
-        protocol, root, _ = uri_split(uri)
-        if protocol == 's3':
-            store = s3fs.S3Map(
-                root=root,
-                s3=s3fs.S3FileSystem(
-                    client_kwargs=dict(region_name=auto_find_region()),
-                    use_listings_cache=False,
-                ),
-                check=False,
-            )
-        elif protocol == 'file':
-            store = zarr.DirectoryStore(root)
-        else:
-            raise ValueError(f'unknown protocol: {protocol}')
-
+        store, _ = self.uri_to_store_and_group(uri)
         return store
 
     def clean_store(self, uri: str) -> None:
@@ -100,41 +103,8 @@ class ZarrIO(ZarrBase):
 
         :param str uri: The storage URI.
         """
-        protocol, root, _ = uri_split(uri)
-        if protocol == 's3':
-            self._logger.info(f'Deleting S3 {root}')
-            store = self.get_root(uri)
-            group = zarr.group(store=store)
-            group.clear()
-            store.clear()
-        elif protocol == 'file':
-            self._logger.info(f'Deleting directory {root}')
-            root_path = Path(root)
-            if root_path.exists() and root_path.is_dir():
-                shutil.rmtree(root_path)
-
-    def save_dataarray(
-        self,
-        uri: str,
-        dataarray: xr.DataArray,
-        name: str,
-        chunks: Optional[dict] = None,
-        mode: str = 'w-',
-    ) -> None:
-        """
-        Saves a xarray.DataArray
-
-        :param str uri: The output URI.
-        :param `xarray.DataArray` dataarray: The xarray.DataArray to be saved
-        :param str name: The name of the xarray.DataArray
-        :param dict chunks: The chunking parameter for each dimension.
-        :param str mode: {'w', 'w-', 'a', None}
-            w: overwrite
-            w-: overwrite if exists
-            a: overwrite existing variables (create if does not exist)
-        """
-        dataset = dataarray.to_dataset(name=name)
-        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks, mode=mode)
+        store, _ = self.uri_to_store_and_group(uri)
+        store.clear()
 
     def save_dataset(
         self,
@@ -159,17 +129,15 @@ class ZarrIO(ZarrBase):
         if mode not in self.WRITE_MODES:
             raise ValueError(f"Only the following modes are supported {self.WRITE_MODES}")
 
-        compressor = Zstd(level=9)
         dataset = chunk_dataset(dataset, chunks, target_mb, compression_ratio)
+
+        compressor = Blosc(cname='zstd', clevel=4, shuffle=Blosc.BITSHUFFLE)
         encoding = {var: {'compressor': compressor} for var in dataset.data_vars}
 
-        protocol, _, group = uri_split(uri)
-        store = self.get_root(uri)
-
-        with dask_threadsafe_config(protocol):
-            dataset.to_zarr(
-                store=store, group=group, mode=mode, consolidated=True, encoding=encoding
-            )
+        store, group = self.uri_to_store_and_group(uri)
+        dataset.to_zarr(
+            store=store, group=group, mode=mode, consolidated=True, encoding=encoding
+        )
 
     def open_dataset(self, uri: str) -> xr.Dataset:
         """
@@ -179,56 +147,12 @@ class ZarrIO(ZarrBase):
         :param str group_name: The group_name to store under root
         :return: The opened xr.Dataset
         """
-        _, _, group = uri_split(uri)
-        store = self.get_root(uri)
+        zarr_args = {"consolidated": True}
+        store, group = self.uri_to_store_and_group(uri)
         ds: xr.Dataset = xr.open_dataset(
-            store, group=group, engine="zarr", backend_kwargs={"consolidated": True}
+            store, group=group, engine="zarr", chunks={}, backend_kwargs=zarr_args
         )
         return ds
-
-    def load_dataset(self, uri: str) -> xr.Dataset:
-        """
-        Loads a xarray.Dataset
-
-        :param str uri: The dataset URI
-        :return: The loaded xr.Dataset
-        """
-        ds: xr.Dataset = self.open_dataset(uri)
-        ds.load()
-        return ds
-
-    def save_dataset_to_zarr(
-        self,
-        uri: str,
-        dataset: xr.Dataset,
-        global_attributes: Optional[dict] = None,
-        variable_params: Optional[dict] = None,
-        storage_config: Optional[dict] = None,
-    ) -> Dict[str, Any]:
-        """
-        ODC driver calls this
-        Saves a Data Cube style xarray Dataset to a Storage Unit
-
-        Requires a spatial Dataset, with attached coordinates and global crs attribute.
-
-        :param str uri: The output storage URI.
-        :param `xarray.Dataset` dataset: The xarray Dataset to be saved to Zarr
-        :param dict global_attributes: Global file attributes.
-                                       dict of attr_name: attr_value
-        :param dict variable_params: dict of variable_name:
-                                       {param_name: param_value, [...]}
-                                     Allows setting storage and compression options per
-                                     variable.
-        :param dict storage_config: The storage config from the ingest definition.
-        :return: dict containing additional driver metadata to be stored in the database
-        """
-        chunks = None
-        if storage_config:
-            chunks = storage_config['chunking']
-
-        metadata: Dict[str, Any] = {}
-        self.save_dataset(uri=uri, dataset=dataset, chunks=chunks)
-        return metadata
 
 
 def _xarray_dim_rename_visitor(

@@ -6,7 +6,7 @@ from textwrap import indent
 
 import click
 
-from datacube_zarr.tools.zarrify import main as zarrify
+from datacube_zarr.tools.zarrify import cli as zarrify
 
 DOC_DIRECTORY = Path(__file__).parent
 

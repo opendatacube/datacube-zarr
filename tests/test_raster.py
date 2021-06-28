@@ -12,45 +12,45 @@ from .utils import raster_and_zarr_are_equal
 
 
 @pytest.mark.parametrize("chunks", [None, {"x": 50, "y": 50}])
-def test_raster_to_zarr(tmp_raster, tmp_storage_path, chunks):
+def test_raster_to_zarr(tmp_raster, tmp_output_storage_path, chunks):
     """Convert raster to zarr."""
-    uris = raster_to_zarr(tmp_raster, tmp_storage_path, chunks=chunks)
+    uris = raster_to_zarr(tmp_raster, tmp_output_storage_path, chunks=chunks)
     assert len(uris) == 1
 
-    zarr_file = tmp_storage_path / f"{tmp_raster.stem}.zarr"
+    zarr_file = tmp_output_storage_path / f"{tmp_raster.stem}.zarr"
     assert zarr_exists(zarr_file) is True
     assert raster_and_zarr_are_equal(tmp_raster.as_uri(), uris[0])
 
 
 @pytest.mark.parametrize("preload_data", [False, True])
-@pytest.mark.parametrize("multi_dim", [True, False])
+@pytest.mark.parametrize("separate_bands", [False, True])
 def test_raster_to_zarr_multi_band(
-    tmp_raster_multiband, tmp_storage_path, multi_dim, preload_data
+    tmp_raster_multiband, tmp_output_storage_path, separate_bands, preload_data
 ):
     """Convert multibanded raster to zarr."""
     uris = raster_to_zarr(
         tmp_raster_multiband,
-        tmp_storage_path,
-        multi_dim=multi_dim,
+        tmp_output_storage_path,
+        separate_bands=separate_bands,
         preload_data=preload_data,
     )
     assert len(uris) == 1
 
-    zarr_file = tmp_storage_path / f"{tmp_raster_multiband.stem}.zarr"
+    zarr_file = tmp_output_storage_path / f"{tmp_raster_multiband.stem}.zarr"
     assert zarr_exists(zarr_file) is True
 
     assert raster_and_zarr_are_equal(
-        tmp_raster_multiband.as_uri(), uris[0], multi_dim=multi_dim
+        tmp_raster_multiband.as_uri(), uris[0], separate_bands=separate_bands
     )
 
 
 @pytest.mark.filterwarnings("ignore:Dataset has no geotransform set.")
-def test_hdf4_to_zarr(tmp_hdf4_dataset, tmp_storage_path):
+def test_hdf4_to_zarr(tmp_hdf4_dataset, tmp_output_storage_path):
     """Convert raster to zarr."""
-    uris = raster_to_zarr(tmp_hdf4_dataset, tmp_storage_path)
+    uris = raster_to_zarr(tmp_hdf4_dataset, tmp_output_storage_path)
     assert len(uris) == 5
 
-    zarr_file = tmp_storage_path / f"{tmp_hdf4_dataset.stem}.zarr"
+    zarr_file = tmp_output_storage_path / f"{tmp_hdf4_dataset.stem}.zarr"
     assert zarr_exists(zarr_file) is True
 
     for zarr_uri in uris:
@@ -58,14 +58,14 @@ def test_hdf4_to_zarr(tmp_hdf4_dataset, tmp_storage_path):
         assert raster_and_zarr_are_equal(netcdf_uri, zarr_uri)
 
 
-def test_zarr_already_exists(tmp_raster, tmp_storage_path):
+def test_zarr_already_exists(tmp_raster, tmp_output_storage_path):
     """zarr not created if already exists."""
-    uris = raster_to_zarr(tmp_raster, tmp_storage_path)
+    uris = raster_to_zarr(tmp_raster, tmp_output_storage_path)
     assert len(uris) == 1
     protocol, root, group = uri_split(uris[0])
     r = S3Path(f"/{root}") if protocol == "s3" else Path(root)
     assert zarr_exists(r, group) is True
-    uris2 = raster_to_zarr(tmp_raster, tmp_storage_path)
+    uris2 = raster_to_zarr(tmp_raster, tmp_output_storage_path)
     assert uris2 == []
     assert zarr_exists(r, group) is True
 

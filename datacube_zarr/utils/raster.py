@@ -132,7 +132,7 @@ def raster_to_zarr(  # noqa: C901
     zarr_name: Optional[str] = None,
     crs: Optional[CRS] = None,
     resolution: Optional[Tuple[float, float]] = None,
-    multi_dim: bool = False,
+    separate_bands: bool = False,
     preload_data: bool = False,
     auto_chunk: bool = False,
     progress: bool = False,
@@ -146,6 +146,10 @@ def raster_to_zarr(  # noqa: C901
     :param zarr_name: name to give the created `.zarr` dataset
     :param crs: output coordinate system to reproject to
     :param resolution: output resolution
+    :param separate_bands: Split each band into a separate zarr array
+    :param preload_data: Load source into memory
+    :param auto_chunk: Automatically chunk x, y dimensions
+    :param progress: Display progress bar for zarr creation
     :param zarrgs: keyword arguments to pass to `ZarrIO.save_dataset`
     :return: list of generated zarr URIs
     """
@@ -173,28 +177,26 @@ def raster_to_zarr(  # noqa: C901
             # Reset PROJ string to remove "+init" from "<auth>:<auth_code>" defs
             da.attrs["crs"] = CRS.from_string(da.crs).to_string()
 
+            # Can be useful when converting striped source data
             if preload_data:
                 logger.debug(f"Preloading {src.name} into memory.")
                 da.load()
 
             nbands = da.shape[0]
+            if nbands == 1:
+                # Remove uneccesary dimension
+                da = da.sel(band=1, drop=True)
 
-            dim = None if multi_dim else "band"
-            name = _DEFAULT_ARRAY if multi_dim else None
+            # Convert to Dataset
+            dim = "band" if separate_bands else None
+            name = None if separate_bands else _DEFAULT_ARRAY
             ds = da.to_dataset(dim=dim, name=name)
 
             if auto_chunk:
                 zarrgs["chunks"] = {d: "auto" for d in list(ds.dims)[-2:]}
                 logger.debug(f"Auto setting chunk options to {zarrgs['chunks']}")
 
-            if multi_dim:
-                # DataSet attrs already passed to DataArray. Set nodata and tags.
-                ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
-                tag_names = {k for i in range(nbands) for k in src.tags(i)}
-                for tag in tag_names:
-                    tag_list = [src.tags(i).get(tag) for i in range(nbands)]
-                    ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
-            else:
+            if separate_bands:
                 # Rename variable keys to strings required by zarr
                 ds = ds.rename_vars({k: f"band{k:d}" for k in ds.data_vars.keys()})
 
@@ -212,6 +214,13 @@ def raster_to_zarr(  # noqa: C901
                     # Get band-specific tags
                     for tag, tval in src.tags(i).items():
                         arr.attrs[f"{_META_PREFIX}_{tag}"] = tval
+            else:
+                # DataSet attrs already passed to DataArray. Set nodata and tags.
+                ds[_DEFAULT_ARRAY].attrs["nodata"] = da.nodatavals
+                tag_names = {k for i in range(nbands) for k in src.tags(i)}
+                for tag in tag_names:
+                    tag_list = [src.tags(i).get(tag) for i in range(nbands)]
+                    ds[_DEFAULT_ARRAY].attrs[f"{_META_PREFIX}_{tag}"] = tag_list
 
         uri = make_zarr_uri(root, group)
 

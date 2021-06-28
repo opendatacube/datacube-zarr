@@ -1,17 +1,24 @@
+# Copied from OpenDataCube integration tests https://github.com/opendatacube/datacube-core
+#
+# End to end test of zariffied ls5 dataset converted to albers and indexed
+
 import shutil
 from pathlib import Path
 
 import pytest
 import numpy
 import rasterio
+import yaml
+from click.testing import CliRunner
 from datacube.api.core import Datacube
 
-from integration_tests.utils import prepare_test_ingestion_configuration
+from datacube_zarr.tools.zarrify import cli as zarrify
+from examples.prepare_zarr_ls5 import main as prepare_zarr_ls5
 
 PROJECT_ROOT = Path(__file__).parents[1]
 CONFIG_SAMPLES = PROJECT_ROOT / 'docs/config_samples/'
-INGESTER_CONFIGS = CONFIG_SAMPLES / 'ingester'
 LS5_DATASET_TYPES = CONFIG_SAMPLES / 'dataset_types/ls5_scenes.yaml'
+LS5_DATASET_TYPES_ZARR = CONFIG_SAMPLES / "dataset_types/ls5_scenes_albers_zarr.yaml"
 TEST_DATA = PROJECT_ROOT / 'tests' / 'data' / 'lbg'
 LBG_NBAR = 'LS5_TM_NBAR_P54_GANBAR01-002_090_084_19920323'
 LBG_PQ = 'LS5_TM_PQ_P55_GAPQ01-002_090_084_19920323'
@@ -23,46 +30,54 @@ def custom_dumb_fuser(dst, src):
 
 
 @pytest.fixture()
-def testdata_dir(tmpdir, ingest_configs, s3_bucket_name):
+def testdata_dir(tmpdir):
     datadir = Path(str(tmpdir), 'data')
     datadir.mkdir()
-
-    shutil.copytree(str(TEST_DATA), str(tmpdir / 'lbg'))
-
-    for file in ingest_configs.values():
-        prepare_test_ingestion_configuration(
-            tmpdir,
-            tmpdir,
-            INGESTER_CONFIGS / file,
-            mode='end2end',
-            s3_bucket_name=s3_bucket_name,
-        )
-
-    return tmpdir
+    shutil.copytree(str(TEST_DATA), str(datadir / 'lbg'))
+    return datadir
 
 
-ignore_me = pytest.mark.xfail(
-    True, reason="get_data/get_description still to be fixed in Unification"
-)
+def replace_band_names(metadatafile):
+    """The LS5 EO prepare script sets band by number but this product uses names."""
+    band_map = {
+        '1': 'blue',
+        '2': 'green',
+        '3': 'red',
+        '4': 'nir',
+        '5': 'swir1',
+        '7': 'swir2',
+    }
+    meta = yaml.safe_load(metadatafile.read_text())
+
+    def _replace_bands(band_meta):
+        new_bands = {}
+        for k, v in band_map.items():
+            new_bands[v] = band_meta[k]
+        return new_bands
+
+    if meta["product_type"] == "nbar":
+        meta["image"]["bands"] = _replace_bands(meta["image"]["bands"])
+    elif meta["product_type"] == "pqa":
+        for k, v in meta["lineage"]["source_datasets"].items():
+            meta["lineage"]["source_datasets"][k]["image"]["bands"] = _replace_bands(
+                v["image"]["bands"]
+            )
+
+    metadatafile.write_text(yaml.dump(meta))
 
 
-@pytest.mark.usefixtures('default_metadata_type', 's3')
-@pytest.mark.parametrize('datacube_env_name', ('datacube',))
-def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env_name):
+def test_end_to_end(clirunner, index, testdata_dir):
     """
-    Loads two dataset configurations, then ingests a sample Landsat 5 scene
+    Index two datasets:
+        1) Original LS5 NBAR geotif data
+        2) zarrified and reprojected (to albers) LS5 NBAR dataset
 
-    One dataset configuration specifies Australian Albers Equal Area Projection,
-    the other is simply latitude/longitude.
-
-    The input dataset should be recorded in the index, and two sets of storage units
-    should be created on disk and recorded in the index.
+    This test is the same as ODC test_end_to_end except ingestion to albers is replaced
+    with zarrify (incl. reproject) and index.
     """
 
     lbg_nbar = testdata_dir / 'lbg' / LBG_NBAR
     lbg_pq = testdata_dir / 'lbg' / LBG_PQ
-    ls5_nbar_albers_ingest_config = testdata_dir / ingest_configs['ls5_nbar_albers']
-    ls5_pq_albers_ingest_config = testdata_dir / ingest_configs['ls5_pq_albers']
 
     # Add the LS5 Dataset Types
     clirunner(['-v', 'product', 'add', str(LS5_DATASET_TYPES)])
@@ -112,11 +127,29 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
     # 2. Call dataset update with archive/forget
     # 3. Check location
 
-    # Ingest NBAR
-    clirunner(['-v', 'ingest', '-c', str(ls5_nbar_albers_ingest_config)])
+    # Zarrify geotiffs to albers projection, prepare and index
+    runner = CliRunner()
+    zarrify_args = "--chunk x:500 --chunk y:500 --progress".split()
+    zarrify_args.extend("--crs EPSG:3577 --resolution 25 25".split())
+    zarr_dir = testdata_dir / "zarrs"
+    zarrify_args.extend(["--outpath", str(zarr_dir)])
+    gtif_dir = testdata_dir / 'lbg'
+    zarrify_args.append(str(gtif_dir))
+    res_zarrify = runner.invoke(zarrify, zarrify_args)
+    assert res_zarrify.exit_code == 0, res_zarrify.stdout
+    zarr_dataset_dir = zarr_dir / "lbg"
 
-    # Ingest PQ
-    clirunner(['-v', 'ingest', '-c', str(ls5_pq_albers_ingest_config)])
+    # prepare metadata for zarr
+    res_prep = runner.invoke(prepare_zarr_ls5, [str(zarr_dataset_dir / LBG_NBAR)])
+    assert res_prep.exit_code == 0, res_prep.stdout
+    for metafile in zarr_dataset_dir.glob("**/agdc-metadata.yaml"):
+        replace_band_names(metafile)
+
+    # Add the zarr LS5 products
+    clirunner(["-v", "product", "add", str(LS5_DATASET_TYPES_ZARR)])
+    for ds in (LBG_NBAR, LBG_PQ):
+        ds_dir = zarr_dataset_dir / ds
+        clirunner(["-v", "dataset", "add", str(ds_dir)])
 
     dc = Datacube(index=index)
     assert isinstance(str(dc), str)
@@ -125,36 +158,33 @@ def test_end_to_end(clirunner, index, testdata_dir, ingest_configs, datacube_env
     with pytest.raises(ValueError):
         dc.find_datasets(time='2019')  # no product supplied, raises exception
 
-    check_open_with_dc(index)
-    check_open_with_grid_workflow(index)
-    check_load_via_dss(index)
+    product = 'ls5_nbar_scene_zarr'
+    check_open_with_dc(index, product=product)
+    check_open_with_grid_workflow(index, product=product)
+    check_load_via_dss(index, product=product)
 
 
-def check_open_with_dc(index):
+def check_open_with_dc(index, product):
     dc = Datacube(index=index)
 
-    data_array = dc.load(product='ls5_nbar_albers', measurements=['blue']).to_array(
-        dim='variable'
-    )
+    data_array = dc.load(product=product, measurements=['blue']).to_array(dim='variable')
     assert data_array.shape
     assert (data_array != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers',
-        measurements=['blue'],
-        time='1992-03-23T23:14:25.500000',
+        product=product, measurements=['blue'], time='1992-03-23T23:14:25.500000'
     )
     assert data_array['blue'].shape[0] == 1
     assert (data_array.blue != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers', measurements=['blue'], latitude=-35.3, longitude=149.1
+        product=product, measurements=['blue'], latitude=-35.3, longitude=149.1
     )
     assert data_array['blue'].shape[1:] == (1, 1)
     assert (data_array.blue != -999).any()
 
     data_array = dc.load(
-        product='ls5_nbar_albers', latitude=(-35, -36), longitude=(149, 150)
+        product=product, latitude=(-35, -36), longitude=(149, 150)
     ).to_array(dim='variable')
 
     assert data_array.ndim == 4
@@ -163,7 +193,7 @@ def check_open_with_dc(index):
 
     with rasterio.Env():
         lazy_data_array = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35, -36),
             longitude=(149, 150),
             dask_chunks={'time': 1, 'x': 1000, 'y': 1000},
@@ -175,19 +205,15 @@ def check_open_with_dc(index):
             data_array[1, :2, 950:1050, 950:1050]
         )
 
-    dataset = dc.load(
-        product='ls5_nbar_albers', measurements=['blue'], fuse_func=custom_dumb_fuser
-    )
+    dataset = dc.load(product=product, measurements=['blue'], fuse_func=custom_dumb_fuser)
     assert dataset['blue'].size
 
-    dataset = dc.load(
-        product='ls5_nbar_albers', latitude=(-35.2, -35.3), longitude=(149.1, 149.2)
-    )
+    dataset = dc.load(product=product, latitude=(-35.2, -35.3), longitude=(149.1, 149.2))
     assert dataset['blue'].size
 
     with rasterio.Env():
         lazy_dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35.2, -35.3),
             longitude=(149.1, 149.2),
             dask_chunks={'time': 1},
@@ -200,7 +226,7 @@ def check_open_with_dc(index):
 
         # again but with larger time chunks
         lazy_dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             latitude=(-35.2, -35.3),
             longitude=(149.1, 149.2),
             dask_chunks={'time': 2},
@@ -211,11 +237,11 @@ def check_open_with_dc(index):
             time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)
         ).equals(dataset.isel(time=slice(0, 2), x=slice(950, 1050), y=slice(950, 1050)))
 
-    dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
+    dataset_like = dc.load(product=product, measurements=['blue'], like=dataset)
     assert (dataset.blue == dataset_like.blue).all()
 
     solar_day_dataset = dc.load(
-        product='ls5_nbar_albers',
+        product=product,
         latitude=(-35, -36),
         longitude=(149, 150),
         measurements=['blue'],
@@ -224,20 +250,17 @@ def check_open_with_dc(index):
     assert 0 < solar_day_dataset.time.size <= dataset.time.size
 
     dataset = dc.load(
-        product='ls5_nbar_albers',
-        latitude=(-35.2, -35.3),
-        longitude=(149.1, 149.2),
-        align=(5, 20),
+        product=product, latitude=(-35.2, -35.3), longitude=(149.1, 149.2), align=(5, 20)
     )
     assert dataset.geobox.affine.f % abs(dataset.geobox.affine.e) == 5
     assert dataset.geobox.affine.c % abs(dataset.geobox.affine.a) == 20
-    dataset_like = dc.load(product='ls5_nbar_albers', measurements=['blue'], like=dataset)
+    dataset_like = dc.load(product=product, measurements=['blue'], like=dataset)
     assert (dataset.blue == dataset_like.blue).all()
 
     products_df = dc.list_products()
     assert len(products_df)
-    assert len(products_df[products_df['name'].isin(['ls5_nbar_albers'])])
-    assert len(products_df[products_df['name'].isin(['ls5_pq_albers'])])
+    assert len(products_df[products_df['name'].isin([product])])
+    # assert len(products_df[products_df['name'].isin(['ls5_pq_albers'])])
 
     assert len(dc.list_measurements())
     assert len(dc.list_measurements(with_pandas=False))
@@ -246,7 +269,6 @@ def check_open_with_dc(index):
     resamp = ['nearest', 'cubic', 'bilinear', 'cubic_spline', 'lanczos', 'average']
     results = {}
 
-    # WTF
     def calc_max_change(da):
         midline = int(da.shape[0] * 0.5)
         a = int(abs(da[midline, :-1].data - da[midline, 1:].data).max())
@@ -257,7 +279,7 @@ def check_open_with_dc(index):
 
     for resamp_meth in resamp:
         dataset = dc.load(
-            product='ls5_nbar_albers',
+            product=product,
             measurements=['blue'],
             latitude=(-35.28, -35.285),
             longitude=(149.15, 149.155),
@@ -272,7 +294,7 @@ def check_open_with_dc(index):
 
     # check empty result
     dataset = dc.load(
-        product='ls5_nbar_albers',
+        product=product,
         time=('1918', '1919'),
         measurements=['blue'],
         latitude=(-35.28, -35.285),
@@ -283,18 +305,17 @@ def check_open_with_dc(index):
     assert len(dataset.data_vars) == 0
 
 
-def check_open_with_grid_workflow(index):
-    type_name = 'ls5_nbar_albers'
-    dt = index.products.get_by_name(type_name)
+def check_open_with_grid_workflow(index, product):
+    dt = index.products.get_by_name(product)
 
     from datacube.api.grid_workflow import GridWorkflow
 
     gw = GridWorkflow(index, dt.grid_spec)
 
-    cells = gw.list_cells(product=type_name, cell_index=LBG_CELL)
+    cells = gw.list_cells(product=product, cell_index=LBG_CELL)
     assert LBG_CELL in cells
 
-    cells = gw.list_cells(product=type_name)
+    cells = gw.list_cells(product=product)
     assert LBG_CELL in cells
 
     tile = cells[LBG_CELL]
@@ -317,7 +338,7 @@ def check_open_with_grid_workflow(index):
 
     ts = numpy.datetime64('1992-03-23T23:14:25.500000000')
     tile_key = LBG_CELL + (ts,)
-    tiles = gw.list_tiles(product=type_name)
+    tiles = gw.list_tiles(product=product)
     assert tiles
     assert tile_key in tiles
 
@@ -331,13 +352,13 @@ def check_open_with_grid_workflow(index):
     )
 
 
-def check_load_via_dss(index):
+def check_load_via_dss(index, product):
     dc = Datacube(index=index)
 
-    dss = dc.find_datasets(product='ls5_nbar_albers')
+    dss = dc.find_datasets(product=product)
     assert len(dss) > 0
 
-    xx1 = dc.load(product='ls5_nbar_albers', measurements=['blue'])
+    xx1 = dc.load(product=product, measurements=['blue'])
     xx2 = dc.load(datasets=dss, measurements=['blue'])
     assert xx1.blue.shape
     assert (xx1.blue != -999).any()
