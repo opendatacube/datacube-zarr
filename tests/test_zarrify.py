@@ -18,7 +18,7 @@ keyvalue_params = [
 ]
 
 
-def assert_expected_chunking(zarr_path, chunks, group="", name="band1"):
+def assert_expected_chunking(zarr_path, chunks, group="", name="array"):
     metadata_path = zarr_path / '.zmetadata'
     with metadata_path.open() as fh:
         metadata = json.load(fh)
@@ -84,13 +84,12 @@ bad_chunks = [
     "--chunk x:none",
     "--chunk x:2.2",
     "--auto-chunk --chunk x:100",
-    "--chunk z:100",
 ]
 
 
 @pytest.mark.parametrize("chunks", bad_chunks)
 def test_zarrify_bad_chunk_options(zarrifycli, tmp_path, chunks):
-    """Test bad inplace/outpath options."""
+    """Test bad chunk options."""
     raster = create_random_raster(tmp_path)
     res = zarrifycli([str(raster), "--inplace"] + chunks.split())
     assert res.exit_code != 0, res.stdout
@@ -117,6 +116,15 @@ def test_zarrify(zarrifycli, tmp_raster, chunks_opts, chunks):
     zarr_path = tmp_raster.parent / f"{tmp_raster.stem}.zarr"
     assert zarr_path.exists()
     assert_expected_chunking(zarr_path, chunks)
+
+
+def test_zarrify_dir(zarrifycli, tmp_raster):
+    """Test zarrify cli."""
+    res = zarrifycli(["--inplace", "-v", tmp_raster.parent.as_uri()])
+    assert res.exit_code == 0, res.stdout
+    assert not tmp_raster.exists()
+    zarr_path = tmp_raster.parent / f"{tmp_raster.stem}.zarr"
+    assert zarr_path.exists()
 
 
 @pytest.mark.parametrize(

@@ -3,10 +3,10 @@ Zarr Storage driver for ODC
 Supports storage on S3 and Disk
 Should be able to handle hyperspectral data when ready.
 """
-import itertools
+
 from contextlib import contextmanager
 from json.decoder import JSONDecodeError
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Generator, Optional, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -16,14 +16,14 @@ from datacube.utils import geometry
 from datacube.utils.math import num2numpy
 
 from .utils.retry import retry
-from .utils.uris import uri_join, uri_split
+from .utils.uris import uri_split
 from .zarr_io import ZarrIO
 
 PROTOCOL = ['file', 's3']
 FORMAT = 'zarr'
 
 RasterShape = Tuple[int, ...]
-RasterWindow = Tuple[Tuple[int, int]]
+RasterWindow = Tuple[Union[int, Tuple[int, int]], ...]
 
 
 class ZarrDataSource(object):
@@ -32,7 +32,6 @@ class ZarrDataSource(object):
             self,
             dataset: xr.Dataset,
             var_name: str,
-            time_idx: Optional[int],
             no_data: Optional[float],
         ):
             """
@@ -42,22 +41,30 @@ class ZarrDataSource(object):
 
             :param xr.Dataset dataset: The xr.Dataset
             :param str var_name: The variable name of the xr.DataArray
-            :param int time_idx: The time index override if known
             :param float no_data: The no data value if known
             """
             self.ds = dataset
             self._var_name = var_name
             self.da = dataset.data_vars[var_name]
-            self._nodata = (
-                self.da.nodata
-                if 'nodata' in self.da.attrs and self.da.nodata
-                else no_data
-            )
+
+            self._is_2d = len(self.da.dims) == 2
+            self._nbands = 1 if self._is_2d else self.da[self.da.dims[0]].size
+            if self._nbands == 0:
+                raise ValueError('Dataset has 0 bands.')
+
+            # Set nodata value
+            if 'nodata' in self.da.attrs and self.da.nodata:
+                if isinstance(self.da.nodata, list):
+                    self._nodata = self.da.nodata[0]
+                else:
+                    self._nodata = self.da.nodata
+            else:
+                self._nodata = no_data
+
             if not self._nodata:
                 raise ValueError('nodata not found in dataset and product definition')
+
             self._nodata = num2numpy(self._nodata, self.dtype)
-            self._is_2d = len(self.da.dims) == 2
-            self.time_idx = self.set_time_idx(time_idx)
 
         @property
         def nodata(self) -> Optional[float]:
@@ -79,28 +86,6 @@ class ZarrDataSource(object):
         def shape(self) -> RasterShape:
             return self.da.shape if self._is_2d else self.da.shape[1:]
 
-        def set_time_idx(self, time_idx: Optional[int]) -> int:
-            """
-            Updates time index from BandInfo.band
-
-            The resultant time index must be > 0.
-
-            :param int time_index: The time index from BandInfo.band
-            :return: The updated time index
-            """
-            self.time_idx = time_idx or 1
-            # adjust for 0 based indexing
-            self.time_idx -= 1
-
-            time_count = 1 if self._is_2d else self.da[self.da.dims[0]].size
-            if time_count == 0:
-                raise ValueError('Found 0 time slices in storage')
-
-            if self.time_idx < time_count:
-                return self.time_idx
-            else:
-                raise ValueError(f'time_idx exceeded {time_count}')
-
         def read(
             self,
             window: Optional[RasterWindow] = None,
@@ -114,21 +99,35 @@ class ZarrDataSource(object):
             :return: Requested data in a :class:`numpy.ndarray`
             """
 
-            # Check if zarr dataset is a 2D array
-            t_ix: Tuple = tuple() if self._is_2d else (self.time_idx,)
-
             if window is None:
-                xy_ix: Tuple = (...,)
+                ix: Tuple = (...,)
             else:
-                xy_ix = tuple(slice(*w) for w in window)
+                ix = tuple(slice(*w) if isinstance(w, tuple) else w for w in window)
 
             # Fixes intermittent Zarr decompression errors when used with Dask
             # e.g. RuntimeError: error during blosc decompression: 0
             @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-            def fn() -> Any:
-                return self.da.values[t_ix + xy_ix]
+            def _get_data() -> np.ndarray:
+                return self.da[ix].values
 
-            data = fn()
+            data = _get_data()
+
+            # ODC requires the driver to perform nearest neighbour re-sampling to
+            # match `out_shape` when provided. This is intended for sources which support
+            # overviews (e.g. COGS but not zarr currently).
+            # The index sampling method below matches the results of rasterio/GDAL read
+            # with `outshape` specified.
+            # See also: https://github.com/opendatacube/datacube-core/issues/779
+            if out_shape and data.shape != out_shape:
+                if any(s <= 0 for s in out_shape):
+                    data = np.empty(shape=out_shape, dtype=data.dtype)
+                else:
+                    new_ix = [
+                        (np.linspace(d, d * (2 * n - 1), num=n) / (2 * n)).astype(int)
+                        for d, n in zip(data.shape, out_shape)
+                    ]
+                    data = data[np.ix_(*new_ix)]
+
             return data
 
     def __init__(self, band: BandInfo):
@@ -159,16 +158,15 @@ class ZarrDataSource(object):
         # Fixes intermittent Zarr decompression errors when used with Dask
         # e.g. RuntimeError: error during blosc decompression: 0
         @retry(on_exceptions=(RuntimeError, JSONDecodeError))
-        def fn() -> Any:
+        def _open_dataset() -> Any:
             return zio.open_dataset(uri=self.uri)
 
-        dataset = fn()
+        dataset = _open_dataset()
 
         var_name = self._band_info.layer or self._band_info.name
         yield ZarrDataSource.BandDataSource(
             dataset=dataset,
             var_name=var_name,
-            time_idx=self._band_info.band,
             no_data=self._band_info.nodata,
         )
 
@@ -188,88 +186,3 @@ class ZarrReaderDriver(object):
 
 def reader_driver_init() -> ZarrReaderDriver:
     return ZarrReaderDriver()
-
-
-class ZarrWriterDriver(object):
-    def __init__(self) -> None:
-        pass
-
-    @property
-    def aliases(self) -> List:
-        return [f'{a} {b}' for a, b in itertools.product([FORMAT], PROTOCOL)]
-
-    @property
-    def format(self) -> str:
-        return FORMAT
-
-    def mk_uri(self, file_path: str, storage_config: dict) -> str:
-        """
-        Constructs a URI from the file_path and storage config.
-
-        :param Path file_path: The file path of the file to be converted into a URI.
-        :param dict storage_config: The dict holding the storage config found in the
-                                    ingest definition.
-        :return: file_path as a URI that the Driver understands.
-        """
-        driver_alias = storage_config['driver']
-        if driver_alias not in self.aliases:
-            raise ValueError(f'Unknown driver alias: {driver_alias}')
-
-        protocol = driver_alias.split()[1]
-        uri = uri_join(protocol, *str(file_path).split("#", 1))
-        return uri
-
-    def write_dataset_to_storage(
-        self,
-        dataset: xr.Dataset,
-        file_uri: str,
-        global_attributes: Optional[dict] = None,
-        variable_params: Optional[dict] = None,
-        storage_config: Optional[dict] = None,
-        **kwargs: str,
-    ) -> Dict:
-        """
-        Persists a xr.DataSet to storage.
-
-        :param xr.Dataset dataset: The xarray.Dataset to be saved
-        :param str file_uri: The file uri
-        :param Dict global_attributes: Global attributes from the product definition.
-        :param Dict variable_params: Variable parameters from the product definition
-        :param Dict storage_config: Storage config from the product definition
-        :return: a dict containing additional metadata to be saved in the DB
-        """
-        # Flattening atributes: Zarr doesn't allow dicts
-        for var_name in dataset.data_vars:
-            data_var = dataset.data_vars[var_name]
-            if 'spectral_definition' in data_var.attrs:
-                spectral_definition = data_var.attrs.pop('spectral_definition', None)
-                data_var.attrs['dc_spectral_definition_response'] = spectral_definition[
-                    'response'
-                ]
-                data_var.attrs['dc_spectral_definition_wavelength'] = spectral_definition[
-                    'wavelength'
-                ]
-
-        # Renaming units: units is a reserved name in Xarray coordinates
-        for var_name in dataset.coords:
-            coord_var = dataset.coords[var_name]
-            if 'units' in coord_var.attrs:
-                units = coord_var.attrs.pop('units', None)
-                coord_var.attrs['dc_units'] = units
-
-        zio = ZarrIO()
-        # Should be a directory but actually get passed a file, which becomes a directory.
-        metadata = zio.save_dataset_to_zarr(
-            uri=file_uri,
-            dataset=dataset,
-            global_attributes=global_attributes,
-            variable_params=variable_params,
-            storage_config=storage_config,
-        )
-
-        # extra metadata to be stored in database
-        return metadata
-
-
-def writer_driver_init() -> ZarrWriterDriver:
-    return ZarrWriterDriver()

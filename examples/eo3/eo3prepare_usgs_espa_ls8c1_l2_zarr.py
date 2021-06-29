@@ -70,10 +70,22 @@ lineage
 
 # Source metadata elements copied into properties:landsat:<field>
 _COPYABLE_MTL_FIELDS = [
-    ("metadata_file_info", ("landsat_scene_id", "landsat_product_id", "station_id",),),
+    (
+        "metadata_file_info",
+        (
+            "landsat_scene_id",
+            "landsat_product_id",
+            "station_id",
+        ),
+    ),
     (
         "product_metadata",
-        ("ephemeris_type", "wrs_path", "wrs_row", "collection_category"),
+        (
+            "ephemeris_type",
+            "wrs_path",
+            "wrs_row",
+            "collection_category",
+        ),
     ),
     (
         "image_attributes",
@@ -86,7 +98,10 @@ _COPYABLE_MTL_FIELDS = [
             "geometric_rmse_verify",
         ),
     ),
-    ("projection_parameters", ("scan_gap_interpolation",)),
+    (
+        "projection_parameters",
+        ("scan_gap_interpolation",),
+    ),
 ]
 
 # Static namespace to generate uuids for datacube indexing
@@ -106,7 +121,7 @@ def read_mtl(mtl_path: Path, root_element="l1_metadata_file") -> Dict:  # noqa: 
                 pass
         return s
 
-    def _parse_group(lines: Iterable[Union[str, bytes]],) -> dict:
+    def _parse_group(lines: Iterable[Union[str, bytes]]) -> dict:
         tree = {}
         for line in lines:
             # If line is bytes-like convert to str
@@ -163,15 +178,15 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
     works for geotiffs only at this stage.
     """
     ds = ZarrIO().open_dataset(uri=file_path.as_uri())
-    da = ds["band1"]
-    transform = Affine(*ds.transform)
-    crs = CRS.from_proj4(ds.crs)
+    da = ds["array"]
+    transform = Affine(*da.transform)
+    crs = CRS.from_string(da.crs)
     grid = GridSpec(da.shape, transform, crs)
     path = str(file_path.relative_to(assmebler._metadata_path.parent))
     img = da.values
-    nodata = ds.nodatavals[0]
+    nodata = da.nodatavals[0]
     assmebler._measurements.record_image(
-        name=name, grid=grid, path=path, img=img, layer="band1", nodata=nodata
+        name=name, grid=grid, path=path, img=img, layer="array", nodata=nodata
     )
 
 
@@ -179,7 +194,7 @@ def add_measurements(assmebler: EO3DatasetAssembler, name: str, file_path: Path)
 # 2. Populate EO3DatasetAssembler class from source metadata
 # 3. Call p.done() to validate and write the dataset YAML document
 def prepare_and_write(  # noqa: C901
-    ds_path: Path, product_yaml: Path, output_path: Optional[Path], overwrite: bool,
+    ds_path: Path, product_yaml: Path, output_path: Optional[Path], overwrite: bool
 ) -> uuid.UUID:
     """
     Prepare an eo3 metadata file for a Level-2 dataset.

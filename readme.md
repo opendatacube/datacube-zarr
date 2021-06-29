@@ -2,7 +2,7 @@
 
 ## Overview
 
-This provides a Zarr [Plug-in driver](https://datacube-core.readthedocs.io/en/latest/architecture/driver.html)
+This provides a Zarr [Data Read Plug-in](https://datacube-core.readthedocs.io/en/latest/architecture/driver.html) driver.
 for the [Open Data Cube (ODC) project](https://github.com/opendatacube/datacube-core/).
 
 For ODC documentation, please see [ODC documentation](http://datacube-core.readthedocs.io/en/latest/)
@@ -11,23 +11,21 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ## User Guides
 - [zarrify command line tool](/docs/zarrify.md)
-- Index and Ingestion
-  - [Convert to Zarr and Index (Recommended)](/docs/odc_examples.md#convert-to-zarr-and-index-(recommended))
-  - [Index and Ingest](/docs/odc_examples.md#index-and-ingest)
+- [OpenDataCube Index](/docs/odc_examples.md#convert-to-zarr-and-index)
 - [ZarrIO usage](/docs/zarr_io.md)
 
 
 ## Drivers provided
 
-- Zarr 2D driver
+- Zarr 2D/3D driver
   - supports (s3, file) protocols
 
 ## Requirements
 
 ### System:
-- [ODC 1.8+](https://github.com/opendatacube/datacube-core)
+- [ODC 1.8.4+](https://github.com/opendatacube/datacube-core)
 - PostgreSQL 9.5+
-- Python 3.6+
+- Python 3.8+
 
 ### Optional:
 - [EO Datasets](https://github.com/GeoscienceAustralia/eo-datasets)
@@ -42,10 +40,10 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ## Developer setup
 
-1. Install ODC (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
+1. Install ODC with python=3.8 (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
 1. Clone:
    ```
-   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-zarr
+   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub-public/_git/datacube-zarr
    ```
 1. Activate the conda environment you created when installing ODC
    ```

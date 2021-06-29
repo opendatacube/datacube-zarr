@@ -37,6 +37,7 @@ valid_chunk_params = [
     ({}, [-1, -1, -1, -1]),
     ({"x": "auto"}, [-1, -1, -1, "auto"]),
     ({"x": 1, "y": 2, "time": 3}, [3, -1, 2, 1]),
+    ({"x": 5, "something_else": 3}, [-1, -1, -1, 5]),
 ]
 
 
@@ -47,7 +48,7 @@ def test_validate_chunks(chunks_in, chunks_out):
     assert validated_chunks == dict(zip(DIMS, chunks_out))
 
 
-invalid_chunk_params = [{"z": "auto"}, {"x": "-1"}, {"y": -3}, {"time": "Auto"}]
+invalid_chunk_params = [{"x": "-1"}, {"y": -3}, {"time": "Auto"}]
 
 
 @pytest.mark.parametrize("chunks_in", invalid_chunk_params)

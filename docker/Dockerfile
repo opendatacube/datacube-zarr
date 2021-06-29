@@ -1,10 +1,10 @@
-FROM csiroeasi/datacube-drivers-test:develop.latest
+FROM csiroeasi/datacube-drivers-test:3d.latest
 
 # Based on https://github.com/opendatacube/datacube-core/blob/develop/docker/Dockerfile
 
 # Prep postgres database
-RUN install --owner postgres --group postgres -D -d /var/run/postgresql /srv/postgresql \
-  && sudo -u postgres "/usr/lib/postgresql/10/bin/initdb" -D "/srv/postgresql" --auth-host=md5 --encoding=UTF8
+RUN  install --owner postgres --group postgres -D -d /var/run/postgresql /srv/postgresql \
+  && sudo -u postgres "$(find /usr/lib/postgresql/ -type f -name initdb)" -D "/srv/postgresql" --auth-host=md5 --encoding=UTF8
 
 RUN groupadd --gid 1000 odc \
   && useradd --gid 1000 \

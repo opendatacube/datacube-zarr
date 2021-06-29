@@ -3,46 +3,29 @@
 Common methods for index integration tests.
 """
 import itertools
+import multiprocessing
 import os
-import threading
-from copy import copy, deepcopy
-from datetime import timedelta
+import re
 from pathlib import Path
 from time import sleep
-from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
 import boto3
 import datacube.scripts.cli_app
 import datacube.utils
-import yaml
+import fsspec
 from click.testing import CliRunner
 from datacube.config import LocalConfig
 from datacube.drivers.postgres import PostgresDb, _core
 from datacube.index import index_connect
 from datacube.index._metadata_types import default_metadata_type_docs
 from hypothesis import HealthCheck, settings
-from moto import mock_s3
 from moto.server import main as moto_server_main
-from s3path import S3Path, _s3_accessor
+from s3path import S3Path, register_configuration_parameter
 
-from integration_tests.utils import (
-    GEOTIFF,
-    _make_geotiffs,
-    _make_ls5_scene_datasets,
-    copytree,
-    load_test_products,
-    load_yaml_file,
-)
-
-_SINGLE_RUN_CONFIG_TEMPLATE = """
-
-"""
+from integration_tests.utils import copytree
 
 INTEGRATION_TESTS_DIR = Path(__file__).parent
-
-_EXAMPLE_LS5_NBAR_DATASET_FILE = INTEGRATION_TESTS_DIR / 'example-ls5-nbar.yaml'
 
 #: Number of time slices to create in sample data
 NUM_TIME_SLICES = 3
@@ -72,20 +55,6 @@ settings.register_profile(
 )
 settings.load_profile('opendatacube')
 
-s3_count = 0
-'''Give a new ID to each moto bucket as they don't seem to clean properly between
-runs.'''
-
-
-_MOCK_S3_REGION = "mock-region"
-
-
-@pytest.fixture
-def s3_bucket_name():
-    global s3_count
-    yield f'mock-bucket-integration-{s3_count}'
-    s3_count += 1
-
 
 @pytest.fixture(scope='session')
 def monkeypatch_session():
@@ -101,11 +70,18 @@ def monkeypatch_session():
 
 
 @pytest.fixture(scope='session')
-def mock_aws_aws_credentials(monkeypatch_session):
+def moto_aws_credentials(monkeypatch_session):
     '''Mocked AWS Credentials for moto.'''
-    monkeypatch_session.setenv('AWS_ACCESS_KEY_ID', 'mock-key-id')
-    monkeypatch_session.setenv('AWS_SECRET_ACCESS_KEY', 'mock-secret')
-    monkeypatch_session.setenv('AWS_DEFAULT_REGION', _MOCK_S3_REGION)
+
+    MOCK_AWS_CREDENTIALS = {
+        'AWS_ACCESS_KEY_ID': 'mock-key-id',
+        'AWS_SECRET_ACCESS_KEY': 'mock-secret',
+        'AWS_DEFAULT_REGION': "mock-region",
+    }
+    for k, v in MOCK_AWS_CREDENTIALS.items():
+        monkeypatch_session.setenv(k, v)
+
+    return MOCK_AWS_CREDENTIALS
 
 
 @pytest.fixture(scope="session")
@@ -113,40 +89,123 @@ def moto_s3_server(monkeypatch_session):
     """Mock AWS S3 Server."""
     address = "http://127.0.0.1:5000"
 
-    # GDAL AWS connection options
-    monkeypatch_session.setenv('AWS_S3_ENDPOINT', address.split("://")[1])
+    # Run a moto server
+    proc = multiprocessing.Process(
+        target=moto_server_main,
+        name="moto_s3_server",
+        args=(["s3"],),
+        daemon=True,
+    )
+    proc.start()
+    sleep(0.3)
+    yield address
+    proc.terminate()
+    proc.join()
+
+
+@pytest.fixture(scope='session')
+def gdal_mock_s3_endpoint(moto_s3_server, monkeypatch_session):
+    """Set environment variables for GDAL/rasterio to access moto server."""
+    monkeypatch_session.setenv('AWS_S3_ENDPOINT', moto_s3_server.split("://")[1])
     monkeypatch_session.setenv('AWS_VIRTUAL_HOSTING', 'FALSE')
     monkeypatch_session.setenv('AWS_HTTPS', 'NO')
 
-    # Run a moto server
-    thread = threading.Thread(target=moto_server_main, args=(["s3"],))
-    thread.daemon = True
-    thread.start()
-    sleep(0.3)
-    yield address
+
+@pytest.fixture(scope='session')
+def fsspec_mock_s3_endpoint(moto_s3_server, moto_aws_credentials):
+    """Set the boto s3 endpoint via fspec config.
+
+    Boto libraries don't offer any way to do this."""
+
+    fsspec_conf = {
+        "s3": {
+            "client_kwargs": {
+                "endpoint_url": moto_s3_server,
+                "region_name": moto_aws_credentials['AWS_DEFAULT_REGION'],
+            }
+        }
+    }
+    fsspec.config.conf.update(fsspec_conf)
 
 
 @pytest.fixture(scope="session")
-def s3_client(moto_s3_server, mock_aws_aws_credentials):
-    '''Mock s3 client.'''
-    with mock_s3():
-        client = boto3.client('s3', region_name=_MOCK_S3_REGION)
-        _s3_accessor.s3 = boto3.resource('s3', region_name=_MOCK_S3_REGION)
-        yield client
-
-
-@pytest.fixture
-def s3(s3_client, s3_bucket_name):
-    '''Mock s3 client and root url.'''
-    s3_client.create_bucket(
-        Bucket=s3_bucket_name,
-        CreateBucketConfiguration={'LocationConstraint': _MOCK_S3_REGION},
+def moto_s3_resource(moto_s3_server, moto_aws_credentials):
+    """A boto3 s3 resource pointing to the moto server."""
+    s3resource = boto3.resource(
+        's3',
+        endpoint_url=moto_s3_server,
+        aws_access_key_id=moto_aws_credentials['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=moto_aws_credentials['AWS_SECRET_ACCESS_KEY'],
+        # config=Config(signature_version='s3v4'),
+        region_name=moto_aws_credentials['AWS_DEFAULT_REGION'],
     )
-    root = f'{s3_bucket_name}/mock-dir/mock-subdir'
-    yield {'client': s3_client, 'root': root}
+    return s3resource
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
+def s3path_mock_s3_endpoint(moto_s3_resource):
+    """Set boto resource for s3path libaray to access moto server."""
+    all_buckets = S3Path('/')
+    register_configuration_parameter(all_buckets, resource=moto_s3_resource)
+
+
+@pytest.fixture(scope="session")
+def s3(
+    gdal_mock_s3_endpoint,
+    s3path_mock_s3_endpoint,
+    fsspec_mock_s3_endpoint,
+):
+    """Collect together all requires per-session mock s3 fixtures and return a bucket."""
+    s3_bucket = S3Path("/mock-s3-bucket-integration")
+    s3_bucket.mkdir()
+    return s3_bucket
+
+
+@pytest.fixture(scope="session")
+def tmp_s3path_factory(s3):
+    """S3Path version of pytest tmp_path_factory."""
+
+    def _as_int(s):
+        try:
+            return int(s)
+        except ValueError:
+            return -1
+
+    class TmpS3PathFactory:
+        def __init__(self, basetmp):
+            self.basetmp = basetmp
+
+        def mktemp(self, name):
+            suffixes = [
+                str(p.relative_to(self.basetmp))[len(name) :]
+                for p in self.basetmp.glob(f"{name}*")
+            ]
+            max_existing = max([_as_int(s) for s in suffixes], default=-1)
+            p = self.basetmp / f"{name}{max_existing + 1}"
+            return p
+
+    return TmpS3PathFactory(basetmp=s3 / "pytest")
+
+
+@pytest.fixture()
+def tmp_s3path(request, tmp_s3path_factory):
+    """S3Path vesrion of tmp_path fixture."""
+    MAXVAL = 30
+    name = re.sub(r"[\W]", "_", request.node.name)[:MAXVAL]
+    return tmp_s3path_factory.mktemp(name)
+
+
+@pytest.fixture(params=('file', 's3'))
+def tmp_storage_path(request, tmp_path, tmp_s3path):
+    return tmp_s3path if request.param == "s3" else tmp_path
+
+
+@pytest.fixture()
+def tmp_input_storage_path(tmp_storage_path):
+    return tmp_storage_path / "input"
+
+
+@pytest.fixture(scope="session")
 def global_integration_cli_args():
     """
     The first arguments to pass to a cli command for integration test configuration.
@@ -174,22 +233,12 @@ def local_config(datacube_env_name):
     return LocalConfig.find(CONFIG_FILE_PATHS, env=datacube_env_name)
 
 
-@pytest.fixture(params=['file', 's3'])
-def ingest_configs(datacube_env_name, request):
-    """ Provides dictionary product_name => config file name
-    """
-    return {
-        'ls5_nbar_albers': f'ls5_nbar_albers_zarr_{request.param}.yaml',
-        'ls5_pq_albers': f'ls5_pq_albers_zarr_{request.param}.yaml',
-    }
-
-
-@pytest.fixture(params=["US/Pacific", "UTC"])
-def uninitialised_postgres_db(local_config, request):
+@pytest.fixture
+def uninitialised_postgres_db(local_config):
     """
     Return a connection to an empty PostgreSQL database
     """
-    timezone = request.param
+    timezone = "UTC"
     db = PostgresDb.from_config(
         local_config, application_name='test-run', validate_connection=False
     )
@@ -202,7 +251,7 @@ def uninitialised_postgres_db(local_config, request):
 
     # We need to run this as well
     # I think because SQLAlchemy grabs them into it's MetaData,
-    # and attempts to recreate them. WTF TODO FIX
+    # and attempts to recreate them. TODO FIX
     remove_dynamic_indexes()
 
     yield db
@@ -225,15 +274,6 @@ def index_empty(local_config, uninitialised_postgres_db: PostgresDb):
     return index
 
 
-@pytest.fixture
-def initialised_postgres_db(index):
-    """
-    Return a connection to an PostgreSQL database, initialised with the default schema
-    and tables.
-    """
-    return index._db
-
-
 def remove_dynamic_indexes():
     """
     Clear any dynamically created postgresql indexes from the schema.
@@ -246,165 +286,8 @@ def remove_dynamic_indexes():
 
 
 @pytest.fixture
-def ls5_telem_doc(ga_metadata_type):
-    return {
-        "name": "ls5_telem_test",
-        "description": 'LS5 Test',
-        "metadata": {
-            "platform": {"code": "LANDSAT_5"},
-            "product_type": "satellite_telemetry_data",
-            "ga_level": "P00",
-            "format": {"name": "RCC"},
-        },
-        "metadata_type": ga_metadata_type.name,
-    }
-
-
-@pytest.fixture
-def ls5_telem_type(index, ls5_telem_doc):
-    return index.products.add_document(ls5_telem_doc)
-
-
-@pytest.fixture(scope='session')
-def geotiffs(tmpdir_factory):
-    """Create test geotiffs and corresponding yamls.
-
-    We create one yaml per time slice, itself comprising one geotiff
-    per band, each with specific custom data that can be later
-    tested. These are meant to be used by all tests in the current
-    session, by way of symlinking the yamls and tiffs returned by this
-    fixture, in order to save disk space (and potentially generation
-    time).
-
-    The yamls are customised versions of
-    :ref:`_EXAMPLE_LS5_NBAR_DATASET_FILE` shifted by 24h and with
-    spatial coords reflecting the size of the test geotiff, defined in
-    :ref:`GEOTIFF`.
-
-    :param tmpdir_fatory: pytest tmp dir factory.
-    :return: List of dictionaries like::
-
-        {
-            'day':..., # compact day string, e.g. `19900302`
-            'uuid':..., # a unique UUID for this dataset (i.e. specific day)
-            'path':..., # path to the yaml ingestion file
-            'tiffs':... # list of paths to the actual geotiffs in that dataset,
-                        # one per band.
-        }
-
-    """
-    tiffs_dir = tmpdir_factory.mktemp('tiffs')
-
-    config = load_yaml_file(_EXAMPLE_LS5_NBAR_DATASET_FILE)[0]
-
-    # Customise the spatial coordinates
-    ul = GEOTIFF['ul']
-    lr = {
-        dim: ul[dim] + GEOTIFF['shape'][dim] * GEOTIFF['pixel_size'][dim]
-        for dim in ('x', 'y')
-    }
-    config['grid_spatial']['projection']['geo_ref_points'] = {
-        'ul': ul,
-        'ur': {'x': lr['x'], 'y': ul['y']},
-        'll': {'x': ul['x'], 'y': lr['y']},
-        'lr': lr,
-    }
-    # Generate the custom geotiff yamls
-    return [
-        _make_tiffs_and_yamls(tiffs_dir, config, day_offset)
-        for day_offset in range(NUM_TIME_SLICES)
-    ]
-
-
-def _make_tiffs_and_yamls(tiffs_dir, config, day_offset):
-    """Make a custom yaml and tiff for a day offset.
-
-    :param path-like tiffs_dir: The base path to receive the tiffs.
-    :param dict config: The yaml config to be cloned and altered.
-    :param int day_offset: how many days to offset the original yaml by.
-    """
-    config = deepcopy(config)
-
-    # Increment all dates by the day_offset
-    delta = timedelta(days=day_offset)
-    day_orig = config['acquisition']['aos'].strftime('%Y%m%d')
-    config['acquisition']['aos'] += delta
-    config['acquisition']['los'] += delta
-    config['extent']['from_dt'] += delta
-    config['extent']['center_dt'] += delta
-    config['extent']['to_dt'] += delta
-    day = config['acquisition']['aos'].strftime('%Y%m%d')
-
-    # Set the main UUID and assign random UUIDs where needed
-    uuid = uuid4()
-    config['id'] = str(uuid)
-    level1 = config['lineage']['source_datasets']['level1']
-    level1['id'] = str(uuid4())
-    level1['lineage']['source_datasets']['satellite_telemetry_data']['id'] = str(uuid4())
-
-    # Alter band data
-    bands = config['image']['bands']
-    for band in bands.keys():
-        # Copy dict to avoid aliases in yaml output (for better legibility)
-        bands[band]['shape'] = copy(GEOTIFF['shape'])
-        bands[band]['cell_size'] = {
-            dim: abs(GEOTIFF['pixel_size'][dim]) for dim in ('x', 'y')
-        }
-        bands[band]['path'] = (
-            bands[band]['path'].replace('product/', '').replace(day_orig, day)
-        )
-
-    dest_path = str(tiffs_dir.join('agdc-metadata_%s.yaml' % day))
-    with open(dest_path, 'w') as dest_yaml:
-        yaml.dump(config, dest_yaml)
-    return {
-        'day': day,
-        'uuid': uuid,
-        'path': dest_path,
-        'tiffs': _make_geotiffs(tiffs_dir, day_offset),  # make 1 geotiff per band
-    }
-
-
-@pytest.fixture
-def example_ls5_dataset_path(example_ls5_dataset_paths):
-    """Create a single sample raw observation (dataset + geotiff)."""
-    return list(example_ls5_dataset_paths.values())[0]
-
-
-@pytest.fixture
-def example_ls5_dataset_paths(tmpdir, geotiffs):
-    """Create sample raw observations (dataset + geotiff).
-
-    This fixture should be used by eah test requiring a set of
-    observations over multiple time slices. The actual geotiffs and
-    corresponding yamls are symlinks to a set created for the whole
-    test session, in order to save disk and time.
-
-    :param tmpdir: The temp directory in which to create the datasets.
-    :param list geotiffs: List of session geotiffs and yamls, to be
-      linked from this unique observation set sample.
-    :return: dict: Dict of directories containing each observation,
-      indexed by dataset UUID.
-    """
-    dataset_dirs = _make_ls5_scene_datasets(geotiffs, tmpdir)
-    return dataset_dirs
-
-
-@pytest.fixture
 def default_metadata_type_doc():
     return [doc for doc in default_metadata_type_docs() if doc['name'] == 'eo'][0]
-
-
-@pytest.fixture
-def telemetry_metadata_type_doc():
-    return [doc for doc in default_metadata_type_docs() if doc['name'] == 'telemetry'][0]
-
-
-@pytest.fixture
-def ga_metadata_type_doc():
-    _full_eo_metadata = Path(__file__).parent.joinpath('extensive-eo-metadata.yaml')
-    [(path, eo_md_type)] = datacube.utils.read_documents(_full_eo_metadata)
-    return eo_md_type
 
 
 @pytest.fixture
@@ -416,63 +299,24 @@ def default_metadata_types(index):
 
 
 @pytest.fixture
-def ga_metadata_type(index, ga_metadata_type_doc):
-    return index.metadata_types.add(index.metadata_types.from_doc(ga_metadata_type_doc))
-
-
-@pytest.fixture
 def default_metadata_type(index, default_metadata_types):
     return index.metadata_types.get_by_name('eo')
 
 
-@pytest.fixture
-def telemetry_metadata_type(index, default_metadata_types):
-    return index.metadata_types.get_by_name('telemetry')
-
-
-@pytest.fixture
-def indexed_ls5_scene_products(index, ga_metadata_type):
-    """Add Landsat 5 scene Products into the Index"""
-    products = load_test_products(
-        CONFIG_SAMPLES / 'dataset_types' / 'ls5_scenes.yaml',
-        # Use our larger metadata type with a more diverse set of field types.
-        metadata_type=ga_metadata_type,
-    )
-
-    types = []
-    for product in products:
-        types.append(index.products.add_document(product))
-
-    return types
-
-
-@pytest.fixture(params=["file", "s3"])
-def ls5_dataset_path(request, s3, tmp_path):
+@pytest.fixture()
+def ls5_dataset_path(tmp_input_storage_path):
     """LS5 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "lbg"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+    dataset_path = tmp_input_storage_path / "geotifs" / "lbg"
     copytree(TEST_DATA, dataset_path)
     return dataset_path
 
 
-@pytest.fixture(params=["file"])
-def ls8_dataset_path(request, s3, tmp_path):
-    """LS8 test dataset on filesystem and s3."""
-    if request.param == "file":
-        dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
-    else:
-        bucket, root = s3["root"].split("/", 1)
-        dataset_path = S3Path(f"/{bucket}/{root}/geotifs/lbg")
+@pytest.fixture()
+def ls8_dataset_path(tmp_path):
+    """LS8 test dataset on filesystem."""
+    dataset_path = tmp_path / "geotifs" / "espa" / "ls8_sr"
     copytree(TEST_DATA_LS8, dataset_path)
     return dataset_path
-
-
-@pytest.fixture
-def example_ls5_nbar_metadata_doc():
-    return load_yaml_file(_EXAMPLE_LS5_NBAR_DATASET_FILE)[0]
 
 
 @pytest.fixture
@@ -500,40 +344,3 @@ def clirunner(global_integration_cli_args, datacube_env_name):
         return result
 
     return _run_cli
-
-
-@pytest.fixture
-def clirunner_raw():
-    def _run_cli(
-        opts,
-        catch_exceptions=False,
-        expect_success=True,
-        cli_method=datacube.scripts.cli_app.cli,
-        verbose_flag='-v',
-    ):
-        exe_opts = []
-        if verbose_flag:
-            exe_opts.append(verbose_flag)
-        exe_opts.extend(opts)
-
-        runner = CliRunner()
-        result = runner.invoke(cli_method, exe_opts, catch_exceptions=catch_exceptions)
-        if expect_success:
-            assert 0 == result.exit_code, "Error for %r. output: %r" % (
-                opts,
-                result.output,
-            )
-        return result
-
-    return _run_cli
-
-
-@pytest.fixture
-def dataset_add_configs():
-    base = INTEGRATION_TESTS_DIR / 'data' / 'dataset_add'
-    return SimpleNamespace(
-        metadata=str(base / 'metadata.yml'),
-        products=str(base / 'products.yml'),
-        datasets_bad1=str(base / 'datasets_bad1.yml'),
-        datasets=str(base / 'datasets.yml'),
-    )

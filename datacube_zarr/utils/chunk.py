@@ -45,7 +45,7 @@ def calculate_auto_chunk_sizes(
     else:
         chunk_rem = chunk_total / fixed_size
         auto_chunks = {d: sizes[d] for d in auto_dims}
-        for i, d in enumerate(sorted(auto_chunks, key=auto_chunks.get)):
+        for i, d in enumerate(sorted(auto_chunks, key=lambda k: auto_chunks[k])):
             c = int(np.round(chunk_rem ** (1.0 / (len(auto_dims) - i))))
             if auto_chunks[d] > c:
                 auto_chunks[d] = c
@@ -59,7 +59,7 @@ def calculate_auto_chunk_sizes(
 
 
 def validate_chunks(
-    dims: Sequence[Hashable], chunks: Optional[Mapping[Hashable, Union[str, int]]] = None,
+    dims: Sequence[Hashable], chunks: Optional[Mapping[Hashable, Union[str, int]]] = None
 ) -> Dict[Hashable, Union[str, int]]:
     """Validate chunk dict and set default chunk size to -1 (no chunking).
 
@@ -73,10 +73,8 @@ def validate_chunks(
     if chunks is None:
         chunks = {}
 
-    # Check all dimensions are valid
-    invalid_dims = [d for d in chunks if d not in dims]
-    if invalid_dims:
-        raise ValueError(f"Invalid chunking dim(s) specified: {invalid_dims}.")
+    # Remove chunk specifications for dimensions not present
+    chunks = {k: v for k, v in chunks.items() if k in dims}
 
     # Check chunk values are valid
     def _is_valid_chunks(c: Union[int, str]) -> bool:
@@ -123,7 +121,7 @@ def chunk_dataset(
     else:
         chunk_size_bytes = target_mb * (1024 ** 2) * compression_ratio
         for name, da in ds.data_vars.items():
-            da_chunk_total = chunk_size_bytes / da.dtype.itemsize
+            da_chunk_total = int(chunk_size_bytes // da.dtype.itemsize)
             da_chunks = calculate_auto_chunk_sizes(da.sizes, chunks, da_chunk_total)
             logger.debug(
                 f"Auto chunking array {name} with: {da_chunks} (target_mb={target_mb}, "
