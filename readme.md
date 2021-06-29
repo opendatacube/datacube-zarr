@@ -17,15 +17,15 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ## Drivers provided
 
-- Zarr 2D driver
+- Zarr 2D/3D driver
   - supports (s3, file) protocols
 
 ## Requirements
 
 ### System:
-- [ODC 1.8+](https://github.com/opendatacube/datacube-core)
+- [ODC 1.8.4+](https://github.com/opendatacube/datacube-core)
 - PostgreSQL 9.5+
-- Python 3.6+
+- Python 3.8+
 
 ### Optional:
 - [EO Datasets](https://github.com/GeoscienceAustralia/eo-datasets)
@@ -40,10 +40,10 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ## Developer setup
 
-1. Install ODC (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
+1. Install ODC with python=3.8 (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
 1. Clone:
    ```
-   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub/_git/datacube-zarr
+   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub-public/_git/datacube-zarr
    ```
 1. Activate the conda environment you created when installing ODC
    ```
