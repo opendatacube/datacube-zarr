@@ -1,4 +1,4 @@
-# Open Data Cube Zarr Driver
+# Open Data Cube Zarr Prototype Driver
 
 ## Overview
 
@@ -24,6 +24,7 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 
 ### System:
 - [ODC 1.8.4+](https://github.com/opendatacube/datacube-core)
+  - For 3D native reads, use [this branch](https://github.com/opendatacube/datacube-core/tree/3d-datasets-native)
 - PostgreSQL 9.5+
 - Python 3.8+
 
@@ -43,7 +44,7 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
 1. Install ODC with python=3.8 (see [ODC developer setup](https://github.com/opendatacube/datacube-core#developer-setup))
 1. Clone:
    ```
-   git clone https://csiro-easi@dev.azure.com/csiro-easi/easi-hub-public/_git/datacube-zarr
+   git clone https://github.com/opendatacube/datacube-zarr.git
    ```
 1. Activate the conda environment you created when installing ODC
    ```
@@ -64,9 +65,3 @@ See [https://zarr.readthedocs.io/](https://zarr.readthedocs.io/) for Zarr storag
    ```
    - Assumes a password-less Postgres database running on localhost called `agdcintegration`
    - Otherwise copy `integration_tests/agdcintegration.conf` to `~/.datacube_integration.conf` and edit to customise.
- 1. **(or)** Run all tests, including integration tests with docker
-    ```
-    docker build -t datacube-zarr-test -f docker/Dockerfile .
-    docker run --rm datacube-zarr-test ./check-code.sh integration_tests/
-    ```
-    - This includes a database server pre-configured for running integration tests.
